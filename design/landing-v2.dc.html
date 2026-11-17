@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0b0b;color:#f5f5f5}
+a{color:#f5f5f5;text-underline-offset:3px}
+a:hover{color:#ffffff}
+input,button{font:inherit}
+summary{list-style:none;cursor:pointer}
+summary::-webkit-details-marker{display:none}
+html{scroll-behavior:smooth}
+::selection{background:#3a3a3a}
+@keyframes rbProgress{from{width:0}to{width:100%}}
+</style>
+</helmet>
+<div style="min-height:100vh; background:#0b0b0b; color:#f5f5f5; font-family:'Geist',system-ui,sans-serif; -webkit-font-smoothing:antialiased; font-size:16px">
+
+<header style="position:sticky; top:0; z-index:40; background:rgba(11,11,11,.82); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border-bottom:1px solid #1c1c1c">
+  <div style="max-width:1200px; margin:0 auto; padding:14px clamp(20px,4vw,40px); display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap">
+    <a href="#top" style="display:flex; align-items:center; gap:12px; text-decoration:none">
+      <img src="assets/logo-80.png" alt="RankbyAI" style="height:34px; width:auto; display:block">
+      <div style="display:flex; flex-direction:column; gap:3px">
+        <span style="font-weight:600; font-size:17px; letter-spacing:-0.02em; line-height:1">rankbyai<span style="color:#8a8a8a">.live</span></span>
+        <span style="font:500 10px/1 'Geist Mono',monospace; letter-spacing:.12em; color:#8a8a8a">AI VISIBILITY</span>
+      </div>
+    </a>
+    <nav style="display:flex; gap:clamp(16px,3vw,36px); font-size:15px">
+      <a href="#features" style="text-decoration:none; color:#a1a1a1" style-hover="color:#f5f5f5">Features</a>
+      <a href="#how" style="text-decoration:none; color:#a1a1a1" style-hover="color:#f5f5f5">How it works</a>
+      <a href="#pricing" style="text-decoration:none; color:#a1a1a1" style-hover="color:#f5f5f5">Pricing</a>
+      <a href="#faq" style="text-decoration:none; color:#a1a1a1" style-hover="color:#f5f5f5">FAQ</a>
+    </nav>
+    <div style="display:flex; align-items:center; gap:22px">
+      <a href="#top" style="text-decoration:none; font-weight:500; font-size:15px">Log in</a>
+      <a href="#pricing" style="text-decoration:none; background:#f5f5f5; color:#0b0b0b; padding:9px 14px; border-radius:9px; font-weight:600; font-size:15px; display:flex; gap:8px" style-hover="background:#ffffff; color:#0b0b0b"><span>Get lifetime access — ${{ price }}</span><span>→</span></a>
+    </div>
+  </div>
+</header>
+
+<section id="top" style="max-width:1200px; margin:0 auto; padding:clamp(72px,9vw,128px) clamp(20px,4vw,40px) clamp(48px,6vw,80px); display:flex; flex-direction:column; align-items:center; text-align:center; gap:28px">
+  <div style="display:flex; align-items:center; gap:10px; border:1px solid #262626; background:#111111; border-radius:999px; padding:8px 16px; font-size:14px; color:#a1a1a1">
+    <span style="width:8px; height:8px; border-radius:50%; background:#ef5b5b; box-shadow:0 0 0 4px rgba(239,91,91,.15)"></span><span style="color:#f5f5f5; font-weight:600; white-space:nowrap">{{ left }} left at ${{ price }}</span><span>·</span><span>then ${{ nextPrice }}</span>
+  </div>
+  <h1 style="margin:0; font-weight:600; font-size:clamp(44px,6.6vw,88px); line-height:1.02; letter-spacing:-0.045em; max-width:980px; text-wrap:balance">Local AI visibility software you pay for once.</h1>
+  <p style="margin:0; max-width:760px; font-size:clamp(17px,1.5vw,21px); line-height:1.55; color:#a1a1a1; text-wrap:pretty">See if ChatGPT, Claude, Perplexity and Gemini recommend a business at every point on a map grid, next to its Google Maps rank. <span style="color:#f5f5f5">Pay once, not every month.</span> A 7×7 scan costs about 10¢ on your own DataForSEO key.</p>
+  <div style="width:100%; max-width:860px; background:#111111; border:1px solid #262626; border-radius:18px; padding:22px clamp(16px,3vw,32px); display:flex; flex-direction:column; gap:18px">
+    <span style="font-size:14px; color:#8a8a8a">One year of monthly 7×7 scans on all four AI engines, for 10 clients</span>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:18px">
+      <div style="display:flex; flex-direction:column; gap:6px; align-items:center"><span style="font:600 clamp(28px,3.2vw,38px)/1 'Geist Mono',monospace; color:#7a7a7a; text-decoration:line-through; text-decoration-color:#ef5b5b; text-decoration-thickness:2px">{{ planYr }}</span><span style="font-size:14px; color:#a1a1a1">A ${{ plan }}/month tracker</span></div>
+      <div style="display:flex; flex-direction:column; gap:6px; align-items:center"><span style="font:600 clamp(28px,3.2vw,38px)/1 'Geist Mono',monospace; color:#f5f5f5">{{ heroY1 }}</span><span style="font-size:14px; color:#a1a1a1">RankbyAI, year one</span></div>
+      <div style="display:flex; flex-direction:column; gap:6px; align-items:center"><span style="font:600 clamp(28px,3.2vw,38px)/1 'Geist Mono',monospace; color:oklch(0.72 0.16 150)">{{ heroY2 }}</span><span style="font-size:14px; color:#f5f5f5">Every year after, on your keys</span></div>
+    </div>
+  </div>
+  <a href="#pricing" style="text-decoration:none; background:#f5f5f5; color:#0b0b0b; padding:17px 26px; border-radius:12px; font-weight:600; font-size:18px; display:flex; gap:10px" style-hover="background:#ffffff; color:#0b0b0b"><span>Get lifetime access — ${{ price }}</span><span>→</span></a>
+  <span style="font-size:14px; color:#8a8a8a">One payment. No monthly fee. No credits. {{ refund }}-day refund, no questions.</span>
+  <a href="#tour" style="text-decoration:none; color:#a1a1a1; font-weight:500" style-hover="color:#f5f5f5">See how it works ↓</a>
+</section>
+
+<section id="tour" style="max-width:1080px; margin:0 auto; padding:0 clamp(20px,4vw,40px) clamp(80px,10vw,128px); display:flex; flex-direction:column; gap:22px; scroll-margin-top:90px">
+  <div style="background:#0e0e0e; border:1px solid #262626; border-radius:22px; overflow:hidden; position:relative; box-shadow:0 40px 120px -40px rgba(0,0,0,.9)">
+    <div style="display:flex; align-items:center; gap:14px; padding:13px 18px; border-bottom:1px solid #1c1c1c">
+      <div style="display:flex; gap:7px"><span style="width:11px; height:11px; border-radius:50%; background:#ff5f57"></span><span style="width:11px; height:11px; border-radius:50%; background:#febc2e"></span><span style="width:11px; height:11px; border-radius:50%; background:#28c840"></span></div>
+      <span style="background:#1a1a1a; border-radius:999px; padding:6px 16px; font-size:13px; color:#a1a1a1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ stepUrl }}</span>
+    </div>
+    <div style="padding:clamp(18px,3vw,32px) clamp(18px,3vw,32px) 96px; min-height:440px">
+      <sc-if value="{{ isScan }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; flex-direction:column; gap:18px">
+          <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap">
+            <div style="display:flex; flex-direction:column; gap:4px; text-align:left"><span style="font-weight:600; font-size:20px">Lone Star Plumbing</span><span style="font-size:14px; color:#8a8a8a">Sample data · “best plumber in Austin, TX” · 7×7 grid</span></div>
+            <div style="display:flex; flex-wrap:wrap; gap:4px; background:#161616; border:1px solid #262626; padding:4px; border-radius:10px">
+              <sc-for list="{{ engineTabs }}" as="t" hint-placeholder-count="3">
+                <button onClick="{{ t.onClick }}" style="border:0; border-radius:7px; padding:7px 11px; cursor:pointer; font:500 13px 'Geist',sans-serif; background:{{ t.bg }}; color:{{ t.fg }}; display:flex; gap:6px; align-items:baseline">{{ t.label }}<span style="font:500 11px 'Geist Mono',monospace; opacity:.75">{{ t.cov }}</span></button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:18px">
+            <div style="display:flex; flex-direction:column; gap:8px">
+              <div style="display:flex; justify-content:space-between; font-size:13px; color:#a1a1a1"><span style="color:#f5f5f5">{{ engineLabel }} recommends you</span><span style="font-family:'Geist Mono',monospace">{{ aiStat }}</span></div>
+              <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:5px; padding:12px; border-radius:12px; background-color:#121212; background-image:linear-gradient(#1a1a1a 1px,transparent 1px),linear-gradient(90deg,#1a1a1a 1px,transparent 1px); background-size:26px 26px; border:1px solid #1f1f1f">
+                <sc-for list="{{ aiCells }}" as="c" hint-placeholder-count="49">
+                  <button onClick="{{ c.onClick }}" title="{{ c.title }}" style="aspect-ratio:1; border:0; padding:0; border-radius:50%; cursor:pointer; display:grid; place-items:center; font:600 11px 'Geist Mono',monospace; background:{{ c.bg }}; color:{{ c.fg }}; box-shadow:{{ c.ring }}; opacity:{{ c.op }}; transform:scale({{ c.sc }}); transition:opacity .35s ease,transform .35s ease; transition-delay:{{ c.delay }}">{{ c.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px">
+              <div style="display:flex; justify-content:space-between; font-size:13px; color:#a1a1a1"><span style="color:#f5f5f5">Google Maps rank</span><span style="font-family:'Geist Mono',monospace">{{ mapStat }}</span></div>
+              <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:5px; padding:12px; border-radius:12px; background-color:#121212; background-image:linear-gradient(#1a1a1a 1px,transparent 1px),linear-gradient(90deg,#1a1a1a 1px,transparent 1px); background-size:26px 26px; border:1px solid #1f1f1f">
+                <sc-for list="{{ mapCells }}" as="c" hint-placeholder-count="49">
+                  <button onClick="{{ c.onClick }}" title="{{ c.title }}" style="aspect-ratio:1; border:0; padding:0; border-radius:50%; cursor:pointer; display:grid; place-items:center; font:600 11px 'Geist Mono',monospace; background:{{ c.bg }}; color:{{ c.fg }}; box-shadow:{{ c.ring }}; opacity:{{ c.op }}; transform:scale({{ c.sc }}); transition:opacity .35s ease,transform .35s ease; transition-delay:{{ c.delay }}">{{ c.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isCompare }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; flex-direction:column; gap:22px; text-align:left">
+          <div style="display:flex; flex-direction:column; gap:4px"><span style="font-weight:600; font-size:20px">Compare scans</span><span style="font-size:14px; color:#8a8a8a">Lone Star Plumbing · 14 Oct → 14 Nov 2026 · points recommended out of 49</span></div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px">
+            <div style="background:#141414; border:1px solid #262626; border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:8px"><span style="font-size:14px; color:#a1a1a1">ChatGPT</span><span style="font:600 44px/1 'Geist Mono',monospace; color:oklch(0.72 0.16 150)">+9</span><span style="font:500 13px 'Geist Mono',monospace; color:#8a8a8a">22 → 31</span></div>
+            <div style="background:#141414; border:1px solid #262626; border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:8px"><span style="font-size:14px; color:#a1a1a1">Claude</span><span style="font:600 44px/1 'Geist Mono',monospace; color:oklch(0.72 0.16 150)">+6</span><span style="font:500 13px 'Geist Mono',monospace; color:#8a8a8a">15 → 21</span></div>
+            <div style="background:#141414; border:1px solid #262626; border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:8px"><span style="font-size:14px; color:#a1a1a1">Perplexity</span><span style="font:600 44px/1 'Geist Mono',monospace; color:oklch(0.72 0.16 150)">+4</span><span style="font:500 13px 'Geist Mono',monospace; color:#8a8a8a">18 → 22</span></div>
+            <div style="background:#141414; border:1px solid #262626; border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:8px"><span style="font-size:14px; color:#a1a1a1">Gemini</span><span style="font:600 44px/1 'Geist Mono',monospace; color:oklch(0.7 0.17 50)">−2</span><span style="font:500 13px 'Geist Mono',monospace; color:#8a8a8a">19 → 17</span></div>
+            <div style="background:#141414; border:1px solid #262626; border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:8px"><span style="font-size:14px; color:#a1a1a1">Maps top-3</span><span style="font:600 44px/1 'Geist Mono',monospace; color:oklch(0.72 0.16 150)">+2</span><span style="font:500 13px 'Geist Mono',monospace; color:#8a8a8a">16 → 18</span></div>
+          </div>
+          <div style="background:#141414; border:1px solid #262626; border-radius:14px; padding:16px 18px; font-size:15px; line-height:1.55; color:#a1a1a1">Gemini lost two points north-east of the pin, where a competitor published an FAQ page. <span style="color:#f5f5f5">That shows up as a P1 in the next audit.</span></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isAudit }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:16px; text-align:left">
+          <div style="background:#141414; border:1px solid #262626; border-radius:16px; padding:24px; display:flex; gap:22px; align-items:center; flex-wrap:wrap">
+            <div style="width:120px; height:120px; border-radius:50%; background:conic-gradient(oklch(0.72 0.16 150) 0 64%, #262626 64% 100%); display:grid; place-items:center; flex:none">
+              <div style="width:98px; height:98px; border-radius:50%; background:#141414; display:flex; align-items:baseline; justify-content:center; padding-top:30px; box-sizing:border-box"><span style="font:600 36px/1 'Geist Mono',monospace">64</span><span style="font:500 13px 'Geist Mono',monospace; color:#8a8a8a">/100</span></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px; min-width:0">
+              <span style="font:500 12px 'Geist',sans-serif; letter-spacing:.06em; text-transform:uppercase; color:#8a8a8a">AI visibility score</span>
+              <span style="font-weight:600; font-size:19px; line-height:1.25">5 fixes, highest impact first</span>
+              <div style="display:flex; flex-wrap:wrap; gap:6px"><span style="border:1px solid #2e2e2e; border-radius:999px; padding:4px 11px; font-size:13px; color:#a1a1a1">Profile</span><span style="border:1px solid #2e2e2e; border-radius:999px; padding:4px 11px; font-size:13px; color:#a1a1a1">Website</span><span style="border:1px solid #2e2e2e; border-radius:999px; padding:4px 11px; font-size:13px; color:#a1a1a1">Schema</span><span style="border:1px solid #2e2e2e; border-radius:999px; padding:4px 11px; font-size:13px; color:#a1a1a1">AI answers</span></div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px">
+            <div style="display:flex; gap:12px; align-items:center; background:#141414; border:1px solid #262626; border-radius:12px; padding:13px 14px"><span style="font:600 12px 'Geist Mono',monospace; background:oklch(0.6 0.19 25); color:#ffffff; border-radius:5px; padding:4px 7px">P0</span><span style="font-size:15px">No LocalBusiness schema on the homepage</span></div>
+            <div style="display:flex; gap:12px; align-items:center; background:#141414; border:1px solid #262626; border-radius:12px; padding:13px 14px"><span style="font:600 12px 'Geist Mono',monospace; background:oklch(0.6 0.19 25); color:#ffffff; border-radius:5px; padding:4px 7px">P0</span><span style="font-size:15px">Round Rock missing from the service area</span></div>
+            <div style="display:flex; gap:12px; align-items:center; background:#141414; border:1px solid #262626; border-radius:12px; padding:13px 14px"><span style="font:600 12px 'Geist Mono',monospace; background:oklch(0.7 0.17 50); color:#0b0b0b; border-radius:5px; padding:4px 7px">P1</span><span style="font-size:15px">Profile text doesn’t name core services</span></div>
+            <div style="display:flex; gap:12px; align-items:center; background:#141414; border:1px solid #262626; border-radius:12px; padding:13px 14px"><span style="font:600 12px 'Geist Mono',monospace; background:oklch(0.8 0.15 85); color:#0b0b0b; border-radius:5px; padding:4px 7px">P2</span><span style="font-size:15px">No FAQ for “emergency plumber near me”</span></div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isShare }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; flex-direction:column; gap:20px; text-align:left">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap">
+            <div style="display:flex; flex-direction:column; gap:4px"><span style="font-weight:600; font-size:20px">Lone Star Plumbing</span><span style="font-size:14px; color:#8a8a8a">Sample data · AI grid, audit, Fix Kit</span></div>
+            <div style="display:flex; gap:8px"><span style="border:1px solid #2e2e2e; background:#161616; border-radius:10px; padding:9px 14px; font-size:14px; font-weight:500">Share</span><span style="border:1px solid #2e2e2e; border-radius:10px; padding:9px 14px; font-size:14px; font-weight:500">Re-run scan</span></div>
+          </div>
+          <div style="max-width:560px; align-self:center; width:100%; background:#161616; border:1px solid #2e2e2e; border-radius:16px; padding:22px; display:flex; flex-direction:column; gap:16px; box-shadow:0 30px 60px -20px rgba(0,0,0,.8)">
+            <div style="display:flex; flex-direction:column; gap:4px"><span style="font-weight:600; font-size:19px">Client report</span><span style="font-size:15px; color:#a1a1a1">A live link. It updates after every scan.</span></div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap">
+              <span style="flex:1 1 220px; min-width:0; border:1px solid #2e2e2e; background:#0e0e0e; border-radius:10px; padding:12px 14px; font:500 14px 'Geist Mono',monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">youragency.com/r/lone-star</span>
+              <button onClick="{{ copy }}" style="flex:0 0 auto; border:0; border-radius:10px; padding:12px 20px; font-weight:600; font-size:15px; cursor:pointer; background:{{ copyBg }}; color:{{ copyFg }}; transition:background .2s ease">{{ copyLabel }}</button>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; font-size:13px; color:#a1a1a1">
+              <span style="display:flex; align-items:center; gap:7px; border:1px solid #2e2e2e; border-radius:999px; padding:6px 12px"><span style="width:8px; height:8px; border-radius:50%; background:oklch(0.72 0.16 150)"></span>White-label · your logo</span>
+              <span style="border:1px solid #2e2e2e; border-radius:999px; padding:6px 12px">↓ Download PDF</span>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+    <div style="position:absolute; left:50%; bottom:22px; transform:translateX(-50%); display:flex; align-items:center; gap:12px; background:#f5f5f5; color:#0b0b0b; border-radius:999px; padding:7px 20px 7px 7px; font-weight:500; font-size:15px; white-space:nowrap; max-width:calc(100% - 32px); box-shadow:0 10px 30px rgba(0,0,0,.5)">
+      <span style="width:30px; height:30px; border-radius:50%; background:#0b0b0b; color:#f5f5f5; display:grid; place-items:center; font:600 13px 'Geist Mono',monospace; flex:none">{{ stepNum }}</span><span style="overflow:hidden; text-overflow:ellipsis">{{ stepCaption }}</span>
+    </div>
+  </div>
+  <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:clamp(10px,2vw,24px)">
+    <sc-for list="{{ steps }}" as="st" hint-placeholder-count="4">
+      <button onClick="{{ st.onClick }}" style="border:0; background:transparent; padding:0; cursor:pointer; display:flex; flex-direction:column; gap:12px; text-align:left; color:#f5f5f5">
+        <div style="height:2px; width:100%; background:#262626; position:relative; overflow:hidden"><div style="position:absolute; left:0; top:0; bottom:0; width:{{ st.doneW }}; background:#f5f5f5"></div>{{ st.bar }}</div>
+        <span style="font:500 12px 'Geist Mono',monospace; color:#8a8a8a">{{ st.n }}</span>
+        <span style="font-weight:600; font-size:clamp(14px,1.6vw,18px); opacity:{{ st.op }}">{{ st.label }}</span>
+      </button>
+    </sc-for>
+  </div>
+</section>
+
+<section style="background:#111111; border-top:1px solid #1c1c1c; border-bottom:1px solid #1c1c1c">
+  <div style="max-width:1200px; margin:0 auto; padding:clamp(48px,6vw,72px) clamp(20px,4vw,40px); display:flex; flex-direction:column; gap:32px">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:32px">
+      <div style="display:flex; flex-direction:column; gap:8px"><span style="font:600 clamp(36px,4vw,52px)/1 'Geist Mono',monospace; letter-spacing:-0.03em">~{{ cppLabel }}</span><span style="font-weight:500; font-size:18px">per grid point</span><span style="font-size:15px; color:#8a8a8a">Maps + four AI engines, billed to your DataForSEO key</span></div>
+      <div style="display:flex; flex-direction:column; gap:8px"><span style="font:600 clamp(36px,4vw,52px)/1 'Geist Mono',monospace; letter-spacing:-0.03em">~{{ scanLabel }}</span><span style="font-weight:500; font-size:18px">for a full 7×7 scan</span><span style="font-size:15px; color:#8a8a8a">49 points, one prompt, four engines</span></div>
+      <div style="display:flex; flex-direction:column; gap:8px"><span style="font:600 clamp(36px,4vw,52px)/1 'Geist Mono',monospace; letter-spacing:-0.03em">$0</span><span style="font-weight:500; font-size:18px">markup from us</span><span style="font-size:15px; color:#8a8a8a">No monthly fee. No usage cap.</span></div>
+    </div>
+    <span style="font-size:13px; color:#8a8a8a">Rates are DataForSEO’s and can change. You see the estimate before every scan.</span>
+  </div>
+</section>
+
+<section style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px); display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); gap:clamp(40px,6vw,80px); align-items:start">
+  <div style="display:flex; flex-direction:column; gap:22px">
+    <span style="font-weight:600; font-size:14px; letter-spacing:.06em; text-transform:uppercase">The problem</span>
+    <h2 style="margin:0; font-weight:600; font-size:clamp(34px,4.4vw,58px); line-height:1.05; letter-spacing:-0.035em; text-wrap:balance">You’re renting a feature you could own.</h2>
+    <p style="margin:0; font-size:clamp(17px,1.4vw,20px); line-height:1.6; color:#a1a1a1; text-wrap:pretty">AI visibility tracking now lives inside monthly SEO plans. Good tools, but the meter never stops: a plan for the tracker, credits for the scans, another tool for the reports you use to win clients.</p>
+  </div>
+  <div style="display:flex; flex-direction:column; gap:12px">
+    <div style="display:flex; gap:16px; background:#141414; border:1px solid #262626; border-radius:14px; padding:18px 22px; font-size:17px; line-height:1.5"><span style="color:#ef5b5b; font-weight:600">✕</span><span>Credits run out. Your clients’ customers keep asking ChatGPT.</span></div>
+    <div style="display:flex; gap:16px; background:#141414; border:1px solid #262626; border-radius:14px; padding:18px 22px; font-size:17px; line-height:1.5"><span style="color:#ef5b5b; font-weight:600">✕</span><span>Bigger grid, more engines, bigger bill. So you scan less often.</span></div>
+    <div style="display:flex; gap:16px; background:#141414; border:1px solid #262626; border-radius:14px; padding:18px 22px; font-size:17px; line-height:1.5"><span style="color:#ef5b5b; font-weight:600">✕</span><span>Tracking in one tool, fixes in another, prospect reports in a third.</span></div>
+    <div style="display:flex; gap:16px; background:#141414; border:1px solid #262626; border-radius:14px; padding:18px 22px; font-size:17px; line-height:1.5"><span style="color:#ef5b5b; font-weight:600">✕</span><span>The plan renews whether you won a client that month or lost one.</span></div>
+    <div style="border-left:2px solid #f5f5f5; padding:6px 0 6px 24px; margin-top:16px; font-weight:500; font-size:clamp(20px,2vw,26px); line-height:1.35; letter-spacing:-0.02em">A 7×7 scan costs about a dime. You’ve been paying for the meter.</div>
+  </div>
+</section>
+
+<section style="background:#111111; border-top:1px solid #1c1c1c; border-bottom:1px solid #1c1c1c">
+  <div style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px); display:flex; flex-direction:column; align-items:center; text-align:center; gap:24px">
+    <span style="font-weight:600; font-size:14px; letter-spacing:.06em; text-transform:uppercase">The fix</span>
+    <h2 style="margin:0; font-weight:600; font-size:clamp(34px,4.4vw,58px); line-height:1.08; letter-spacing:-0.035em; max-width:900px; text-wrap:balance">Own your AI visibility software. Bring the key. Pay cost.</h2>
+    <p style="margin:0; max-width:780px; font-size:clamp(17px,1.4vw,20px); line-height:1.6; color:#a1a1a1; text-wrap:pretty">RankbyAI connects to your own DataForSEO account. Every AI answer and Maps lookup runs on your key at DataForSEO’s price. We never touch your usage, so we never need to cap it or charge you for it.</p>
+    <div style="display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:14px; margin-top:24px; width:100%">
+      <div style="flex:1 1 240px; max-width:320px; text-align:left; background:#141414; border:1px solid #262626; border-radius:16px; padding:24px; display:flex; flex-direction:column; gap:8px"><span style="font:500 12px 'Geist Mono',monospace; color:#8a8a8a">01</span><span style="font-weight:600; font-size:19px">RankbyAI</span><span style="font-size:15px; line-height:1.5; color:#a1a1a1">Paid once. Runs the scans, audits, Fix Kits and reports.</span></div>
+      <div style="width:28px; height:1px; background:#333333"></div>
+      <div style="flex:1 1 240px; max-width:320px; text-align:left; background:#161616; border:1px solid #f5f5f5; box-shadow:0 0 0 6px #1c1c1c; border-radius:16px; padding:24px; display:flex; flex-direction:column; gap:8px"><span style="font:500 12px 'Geist Mono',monospace; color:#8a8a8a">02</span><span style="font-weight:600; font-size:19px">Your DataForSEO key</span><span style="font-size:15px; line-height:1.5; color:#a1a1a1">Pay-as-you-go. You see every cent.</span></div>
+      <div style="width:28px; height:1px; background:#333333"></div>
+      <div style="flex:1 1 240px; max-width:320px; text-align:left; background:#141414; border:1px solid #262626; border-radius:16px; padding:24px; display:flex; flex-direction:column; gap:8px"><span style="font:500 12px 'Geist Mono',monospace; color:#8a8a8a">03</span><span style="font-weight:600; font-size:19px">At cost</span><span style="font-size:15px; line-height:1.5; color:#a1a1a1">About {{ scanLabel }} per 7×7 scan. Or buy included scan packs.</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="features" style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px) 0; display:flex; flex-direction:column; gap:16px; scroll-margin-top:80px">
+  <span style="font-weight:600; font-size:14px; letter-spacing:.06em; text-transform:uppercase">Four tools, one payment</span>
+  <h2 style="margin:0; font-weight:600; font-size:clamp(34px,4.4vw,58px); line-height:1.05; letter-spacing:-0.035em; text-wrap:balance">Track it. Fix it. Report it. Sell it.</h2>
+</section>
+
+<section style="max-width:1200px; margin:0 auto; padding:clamp(56px,7vw,88px) clamp(20px,4vw,40px) 0; display:flex; flex-direction:column; gap:28px">
+  <div style="display:flex; align-items:center; gap:12px; font-size:17px"><span style="border:1px solid #2e2e2e; border-radius:999px; padding:5px 12px; font:500 13px 'Geist Mono',monospace; color:#a1a1a1">01</span><span style="font-weight:500">Track</span><span style="color:#8a8a8a">· AI Grid Tracker</span></div>
+  <h3 style="margin:0; font-weight:600; font-size:clamp(32px,4vw,52px); line-height:1.06; letter-spacing:-0.035em; max-width:760px; text-wrap:balance">See where AI recommends you, point by point.</h3>
+  <p style="margin:0; max-width:760px; font-size:clamp(17px,1.4vw,20px); line-height:1.6; color:#a1a1a1; text-wrap:pretty">A geo-grid for every prompt, asked of ChatGPT, Claude, Perplexity and Gemini at each point, next to the Google Maps rank on the same grid. Every scan is kept so you can compare run against run.</p>
+  <div style="display:flex; flex-wrap:wrap; gap:clamp(24px,4vw,56px); align-items:flex-end; margin-top:20px">
+    <div style="flex:1 1 560px; min-width:0; background:#111111; border:1px solid #1c1c1c; border-radius:24px; padding:clamp(16px,3vw,40px) clamp(16px,3vw,40px) 0; overflow:hidden">
+      <div style="background:#0e0e0e; border:1px solid #262626; border-bottom:0; border-radius:12px 12px 0 0; overflow:hidden">
+        <div style="display:flex; align-items:center; gap:14px; padding:11px 16px; border-bottom:1px solid #1c1c1c"><div style="display:flex; gap:6px"><span style="width:10px; height:10px; border-radius:50%; background:#ff5f57"></span><span style="width:10px; height:10px; border-radius:50%; background:#febc2e"></span><span style="width:10px; height:10px; border-radius:50%; background:#28c840"></span></div><span style="background:#1a1a1a; border-radius:999px; padding:5px 14px; font-size:12px; color:#a1a1a1">rankbyai.live/app/ai-grid</span></div>
+        <div style="display:flex; flex-wrap:wrap">
+          <div style="flex:0 0 170px; border-right:1px solid #1c1c1c; padding:16px 10px; display:flex; flex-direction:column; gap:2px">
+            <span style="display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px; padding:2px 10px 12px"><img src="assets/logo-80.png" alt="" style="height:18px; width:auto; display:block"><span>rankbyai<span style="color:#8a8a8a">.live</span></span></span>
+            <sc-for list="{{ nav1 }}" as="it" hint-placeholder-count="6"><span style="padding:8px 10px; border-radius:8px; font-size:14px; background:{{ it.bg }}; color:{{ it.fg }}">{{ it.label }}</span></sc-for>
+            <span style="font-size:12px; color:#6b6b6b; padding:14px 10px 4px">Developers</span><span style="padding:8px 10px; font-size:14px; color:#9a9a9a">API &amp; MCP</span>
+          </div>
+          <div style="flex:1 1 320px; min-width:0; padding:18px; display:flex; flex-direction:column; gap:14px">
+            <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-end"><div style="display:flex; flex-direction:column; gap:3px"><span style="font-weight:600; font-size:17px">Lone Star Plumbing</span><span style="font-size:13px; color:#8a8a8a">Sample data · “best plumber in Austin, TX” · 7×7</span></div>
+              <div style="display:flex; flex-wrap:wrap; gap:3px; background:#161616; border:1px solid #262626; padding:3px; border-radius:9px"><sc-for list="{{ engineTabs }}" as="t" hint-placeholder-count="3"><button onClick="{{ t.onClick }}" style="border:0; border-radius:6px; padding:5px 9px; cursor:pointer; font:500 12px 'Geist',sans-serif; background:{{ t.bg }}; color:{{ t.fg }}">{{ t.label }}</button></sc-for></div>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:14px">
+              <div style="flex:1 1 230px; min-width:0; display:grid; grid-template-columns:repeat(7,1fr); gap:4px; padding:10px; border-radius:10px; background-color:#121212; background-image:linear-gradient(#1a1a1a 1px,transparent 1px),linear-gradient(90deg,#1a1a1a 1px,transparent 1px); background-size:22px 22px; border:1px solid #1f1f1f; align-self:start">
+                <sc-for list="{{ aiCells }}" as="c" hint-placeholder-count="49"><button onClick="{{ c.onClick }}" title="{{ c.title }}" style="aspect-ratio:1; border:0; padding:0; border-radius:50%; cursor:pointer; display:grid; place-items:center; font:600 10px 'Geist Mono',monospace; background:{{ c.bg }}; color:{{ c.fg }}; box-shadow:{{ c.ring }}">{{ c.label }}</button></sc-for>
+              </div>
+              <div style="flex:1 1 180px; min-width:0; background:#141414; border:1px solid #262626; border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:10px">
+                <div style="display:flex; flex-direction:column; gap:2px"><span style="font:600 13px 'Geist Mono',monospace">{{ selPoint }}</span><span style="font-size:12px; color:#8a8a8a">{{ selDist }}</span></div>
+                <span style="font-size:12px; color:#8a8a8a; text-transform:uppercase; letter-spacing:.05em">{{ engineLabel }} recommends</span>
+                <sc-for list="{{ selList }}" as="r" hint-placeholder-count="3"><div style="display:flex; gap:10px; align-items:center; padding:7px 8px; border-radius:7px; background:{{ r.bg }}; font-size:13px"><span style="font:600 12px 'Geist Mono',monospace; color:#8a8a8a">{{ r.rank }}</span><span style="flex:1; color:{{ r.fg }}">{{ r.name }}</span></div></sc-for>
+                <div style="border-top:1px solid #262626; padding-top:10px; font-size:13px; display:flex; justify-content:space-between"><span style="color:#8a8a8a">Maps</span><span style="font-family:'Geist Mono',monospace">{{ selMaps }}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1 1 300px; display:flex; flex-direction:column; gap:22px; padding-bottom:20px">
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>ChatGPT, Claude, Perplexity and Gemini on the same grid, one tab each</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>Google Maps rank on the same points, side by side</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>Click any point to see who AI recommends there instead</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>Every scan kept. Compare any two, point by point</span></div>
+    </div>
+  </div>
+</section>
+
+<section style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px) 0; display:flex; flex-direction:column; gap:28px">
+  <div style="display:flex; align-items:center; gap:12px; font-size:17px"><span style="border:1px solid #2e2e2e; border-radius:999px; padding:5px 12px; font:500 13px 'Geist Mono',monospace; color:#a1a1a1">02</span><span style="font-weight:500">Audit</span><span style="color:#8a8a8a">· AI Visibility Auditor</span></div>
+  <h3 style="margin:0; font-weight:600; font-size:clamp(32px,4vw,52px); line-height:1.06; letter-spacing:-0.035em; max-width:820px; text-wrap:balance">Find out why AI skips the business, in priority order.</h3>
+  <p style="margin:0; max-width:760px; font-size:clamp(17px,1.4vw,20px); line-height:1.6; color:#a1a1a1; text-wrap:pretty">One score out of 100 for how ready the profile, website and listings are to be recommended, with the evidence and the fix for every issue.</p>
+  <div style="display:flex; flex-wrap:wrap; gap:clamp(24px,4vw,56px); align-items:flex-end; margin-top:20px">
+    <div style="flex:1 1 560px; min-width:0; background:#111111; border:1px solid #1c1c1c; border-radius:24px; padding:clamp(16px,3vw,40px) clamp(16px,3vw,40px) 0; overflow:hidden">
+      <div style="background:#0e0e0e; border:1px solid #262626; border-bottom:0; border-radius:12px 12px 0 0; overflow:hidden">
+        <div style="display:flex; align-items:center; gap:14px; padding:11px 16px; border-bottom:1px solid #1c1c1c"><div style="display:flex; gap:6px"><span style="width:10px; height:10px; border-radius:50%; background:#ff5f57"></span><span style="width:10px; height:10px; border-radius:50%; background:#febc2e"></span><span style="width:10px; height:10px; border-radius:50%; background:#28c840"></span></div><span style="background:#1a1a1a; border-radius:999px; padding:5px 14px; font-size:12px; color:#a1a1a1">rankbyai.live/app/auditor</span></div>
+        <div style="display:flex; flex-wrap:wrap">
+          <div style="flex:0 0 170px; border-right:1px solid #1c1c1c; padding:16px 10px; display:flex; flex-direction:column; gap:2px">
+            <span style="display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px; padding:2px 10px 12px"><img src="assets/logo-80.png" alt="" style="height:18px; width:auto; display:block"><span>rankbyai<span style="color:#8a8a8a">.live</span></span></span>
+            <sc-for list="{{ nav2 }}" as="it" hint-placeholder-count="6"><span style="padding:8px 10px; border-radius:8px; font-size:14px; background:{{ it.bg }}; color:{{ it.fg }}">{{ it.label }}</span></sc-for>
+            <span style="font-size:12px; color:#6b6b6b; padding:14px 10px 4px">Developers</span><span style="padding:8px 10px; font-size:14px; color:#9a9a9a">API &amp; MCP</span>
+          </div>
+          <div style="flex:1 1 320px; min-width:0; padding:18px; display:flex; flex-direction:column; gap:12px">
+            <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center"><div style="display:flex; flex-direction:column; gap:3px"><span style="font-weight:600; font-size:17px">Lone Star Plumbing</span><span style="font-size:13px; color:#8a8a8a">Sample data · profile, website, AI answers</span></div><span style="border:1px solid #2e2e2e; border-radius:9px; padding:7px 12px; font-size:13px; font-weight:500">↻ Re-run audit</span></div>
+            <div style="display:flex; gap:16px; align-items:center; background:#141414; border:1px solid #262626; border-radius:12px; padding:14px 16px">
+              <div style="width:58px; height:58px; border-radius:50%; background:conic-gradient(oklch(0.8 0.15 85) 0 64%, #262626 64% 100%); display:grid; place-items:center; flex:none"><div style="width:46px; height:46px; border-radius:50%; background:#141414; display:grid; place-items:center; font:600 17px 'Geist Mono',monospace">64</div></div>
+              <div style="display:flex; flex-direction:column; gap:3px"><span style="font-size:13px; color:#8a8a8a">AI visibility score</span><span style="font-weight:600; font-size:16px">5 issues, highest impact first</span></div>
+            </div>
+            <details open="" style="background:#141414; border:1px solid #262626; border-radius:12px; padding:12px 14px">
+              <summary style="display:flex; gap:12px; align-items:center; font-size:15px"><span style="font:600 12px 'Geist Mono',monospace; background:oklch(0.6 0.19 25); color:#ffffff; border-radius:5px; padding:4px 7px">P0</span><span style="flex:1">No LocalBusiness schema on the homepage</span><span style="color:#8a8a8a">⌄</span></summary>
+              <div style="display:flex; flex-direction:column; gap:6px; padding:12px 0 2px 46px; font-size:14px; line-height:1.5"><span style="color:#8a8a8a"><span style="color:#f5f5f5">Evidence:</span> 0 JSON-LD blocks found at /</span><span style="color:#8a8a8a"><span style="color:#f5f5f5">Fix:</span> Add the LocalBusiness schema from the Fix Kit</span></div>
+            </details>
+            <details style="background:#141414; border:1px solid #262626; border-radius:12px; padding:12px 14px">
+              <summary style="display:flex; gap:12px; align-items:center; font-size:15px"><span style="font:600 12px 'Geist Mono',monospace; background:oklch(0.7 0.17 50); color:#0b0b0b; border-radius:5px; padding:4px 7px">P1</span><span style="flex:1">ChatGPT recommends 2 rivals north of the pin</span><span style="color:#8a8a8a">⌄</span></summary>
+              <div style="display:flex; flex-direction:column; gap:6px; padding:12px 0 2px 46px; font-size:14px; line-height:1.5"><span style="color:#8a8a8a"><span style="color:#f5f5f5">Evidence:</span> 9 of 49 points, all in Round Rock</span><span style="color:#8a8a8a"><span style="color:#f5f5f5">Fix:</span> Add Round Rock to the service area and profile text</span></div>
+            </details>
+            <details style="background:#141414; border:1px solid #262626; border-radius:12px; padding:12px 14px">
+              <summary style="display:flex; gap:12px; align-items:center; font-size:15px"><span style="font:600 12px 'Geist Mono',monospace; background:oklch(0.8 0.15 85); color:#0b0b0b; border-radius:5px; padding:4px 7px">P2</span><span style="flex:1">No FAQ for “emergency plumber near me”</span><span style="color:#8a8a8a">⌄</span></summary>
+              <div style="display:flex; flex-direction:column; gap:6px; padding:12px 0 2px 46px; font-size:14px; line-height:1.5"><span style="color:#8a8a8a"><span style="color:#f5f5f5">Evidence:</span> Perplexity cites rival FAQ pages at 6 points</span><span style="color:#8a8a8a"><span style="color:#f5f5f5">Fix:</span> Publish the FAQ from the Fix Kit</span></div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1 1 300px; display:flex; flex-direction:column; gap:22px; padding-bottom:20px">
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>Checks the Google Business Profile, the website and the businesses AI recommends instead</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>Schema, service areas, FAQ coverage, profile text and llms.txt</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>Every issue comes with evidence, a fix and a priority from P0 to P3</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>Re-run after the fixes and watch the score move</span></div>
+    </div>
+  </div>
+</section>
+
+<section style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px) 0; display:flex; flex-direction:column; gap:28px">
+  <div style="display:flex; align-items:center; gap:12px; font-size:17px"><span style="border:1px solid #2e2e2e; border-radius:999px; padding:5px 12px; font:500 13px 'Geist Mono',monospace; color:#a1a1a1">03</span><span style="font-weight:500">Fix</span><span style="color:#8a8a8a">· Fix Kit</span></div>
+  <h3 style="margin:0; font-weight:600; font-size:clamp(32px,4vw,52px); line-height:1.06; letter-spacing:-0.035em; max-width:760px; text-wrap:balance">The fixes, written and ready to paste.</h3>
+  <p style="margin:0; max-width:760px; font-size:clamp(17px,1.4vw,20px); line-height:1.6; color:#a1a1a1; text-wrap:pretty">One click turns the audit into assets: AI-ready profile text, an FAQ, LocalBusiness and FAQ schema, and an llms.txt draft. Hand them to the client or ship them yourself.</p>
+  <div style="display:flex; flex-wrap:wrap; gap:clamp(24px,4vw,56px); align-items:flex-end; margin-top:20px">
+    <div style="flex:1 1 560px; min-width:0; background:#111111; border:1px solid #1c1c1c; border-radius:24px; padding:clamp(16px,3vw,40px); display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; flex-wrap:wrap; gap:6px">
+        <sc-for list="{{ fixTabs }}" as="t" hint-placeholder-count="4"><button onClick="{{ t.onClick }}" style="border:1px solid #2e2e2e; border-radius:999px; padding:8px 14px; cursor:pointer; font:500 14px 'Geist',sans-serif; background:{{ t.bg }}; color:{{ t.fg }}">{{ t.label }}</button></sc-for>
+      </div>
+      <div style="background:#0e0e0e; border:1px solid #262626; border-radius:12px; overflow:hidden; min-height:330px">
+        <div style="display:flex; justify-content:space-between; padding:11px 16px; border-bottom:1px solid #1c1c1c; font:500 12px 'Geist Mono',monospace; color:#8a8a8a"><span>{{ fixFile }}</span><span>Copy</span></div>
+        <sc-if value="{{ isProfile }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:20px; display:flex; flex-direction:column; gap:12px"><span style="font:500 11px 'Geist Mono',monospace; color:#8a8a8a; text-transform:uppercase; letter-spacing:.06em">Google Business Profile · description</span><p style="margin:0; font-size:16px; line-height:1.65; color:#d4d4d4; text-wrap:pretty">Lone Star Plumbing is a licensed, 24/7 plumbing company serving Austin, Round Rock, Pflugerville and Cedar Park since 2009. We handle emergency leaks, water heater repair and replacement, drain cleaning, slab leak detection and repiping for homes and small businesses. Upfront pricing, same-day appointments.</p></div>
+        </sc-if>
+        <sc-if value="{{ isFaq }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:20px; display:flex; flex-direction:column; gap:16px; font-size:15px; line-height:1.55; color:#d4d4d4">
+            <div style="display:flex; flex-direction:column; gap:4px"><span style="font-weight:600; color:#f5f5f5">Do you offer emergency plumbing in Round Rock?</span><span>Yes. Our Round Rock crew is on call 24/7 and usually arrives within 60 minutes.</span></div>
+            <div style="display:flex; flex-direction:column; gap:4px"><span style="font-weight:600; color:#f5f5f5">How much does water heater replacement cost in Austin?</span><span>Most tank replacements run $1,400–$2,600 installed, depending on size and fuel type. We quote before we start.</span></div>
+            <div style="display:flex; flex-direction:column; gap:4px"><span style="font-weight:600; color:#f5f5f5">Are your plumbers licensed in Texas?</span><span>Yes. Every plumber holds a Texas State Board of Plumbing Examiners license.</span></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isSchema }}" hint-placeholder-val="{{ false }}"><pre style="margin:0; padding:20px; font:400 13px/1.65 'Geist Mono',monospace; color:#d4d4d4; overflow-x:auto; white-space:pre">{{ schemaCode }}</pre></sc-if>
+        <sc-if value="{{ isLlms }}" hint-placeholder-val="{{ false }}"><pre style="margin:0; padding:20px; font:400 13px/1.65 'Geist Mono',monospace; color:#d4d4d4; overflow-x:auto; white-space:pre">{{ llmsCode }}</pre></sc-if>
+      </div>
+    </div>
+    <div style="flex:1 1 300px; display:flex; flex-direction:column; gap:22px; padding-bottom:20px">
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>AI-ready Google Business Profile text</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>An FAQ written around the real “best {service} in {area}” prompts</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>LocalBusiness and FAQPage schema as JSON-LD</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>An llms.txt draft for the website</span></div>
+    </div>
+  </div>
+</section>
+
+<section style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px); display:flex; flex-direction:column; gap:28px">
+  <div style="display:flex; align-items:center; gap:12px; font-size:17px"><span style="border:1px solid #2e2e2e; border-radius:999px; padding:5px 12px; font:500 13px 'Geist Mono',monospace; color:#a1a1a1">04</span><span style="font-weight:500">Sell</span><span style="color:#8a8a8a">· Prospect reports</span></div>
+  <h3 style="margin:0; font-weight:600; font-size:clamp(32px,4vw,52px); line-height:1.06; letter-spacing:-0.035em; max-width:760px; text-wrap:balance">Turn a niche and a city into a pipeline.</h3>
+  <p style="margin:0; max-width:760px; font-size:clamp(17px,1.4vw,20px); line-height:1.6; color:#a1a1a1; text-wrap:pretty">Pick a niche and a city. RankbyAI scans every business in it and builds a white-label report for each, with a live share link and a PDF. Your first email shows them who ChatGPT recommends instead.</p>
+  <div style="display:flex; flex-wrap:wrap; gap:clamp(24px,4vw,56px); align-items:flex-end; margin-top:20px">
+    <div style="flex:1 1 560px; min-width:0; background:#111111; border:1px solid #1c1c1c; border-radius:24px; padding:clamp(16px,3vw,40px)">
+      <div style="background:#0e0e0e; border:1px solid #262626; border-radius:12px; overflow:hidden">
+        <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid #1c1c1c">
+          <div style="display:flex; flex-wrap:wrap; gap:6px; font:500 12px 'Geist Mono',monospace"><span style="background:#1a1a1a; border:1px solid #262626; padding:6px 10px; border-radius:7px">niche: plumbers</span><span style="background:#1a1a1a; border:1px solid #262626; padding:6px 10px; border-radius:7px">city: Austin, TX</span><span style="background:#1a1a1a; border:1px solid #262626; padding:6px 10px; border-radius:7px">grid: 5×5</span></div>
+          <span style="font:500 12px 'Geist Mono',monospace; color:oklch(0.72 0.16 150)">25 reports ready</span>
+        </div>
+        <div style="overflow-x:auto">
+          <div style="min-width:620px">
+            <div style="display:grid; grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,.8fr)) minmax(0,1.3fr); gap:12px; padding:10px 16px; font:500 11px 'Geist Mono',monospace; color:#8a8a8a; text-transform:uppercase; letter-spacing:.04em"><span>Business</span><span>AI cover</span><span>Maps avg</span><span>Audit</span><span>Report</span></div>
+            <sc-for list="{{ reports }}" as="r" hint-placeholder-count="5">
+              <div style="display:grid; grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,.8fr)) minmax(0,1.3fr); gap:12px; padding:12px 16px; border-top:1px solid #1c1c1c; align-items:center; font-size:14px">
+                <span style="font-weight:500">{{ r.name }}</span>
+                <span style="font:500 13px 'Geist Mono',monospace">{{ r.ai }}</span>
+                <span style="font:500 13px 'Geist Mono',monospace">{{ r.maps }}</span>
+                <span><span style="font:600 12px 'Geist Mono',monospace; padding:3px 7px; border-radius:5px; background:{{ r.bg }}; color:#0b0b0b">{{ r.audit }}</span></span>
+                <span style="font:500 12px 'Geist Mono',monospace; color:#a1a1a1">{{ r.link }} · pdf</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1 1 300px; display:flex; flex-direction:column; gap:22px; padding-bottom:20px">
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>One run for a whole niche and city</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>White-label: your logo and colors, not ours</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>Live share links that update after every scan</span></div>
+      <div style="display:flex; gap:16px; font-size:17px; line-height:1.5; color:#a1a1a1"><span style="width:26px; height:26px; flex:none; border-radius:50%; background:#1f1f1f; display:grid; place-items:center; font-size:12px; color:#f5f5f5">✓</span><span>PDF export for cold emails and proposals</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="how" style="background:#111111; border-top:1px solid #1c1c1c; border-bottom:1px solid #1c1c1c; scroll-margin-top:70px">
+  <div style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px); display:flex; flex-direction:column; gap:22px">
+    <span style="font-weight:600; font-size:14px; letter-spacing:.06em; text-transform:uppercase">How it works</span>
+    <h2 style="margin:0; font-weight:600; font-size:clamp(34px,4.4vw,58px); line-height:1.05; letter-spacing:-0.035em; max-width:760px; text-wrap:balance">From signup to first AI grid in about five minutes.</h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:18px; margin-top:28px">
+      <div style="background:#141414; border:1px solid #262626; border-radius:18px; padding:32px; display:flex; flex-direction:column; gap:16px"><span style="width:44px; height:44px; border-radius:50%; border:2px solid #f5f5f5; display:grid; place-items:center; font-weight:600">1</span><span style="font-weight:600; font-size:21px; margin-top:10px">Connect your key.</span><span style="font-size:16px; line-height:1.55; color:#a1a1a1">Paste your DataForSEO login and we test it. No account yet? Sign-up takes a few minutes, or buy a scan pack and skip this step.</span></div>
+      <div style="background:#141414; border:1px solid #262626; border-radius:18px; padding:32px; display:flex; flex-direction:column; gap:16px"><span style="width:44px; height:44px; border-radius:50%; border:2px solid #f5f5f5; display:grid; place-items:center; font-weight:600">2</span><span style="font-weight:600; font-size:21px; margin-top:10px">Add a business.</span><span style="font-size:16px; line-height:1.55; color:#a1a1a1">Search it by name and confirm the Google listing.</span></div>
+      <div style="background:#141414; border:1px solid #262626; border-radius:18px; padding:32px; display:flex; flex-direction:column; gap:16px"><span style="width:44px; height:44px; border-radius:50%; border:2px solid #f5f5f5; display:grid; place-items:center; font-weight:600">3</span><span style="font-weight:600; font-size:21px; margin-top:10px">Run a scan.</span><span style="font-size:16px; line-height:1.55; color:#a1a1a1">Pick a prompt, grid size and engines, see the cost, hit run. The grid fills in point by point.</span></div>
+    </div>
+  </div>
+</section>
+
+<section style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px); display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr)); gap:clamp(32px,5vw,64px); align-items:start">
+  <div style="display:flex; flex-direction:column; gap:22px">
+    <span style="font-weight:600; font-size:14px; letter-spacing:.06em; text-transform:uppercase">Key security</span>
+    <h2 style="margin:0; font-weight:600; font-size:clamp(34px,4.4vw,58px); line-height:1.05; letter-spacing:-0.035em">Your key stays your key.</h2>
+  </div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:16px">
+    <div style="background:#141414; border:1px solid #262626; border-radius:16px; padding:28px; display:flex; flex-direction:column; gap:10px"><span style="font:500 12px 'Geist Mono',monospace; color:#8a8a8a">/01</span><span style="font-weight:600; font-size:19px">Encrypted at rest</span><span style="font-size:15px; line-height:1.5; color:#a1a1a1">Your key is encrypted before it reaches the database.</span></div>
+    <div style="background:#141414; border:1px solid #262626; border-radius:16px; padding:28px; display:flex; flex-direction:column; gap:10px"><span style="font:500 12px 'Geist Mono',monospace; color:#8a8a8a">/02</span><span style="font-weight:600; font-size:19px">Write-only</span><span style="font-size:15px; line-height:1.5; color:#a1a1a1">Replace or delete it any time. Nobody can read it back, including you.</span></div>
+    <div style="background:#141414; border:1px solid #262626; border-radius:16px; padding:28px; display:flex; flex-direction:column; gap:10px"><span style="font:500 12px 'Geist Mono',monospace; color:#8a8a8a">/03</span><span style="font-weight:600; font-size:19px">Server-side only</span><span style="font-size:15px; line-height:1.5; color:#a1a1a1">Every request runs on the server. The key never reaches a browser.</span></div>
+    <div style="background:#141414; border:1px solid #262626; border-radius:16px; padding:28px; display:flex; flex-direction:column; gap:10px"><span style="font:500 12px 'Geist Mono',monospace; color:#8a8a8a">/04</span><span style="font-weight:600; font-size:19px">Cost before, cost after</span><span style="font-size:15px; line-height:1.5; color:#a1a1a1">Estimate shown before every scan, actual cost logged after.</span></div>
+  </div>
+</section>
+
+<section style="background:#111111; border-top:1px solid #1c1c1c; border-bottom:1px solid #1c1c1c">
+  <div style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px); display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); gap:clamp(32px,5vw,64px); align-items:center">
+    <div style="display:flex; flex-direction:column; gap:22px">
+      <span style="font-weight:600; font-size:14px; letter-spacing:.06em; text-transform:uppercase">API + MCP</span>
+      <h2 style="margin:0; font-weight:600; font-size:clamp(34px,4.4vw,58px); line-height:1.05; letter-spacing:-0.035em">Hand it to your AI agent.</h2>
+      <p style="margin:0; font-size:clamp(17px,1.4vw,20px); line-height:1.6; color:#a1a1a1; text-wrap:pretty">Every feature is available over a REST API and an MCP server. Connect Claude, ChatGPT or your own scripts and let the agent run scans, audits and prospect reports for you.</p>
+    </div>
+    <div style="background:#141414; border:1px solid #262626; border-radius:16px; overflow:hidden; font:400 14px/1.7 'Geist Mono',monospace">
+      <div style="padding:12px 18px; border-bottom:1px solid #262626; color:#a1a1a1; font-size:13px">MCP · rankbyai.live</div>
+      <div style="padding:20px 22px; display:flex; flex-direction:column; gap:14px">
+        <div><span style="color:#8a8a8a">you › </span>Scan every dentist in Bristol for “best dentist in Bristol” and draft reports for the five weakest.</div>
+        <div style="color:#a1a1a1">→ runs 25 AI grid scans on your key</div>
+        <div style="color:#a1a1a1">→ audits the 5 lowest scores</div>
+        <div style="color:#a1a1a1">→ builds 5 white-label reports</div>
+        <div><span style="color:#8a8a8a">agent › </span>None of the five are recommended by ChatGPT outside the city centre. Reports and share links are ready.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing" style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px) clamp(56px,7vw,88px); display:flex; flex-direction:column; align-items:center; gap:24px; scroll-margin-top:70px">
+  <span style="font-weight:600; font-size:14px; letter-spacing:.06em; text-transform:uppercase">Lifetime deal</span>
+  <h2 style="margin:0; text-align:center; font-weight:600; font-size:clamp(34px,4.4vw,58px); line-height:1.08; letter-spacing:-0.035em; max-width:820px; text-wrap:balance">${{ price }} once. The price goes up ${{ priceStep }} every {{ tier }} sales.</h2>
+  <div style="width:100%; display:flex; flex-wrap:wrap; gap:24px; margin-top:32px; align-items:flex-start">
+    <div style="flex:1 1 460px; min-width:0; background:#111111; border:2px solid #3a3a3a; border-radius:22px; padding:clamp(22px,3.5vw,44px); display:flex; flex-direction:column; gap:22px; box-shadow:0 40px 100px -40px rgba(255,255,255,.08)">
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap"><div style="display:flex; align-items:baseline; gap:10px"><span style="font-weight:600; font-size:clamp(64px,8vw,96px); line-height:1; letter-spacing:-0.05em">${{ price }}</span><span style="font-size:20px; color:#a1a1a1">one-time</span></div><span style="font-size:17px; color:#a1a1a1">Next: <span style="color:#ef5b5b; font-weight:600">${{ nextPrice }}</span></span></div>
+      <div style="display:flex; gap:8px">
+        <sc-for list="{{ segments }}" as="sg" hint-placeholder-count="5"><div style="flex:1; height:14px; border-radius:999px; background:{{ sg.bg }}; border:{{ sg.border }}"></div></sc-for>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; font-size:17px"><span style="width:9px; height:9px; border-radius:50%; background:#ef5b5b; box-shadow:0 0 0 4px rgba(239,91,91,.15)"></span><span><span style="color:#ef5b5b; font-family:'Geist Mono',monospace; font-weight:600">{{ left }} of {{ tier }}</span> left at <span style="font-weight:600">${{ price }}</span></span></div>
+      <div style="background:#0e0e0e; border:1px solid #262626; border-radius:16px; padding:20px 16px 14px; display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:8px; align-items:end">
+        <sc-for list="{{ ladder }}" as="l" hint-placeholder-count="7">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px">
+            <span style="font:500 13px 'Geist Mono',monospace; color:{{ l.fg }}; text-decoration:{{ l.strike }}">{{ l.label }}</span>
+            <div style="width:100%; height:{{ l.h }}; border-radius:8px 8px 0 0; background:{{ l.bg }}; border:{{ l.border }}; border-bottom:0; box-sizing:border-box"></div>
+            <span style="font:500 11px 'Geist',sans-serif; letter-spacing:.04em; color:{{ l.tagFg }}">{{ l.tag }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <a href="#pricing" style="text-decoration:none; background:#f5f5f5; color:#0b0b0b; padding:18px; border-radius:12px; font-weight:600; font-size:18px; display:flex; justify-content:center; gap:10px" style-hover="background:#ffffff; color:#0b0b0b"><span>Lock in ${{ price }} now</span><span>→</span></a>
+      <span style="text-align:center; font-size:14px; color:#8a8a8a">The counter sets the price, not a timer. When these {{ left }} go, it’s ${{ nextPrice }}.</span>
+      <div style="border:1px solid #2e2e2e; background:#141414; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:6px"><span style="font-weight:600; font-size:16px">{{ refund }}-day refund, no questions.</span><span style="font-size:15px; line-height:1.5; color:#a1a1a1">Connect your key and scan real clients. If it isn’t for you, email us within {{ refund }} days and get your money back.</span></div>
+    </div>
+    <div style="flex:1 1 380px; min-width:0; display:flex; flex-direction:column; gap:24px">
+      <div style="background:#111111; border:1px solid #262626; border-radius:22px; padding:clamp(22px,3vw,40px); display:flex; flex-direction:column; gap:16px">
+        <span style="font-weight:600; font-size:20px">Everything included</span>
+        <div style="display:flex; gap:14px; font-size:16px; line-height:1.5"><span style="color:#a1a1a1">✓</span><span>AI Grid Tracker: ChatGPT, Claude, Perplexity and Gemini next to Google Maps rank</span></div>
+        <div style="display:flex; gap:14px; font-size:16px; line-height:1.5"><span style="color:#a1a1a1">✓</span><span>Unlimited scans on your own key (no caps from us)</span></div>
+        <div style="display:flex; gap:14px; font-size:16px; line-height:1.5"><span style="color:#a1a1a1">✓</span><span>Scan history and compare any two scans</span></div>
+        <div style="display:flex; gap:14px; font-size:16px; line-height:1.5"><span style="color:#a1a1a1">✓</span><span>AI Visibility Auditor: 0–100 score, P0–P3 fixes with evidence</span></div>
+        <div style="display:flex; gap:14px; font-size:16px; line-height:1.5"><span style="color:#a1a1a1">✓</span><span>Fix Kit: profile text, FAQ, schema, llms.txt</span></div>
+        <div style="display:flex; gap:14px; font-size:16px; line-height:1.5"><span style="color:#a1a1a1">✓</span><span>Bulk white-label prospect reports, live links and PDFs</span></div>
+        <div style="display:flex; gap:14px; font-size:16px; line-height:1.5"><span style="color:#a1a1a1">✓</span><span>REST API + MCP server</span></div>
+        <div style="display:flex; gap:14px; font-size:16px; line-height:1.5"><span style="color:#a1a1a1">✓</span><span>No DataForSEO account? Included scans in packs, optional</span></div>
+      </div>
+      <div style="background:#111111; border:1px solid #262626; border-radius:22px; padding:clamp(22px,3vw,40px); display:flex; flex-direction:column; gap:14px">
+        <span style="font-weight:600; font-size:20px">The math</span>
+        <div style="display:flex; justify-content:space-between; gap:16px; padding-bottom:14px; border-bottom:1px solid #262626; font-size:16px"><span style="color:#a1a1a1">A typical ${{ plan }}/month tracker</span><span style="font-family:'Geist Mono',monospace; font-weight:600; white-space:nowrap">{{ planYr }} <span style="color:#8a8a8a; font-weight:400">/yr</span></span></div>
+        <div style="display:flex; justify-content:space-between; gap:16px; padding-bottom:14px; border-bottom:1px solid #262626; font-size:16px"><span style="color:#a1a1a1">RankbyAI, once + about {{ scanLabel }} per 7×7 scan on your key</span><span style="font-family:'Geist Mono',monospace; font-weight:600">${{ price }}</span></div>
+        <span style="font-size:16px; line-height:1.55; color:#a1a1a1">Scan 10 clients monthly on a 7×7 across all four engines for a year and you’ve spent about <span style="color:#f5f5f5; font-weight:600">{{ heroY2 }}</span> on data.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<sc-if value="{{ showCompare }}" hint-placeholder-val="{{ true }}">
+<section style="max-width:1200px; margin:0 auto; padding:clamp(40px,6vw,72px) clamp(20px,4vw,40px) clamp(80px,10vw,128px); display:flex; flex-direction:column; align-items:center; gap:20px">
+  <span style="font-weight:600; font-size:14px; letter-spacing:.06em; text-transform:uppercase">Compare</span>
+  <h2 style="margin:0; text-align:center; font-weight:600; font-size:clamp(34px,4.4vw,58px); line-height:1.08; letter-spacing:-0.035em; text-wrap:balance">The same AI grids, without the subscription.</h2>
+  <p style="margin:0; text-align:center; max-width:760px; font-size:clamp(17px,1.4vw,20px); line-height:1.6; color:#a1a1a1; text-wrap:pretty">We’re not the only AI visibility tracker, and won’t pretend to be. The difference is how you pay.</p>
+  <div style="width:100%; overflow-x:auto; margin-top:28px">
+    <div style="min-width:760px; border:1px solid #262626; border-radius:18px; overflow:hidden">
+      <div style="display:grid; grid-template-columns:minmax(0,.8fr) repeat(3,minmax(0,1fr)); border-bottom:1px solid #262626">
+        <span></span>
+        <div style="background:#161616; padding:20px; display:flex; flex-direction:column; gap:4px"><span style="font-weight:600; font-size:17px">RankbyAI</span><span style="font-size:14px; color:#a1a1a1">${{ price }} once + your DataForSEO key</span></div>
+        <div style="padding:20px; display:flex; flex-direction:column; gap:4px"><span style="font-weight:600; font-size:17px">Local Falcon</span><span style="font-size:14px; color:#a1a1a1">Geo-grid AI scans</span></div>
+        <div style="padding:20px; display:flex; flex-direction:column; gap:4px"><span style="font-weight:600; font-size:17px">BrightLocal</span><span style="font-size:14px; color:#a1a1a1">Track plan</span></div>
+      </div>
+      <div style="display:grid; grid-template-columns:minmax(0,.8fr) repeat(3,minmax(0,1fr)); border-bottom:1px solid #262626; font-size:15px; line-height:1.5">
+        <span style="padding:20px; color:#a1a1a1">AI visibility</span>
+        <span style="background:#161616; padding:20px; font-weight:500">ChatGPT, Claude, Perplexity, Gemini on a grid, next to Maps rank</span>
+        <span style="padding:20px; color:#d4d4d4">ChatGPT, Gemini, AI Overviews, AI Mode and Grok on a geo-grid</span>
+        <span style="padding:20px; color:#d4d4d4">Local AI Visibility Tracker</span>
+      </div>
+      <div style="display:grid; grid-template-columns:minmax(0,.8fr) repeat(3,minmax(0,1fr)); border-bottom:1px solid #262626; font-size:15px; line-height:1.5">
+        <span style="padding:20px; color:#a1a1a1">How you pay</span>
+        <span style="background:#161616; padding:20px; font-weight:500">Once, then data at cost</span>
+        <span style="padding:20px; color:#d4d4d4">Monthly plans and credits</span>
+        <span style="padding:20px; color:#d4d4d4">Monthly plan</span>
+      </div>
+      <div style="display:grid; grid-template-columns:minmax(0,.8fr) repeat(3,minmax(0,1fr)); font-size:15px; line-height:1.5">
+        <span style="padding:20px; color:#a1a1a1">Monthly fee</span>
+        <span style="background:#161616; padding:20px; font-weight:600">— None</span>
+        <span style="padding:20px; color:#d4d4d4">Yes</span>
+        <span style="padding:20px; color:#d4d4d4">Yes</span>
+      </div>
+    </div>
+  </div>
+  <span style="font-size:13px; color:#8a8a8a; text-align:center; max-width:760px">From public product pages, checked 17 Nov 2026. Both are strong products. If you want a fully managed subscription, they’re a good choice.</span>
+</section>
+</sc-if>
+
+<section style="background:#111111; border-top:1px solid #1c1c1c; border-bottom:1px solid #1c1c1c">
+  <div style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px); display:flex; flex-direction:column; align-items:center; gap:14px">
+    <h2 style="margin:0; text-align:center; font-weight:600; font-size:clamp(28px,3.2vw,40px); letter-spacing:-0.03em">Run your own numbers</h2>
+    <p style="margin:0; text-align:center; font-size:18px; color:#a1a1a1">What a year of AI grid scans costs on your key, next to a monthly plan.</p>
+    <div style="width:100%; margin-top:36px; display:flex; flex-wrap:wrap; background:#141414; border:1px solid #262626; border-radius:20px; overflow:hidden">
+      <div style="flex:1 1 400px; min-width:0; padding:clamp(22px,3vw,40px); display:flex; flex-direction:column; gap:26px; border-right:1px solid #262626">
+        <span style="font-weight:500; font-size:17px">Your numbers</span>
+        <div style="display:flex; flex-direction:column; gap:12px">
+          <div style="display:flex; justify-content:space-between; font-size:16px; color:#a1a1a1"><span>Keywords tracked (all clients)</span><span style="font:600 18px 'Geist Mono',monospace; color:#f5f5f5">{{ kw }}</span></div>
+          <input type="range" min="1" max="100" value="{{ kw }}" onChange="{{ onKw }}" style="width:100%; accent-color:#f5f5f5">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+          <span style="font-size:16px; color:#a1a1a1">Grid size</span>
+          <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:4px; background:#0e0e0e; border:1px solid #262626; border-radius:12px; padding:5px">
+            <sc-for list="{{ gridOpts }}" as="g" hint-placeholder-count="4"><button onClick="{{ g.onClick }}" style="border:0; border-radius:8px; padding:11px 6px; cursor:pointer; font:500 15px 'Geist',sans-serif; background:{{ g.bg }}; color:{{ g.fg }}">{{ g.label }}</button></sc-for>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+          <span style="font-size:16px; color:#a1a1a1">AI engines</span>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:4px; background:#0e0e0e; border:1px solid #262626; border-radius:12px; padding:5px">
+            <sc-for list="{{ engOpts }}" as="e" hint-placeholder-count="3"><button onClick="{{ e.onClick }}" style="border:0; border-radius:8px; padding:11px 6px; cursor:pointer; font:500 15px 'Geist',sans-serif; background:{{ e.bg }}; color:{{ e.fg }}">{{ e.label }}</button></sc-for>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+          <span style="font-size:16px; color:#a1a1a1">How often</span>
+          <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:4px; background:#0e0e0e; border:1px solid #262626; border-radius:12px; padding:5px">
+            <sc-for list="{{ freqOpts }}" as="f" hint-placeholder-count="2"><button onClick="{{ f.onClick }}" style="border:0; border-radius:8px; padding:11px 6px; cursor:pointer; font:500 15px 'Geist',sans-serif; background:{{ f.bg }}; color:{{ f.fg }}">{{ f.label }}</button></sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1 1 400px; min-width:0; padding:clamp(22px,3vw,40px); display:flex; flex-direction:column; gap:22px">
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <span style="font-size:16px; color:#a1a1a1">Estimated data cost on your DataForSEO key</span>
+          <div style="display:flex; align-items:baseline; gap:8px"><span style="font:600 clamp(40px,5vw,60px)/1 'Geist Mono',monospace; letter-spacing:-0.03em">{{ calcData }}</span><span style="font-size:18px; color:#a1a1a1">/ year</span></div>
+          <span style="font:400 14px 'Geist Mono',monospace; color:#8a8a8a">{{ calcFormula }}</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <div style="display:flex; justify-content:space-between; font-size:16px"><span>Typical ${{ plan }}/month plan</span><span style="font-family:'Geist Mono',monospace; font-weight:600">{{ planYr }}</span></div>
+          <div style="height:12px; border-radius:999px; background:#0e0e0e; overflow:hidden"><div style="height:100%; width:{{ calcPlanW }}; background:#4a4a4a; border-radius:999px; transition:width .3s ease"></div></div>
+          <span style="font-size:13px; color:#8a8a8a">every year</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <div style="display:flex; justify-content:space-between; font-size:16px"><span>RankbyAI: ${{ price }} once + data</span><span style="font-family:'Geist Mono',monospace; font-weight:600">{{ calcOurs }}</span></div>
+          <div style="height:12px; border-radius:999px; background:#0e0e0e; overflow:hidden"><div style="height:100%; width:{{ calcOursW }}; background:#f5f5f5; border-radius:999px; transition:width .3s ease"></div></div>
+          <span style="font-size:13px; color:#8a8a8a">year one, then data only</span>
+        </div>
+        <span style="font-size:14px; line-height:1.55; color:#8a8a8a">Estimate at about {{ calcPerPoint }} per grid point for the engines you picked, plus Maps. DataForSEO sets the rates, not us, and the app shows the exact cost before every scan.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="faq" style="max-width:1200px; margin:0 auto; padding:clamp(80px,10vw,128px) clamp(20px,4vw,40px); display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr)); gap:clamp(32px,5vw,64px); align-items:start; scroll-margin-top:70px">
+  <div style="display:flex; flex-direction:column; gap:22px">
+    <span style="font-weight:600; font-size:14px; letter-spacing:.06em; text-transform:uppercase">FAQ</span>
+    <h2 style="margin:0; font-weight:600; font-size:clamp(34px,4.4vw,52px); line-height:1.08; letter-spacing:-0.035em; text-wrap:balance">Straight answers about AI visibility tracking.</h2>
+  </div>
+  <div style="display:flex; flex-direction:column">
+    <details style="border-bottom:1px solid #262626; padding:24px 0"><summary style="display:flex; justify-content:space-between; gap:16px; font-weight:500; font-size:18px">What’s the catch with “pay once”?<span style="color:#8a8a8a">⌄</span></summary><p style="margin:14px 0 0; font-size:16px; line-height:1.6; color:#a1a1a1">There’s no subscription to cancel. You buy the software once and keep using it. The data still costs money, but you pay DataForSEO directly, at their price.</p></details>
+    <details style="border-bottom:1px solid #262626; padding:24px 0"><summary style="display:flex; justify-content:space-between; gap:16px; font-weight:500; font-size:18px">Why does the price keep going up?<span style="color:#8a8a8a">⌄</span></summary><p style="margin:14px 0 0; font-size:16px; line-height:1.6; color:#a1a1a1">Early buyers take the most risk, so they get the lowest price. Every {{ tier }} sales the price rises ${{ priceStep }}. The counter sets it, not a timer.</p></details>
+    <details style="border-bottom:1px solid #262626; padding:24px 0"><summary style="display:flex; justify-content:space-between; gap:16px; font-weight:500; font-size:18px">Do I need a DataForSEO account?<span style="color:#8a8a8a">⌄</span></summary><p style="margin:14px 0 0; font-size:16px; line-height:1.6; color:#a1a1a1">For scans at cost, yes. It’s pay-as-you-go, so you only pay for what you use. If you’d rather not, buy included scans in packs.</p></details>
+    <details style="border-bottom:1px solid #262626; padding:24px 0"><summary style="display:flex; justify-content:space-between; gap:16px; font-weight:500; font-size:18px">What does a scan really cost?<span style="color:#8a8a8a">⌄</span></summary><p style="margin:14px 0 0; font-size:16px; line-height:1.6; color:#a1a1a1">A 7×7 grid is 49 points. Each point asks each AI engine once and checks Maps once: roughly {{ scanLabel }} for all four engines at current rates. The app shows the estimate before you run it.</p></details>
+    <details style="border-bottom:1px solid #262626; padding:24px 0"><summary style="display:flex; justify-content:space-between; gap:16px; font-weight:500; font-size:18px">Where do the AI answers come from?<span style="color:#8a8a8a">⌄</span></summary><p style="margin:14px 0 0; font-size:16px; line-height:1.6; color:#a1a1a1">Through your DataForSEO key, which asks ChatGPT, Claude, Perplexity and Gemini the same “best {service} in {area}” prompt at every grid point. Maps rank comes from DataForSEO too.</p></details>
+    <details style="border-bottom:1px solid #262626; padding:24px 0"><summary style="display:flex; justify-content:space-between; gap:16px; font-weight:500; font-size:18px">Is RankbyAI the only tool that does this?<span style="color:#8a8a8a">⌄</span></summary><p style="margin:14px 0 0; font-size:16px; line-height:1.6; color:#a1a1a1">No. Local Falcon and BrightLocal both offer AI visibility tracking. We differ on price model: pay once, API calls at cost, bulk prospect reports and an open API and MCP server.</p></details>
+    <details style="border-bottom:1px solid #262626; padding:24px 0"><summary style="display:flex; justify-content:space-between; gap:16px; font-weight:500; font-size:18px">Can my clients see the results?<span style="color:#8a8a8a">⌄</span></summary><p style="margin:14px 0 0; font-size:16px; line-height:1.6; color:#a1a1a1">Yes. Share a live report link or send a PDF, under your own brand.</p></details>
+    <details style="border-bottom:1px solid #262626; padding:24px 0"><summary style="display:flex; justify-content:space-between; gap:16px; font-weight:500; font-size:18px">Can I use it with Claude or ChatGPT?<span style="color:#8a8a8a">⌄</span></summary><p style="margin:14px 0 0; font-size:16px; line-height:1.6; color:#a1a1a1">Yes. Connect the MCP server or call the REST API, and your agent can run scans, audits and reports.</p></details>
+  </div>
+</section>
+
+<section style="border-top:1px solid #1c1c1c">
+  <div style="max-width:1200px; margin:0 auto; padding:clamp(96px,12vw,160px) clamp(20px,4vw,40px); display:flex; flex-direction:column; align-items:center; text-align:center; gap:26px">
+    <h2 style="margin:0; font-weight:600; font-size:clamp(44px,6vw,80px); line-height:1; letter-spacing:-0.045em">{{ left }} left at ${{ price }}.</h2>
+    <p style="margin:0; max-width:720px; font-size:clamp(17px,1.5vw,21px); line-height:1.55; color:#a1a1a1; text-wrap:pretty">The next {{ tier }} buyers pay <span style="color:#f5f5f5">${{ nextPrice }}</span>. You’ll pay for the data either way. Stop paying for the meter.</p>
+    <a href="#pricing" style="text-decoration:none; background:#f5f5f5; color:#0b0b0b; padding:17px 26px; border-radius:12px; font-weight:600; font-size:18px; display:flex; gap:10px" style-hover="background:#ffffff; color:#0b0b0b"><span>Get lifetime access — ${{ price }}</span><span>→</span></a>
+    <span style="font-size:14px; color:#8a8a8a">One payment · Your own key · {{ refund }}-day refund</span>
+  </div>
+</section>
+
+<footer style="border-top:1px solid #1c1c1c">
+  <div style="max-width:1200px; margin:0 auto; padding:40px clamp(20px,4vw,40px) 120px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-end; gap:24px">
+    <div style="display:flex; flex-direction:column; gap:10px">
+      <div style="display:flex; align-items:center; gap:12px"><img src="assets/logo-80.png" alt="RankbyAI" style="height:30px; width:auto; display:block"><span style="font-weight:600; font-size:17px">rankbyai<span style="color:#8a8a8a">.live</span></span></div>
+      <span style="font-size:14px; color:#8a8a8a">Not endorsed by OpenAI, Anthropic, Perplexity, Google or DataForSEO.</span>
+    </div>
+    <div style="display:flex; gap:28px; font-size:15px">
+      <a href="#top" style="text-decoration:none; color:#a1a1a1" style-hover="color:#f5f5f5">Terms</a>
+      <a href="#top" style="text-decoration:none; color:#a1a1a1" style-hover="color:#f5f5f5">Privacy</a>
+      <a href="#top" style="text-decoration:none; color:#a1a1a1" style-hover="color:#f5f5f5">Refund policy</a>
+      <a href="#top" style="text-decoration:none; color:#a1a1a1" style-hover="color:#f5f5f5">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<div style="position:fixed; left:0; right:0; bottom:0; z-index:35; background:rgba(11,11,11,.9); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border-top:1px solid #1c1c1c; transform:translateY({{ barY }}); transition:transform .3s ease">
+  <div style="max-width:1200px; margin:0 auto; padding:12px clamp(20px,4vw,40px); display:flex; justify-content:space-between; align-items:center; gap:16px">
+    <div style="display:flex; align-items:center; gap:12px"><span style="width:9px; height:9px; border-radius:50%; background:#ef5b5b; box-shadow:0 0 0 4px rgba(239,91,91,.15)"></span><div style="display:flex; flex-direction:column; gap:2px"><span style="font-size:16px"><span style="font-weight:600">${{ price }}</span> <span style="color:#a1a1a1">lifetime</span></span><span style="font-size:13px; color:#a1a1a1"><span style="color:#ef5b5b">{{ left }}</span> left, then ${{ nextPrice }}</span></div></div>
+    <a href="#pricing" style="text-decoration:none; background:#f5f5f5; color:#0b0b0b; padding:12px 18px; border-radius:10px; font-weight:600; display:flex; gap:8px" style-hover="background:#ffffff; color:#0b0b0b">Lock it in<span>→</span></a>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;price&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:149,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:0,&quot;section&quot;:&quot;Pricing&quot;},&quot;priceStep&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:10,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:0,&quot;section&quot;:&quot;Pricing&quot;},&quot;tierSize&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:5,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:1,&quot;max&quot;:20,&quot;section&quot;:&quot;Pricing&quot;},&quot;seatsLeft&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:1,&quot;max&quot;:20,&quot;section&quot;:&quot;Pricing&quot;},&quot;refundDays&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:14,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:0,&quot;section&quot;:&quot;Pricing&quot;},&quot;monthlyPlan&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:99,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:0,&quot;section&quot;:&quot;Comparison&quot;},&quot;showCompare&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Comparison&quot;}}">
+const BIZ = 'Lone Star Plumbing';
+const ENGINES = [
+  { key: 'chatgpt', label: 'ChatGPT', t: 0.52, seed: 11 },
+  { key: 'claude', label: 'Claude', t: 0.46, seed: 53 },
+  { key: 'perplexity', label: 'Perplexity', t: 0.62, seed: 23 },
+  { key: 'gemini', label: 'Gemini', t: 0.4, seed: 37 }
+];
+// DataForSEO cost per grid point in USD (Maps + one prompt per engine). ~$0.002/point = ~10¢ per 7×7. Update if DataForSEO rates change.
+const RATES = { maps: 0.0004, chatgpt: 0.0004, claude: 0.0004, perplexity: 0.0004, gemini: 0.0004 };
+const RIVALS = ['Capitol City Plumbing', 'Bluebonnet Pipe Co.', 'Eastside Drain & Sewer', 'Hill Country Plumbers'];
+const G1 = 'oklch(0.72 0.16 150)', G2 = 'oklch(0.55 0.12 150)', G3 = 'oklch(0.4 0.08 150)', NONE = '#232323';
+const AMBER = 'oklch(0.8 0.15 85)', ORANGE = 'oklch(0.7 0.17 50)', RED = 'oklch(0.6 0.19 25)';
+const INK = '#0b0b0b', FG = '#f5f5f5';
+const DIRS = ['E', 'NE', 'N', 'NW', 'W', 'SW', 'S', 'SE'];
+const NAV = ['Dashboard', 'Businesses', 'AI Grid', 'Auditor', 'Fix Kit', 'Prospect reports'];
+const navFor = a => NAV.map(l => ({ key: l, label: l, bg: l === a ? '#1c1c1c' : 'transparent', fg: l === a ? FG : '#9a9a9a' }));
+function rnd(i, j, s) { const x = Math.sin(i * 127.1 + j * 311.7 + s * 74.7) * 43758.5453; return x - Math.floor(x); }
+const usd0 = v => '$' + Math.round(v).toLocaleString('en-US');
+const usd2 = v => '$' + (isFinite(v) ? v : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const SCHEMA = `{
+  "@context": "https://schema.org",
+  "@type": "Plumber",
+  "name": "Lone Star Plumbing",
+  "telephone": "+1-512-555-0147",
+  "areaServed": ["Austin", "Round Rock",
+                 "Pflugerville", "Cedar Park"],
+  "openingHours": "Mo-Su 00:00-23:59",
+  "address": {
+    "@type": "PostalAddress",
+    "addressLocality": "Austin",
+    "addressRegion": "TX"
+  }
+}`;
+const LLMS = `# Lone Star Plumbing
+
+> Licensed 24/7 plumbers serving Austin,
+> Round Rock, Pflugerville and Cedar Park.
+
+## Services
+- [Emergency plumbing](/emergency)
+- [Water heater repair](/water-heaters)
+- [Drain cleaning](/drains)
+- [Slab leak detection](/slab-leaks)
+
+## Service area
+Austin, Round Rock, Pflugerville, Cedar Park`;
+const REPORTS = [
+  { name: 'Capitol City Plumbing', ai: '61%', maps: '3.2', audit: 78, link: '/r/cc-plumb' },
+  { name: 'Lone Star Plumbing', ai: '43%', maps: '5.8', audit: 64, link: '/r/lone-star' },
+  { name: 'Bluebonnet Pipe Co.', ai: '28%', maps: '7.1', audit: 52, link: '/r/bluebonnet' },
+  { name: 'Eastside Drain & Sewer', ai: '12%', maps: '9.4', audit: 41, link: '/r/eastside' },
+  { name: 'Hill Country Plumbers', ai: '4%', maps: '14.6', audit: 33, link: '/r/hill-country' }
+];
+const FIX_TABS = [
+  { key: 'profile', label: 'AI-ready profile', file: 'profile.txt' },
+  { key: 'faq', label: 'FAQ', file: 'faq.md' },
+  { key: 'schema', label: 'Schema', file: 'localbusiness.jsonld' },
+  { key: 'llms', label: 'llms.txt', file: 'llms.txt' }
+];
+const STEPS = [
+  { key: 'scan', n: '01', label: 'Scan', caption: 'Scan the AI answers across a map grid', url: 'rankbyai.live/app/ai-grid' },
+  { key: 'compare', n: '02', label: 'Compare', caption: 'Compare any two scans, point by point', url: 'rankbyai.live/app/compare' },
+  { key: 'audit', n: '03', label: 'Audit', caption: 'Get fixes ranked P0 to P3, with evidence', url: 'rankbyai.live/app/auditor' },
+  { key: 'share', n: '04', label: 'Share', caption: 'Send a white-label report with a live link', url: 'rankbyai.live/app/reports' }
+];
+
+class Component extends DCLogic {
+  state = {
+    engine: 'chatgpt', sel: null, reveal: false, step: 0, cycle: 0, copied: false, fix: 'profile',
+    kw: 10, cg: 7, ce: { chatgpt: true, claude: true, perplexity: true, gemini: true }, freq: 'monthly', showBar: false
+  };
+  componentDidMount() {
+    this.t = setTimeout(() => this.setState({ reveal: true }), 250);
+    this.onScroll = () => { const show = window.scrollY > 640; if (show !== this.state.showBar) this.setState({ showBar: show }); };
+    window.addEventListener('scroll', this.onScroll, { passive: true });
+    this.onScroll();
+  }
+  componentWillUnmount() { clearTimeout(this.t); clearTimeout(this.ct); window.removeEventListener('scroll', this.onScroll); }
+  replay = () => { clearTimeout(this.t); this.setState({ reveal: false }); this.t = setTimeout(() => this.setState({ reveal: true }), 120); };
+  nextStep = () => { const n = (this.state.step + 1) % STEPS.length; this.setState({ step: n }); if (n === 0) this.replay(); };
+  goStep = i => { this.setState(s => ({ step: i, cycle: s.cycle + 1 })); if (i === 0) this.replay(); };
+  copy = () => { clearTimeout(this.ct); this.setState({ copied: true }); this.ct = setTimeout(() => this.setState({ copied: false }), 1800); };
+
+  point(n, i, j, eng) {
+    const seed = 42, c = (n - 1) / 2, maxD = Math.hypot(c, c) || 1;
+    const d = Math.hypot(i - c, j - c) / maxD;
+    const skew = ((j - c) - (i - c)) / (2 * maxD) * 0.18;
+    const ai = d - skew + (rnd(i, j, seed + eng.seed) - 0.5) * 0.45;
+    const pos = ai >= eng.t ? 0 : ai < eng.t * 0.45 ? 1 : ai < eng.t * 0.75 ? 2 : 3;
+    const rank = Math.max(1, Math.round(1 + Math.pow(d, 1.3) * 21 + (rnd(i, j, seed) - 0.5) * 7 - skew * 10));
+    return { pos, rank };
+  }
+
+  renderVals() {
+    const s = this.state, p = this.props;
+    const price = p.price ?? 149, priceStep = p.priceStep ?? 10, tier = Math.max(1, p.tierSize ?? 5);
+    const left = Math.max(1, Math.min(tier, p.seatsLeft ?? 3));
+    const plan = p.monthlyPlan ?? 99, refund = p.refundDays ?? 14;
+
+    const n = 7, total = 49, c = 3;
+    const eng = ENGINES.find(e => e.key === s.engine);
+    const sel = s.sel || { i: 3, j: 3 };
+    const aiCells = [], mapCells = [];
+    let hits = 0, top3 = 0, selData = { pos: 0, rank: 1 };
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const pt = this.point(n, i, j, eng);
+      if (pt.pos) hits++;
+      if (pt.rank <= 3) top3++;
+      const isSel = i === sel.i && j === sel.j;
+      if (isSel) selData = pt;
+      const common = { op: s.reveal ? 1 : 0, sc: s.reveal ? 1 : 0.5, delay: ((i + j) * 28) + 'ms', ring: isSel ? `0 0 0 2px #0e0e0e, 0 0 0 4px ${FG}` : 'none', onClick: () => this.setState({ sel: { i, j } }), title: String.fromCharCode(65 + i) + (j + 1) };
+      aiCells.push({ ...common, key: 'a' + i + '-' + j, label: pt.pos ? pt.pos : '–',
+        bg: pt.pos === 1 ? G1 : pt.pos === 2 ? G2 : pt.pos === 3 ? G3 : NONE,
+        fg: pt.pos === 1 ? INK : pt.pos ? FG : '#6b6b6b' });
+      mapCells.push({ ...common, key: 'm' + i + '-' + j, label: pt.rank > 20 ? '20+' : pt.rank,
+        bg: pt.rank <= 3 ? G1 : pt.rank <= 10 ? AMBER : pt.rank <= 20 ? ORANGE : RED,
+        fg: pt.rank > 20 ? '#ffffff' : INK });
+    }
+    const dx = sel.j - c, dy = c - sel.i, dist = Math.hypot(dx, dy) * 0.6;
+    const dir = DIRS[Math.round(((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360 / 45) % 8];
+    let names = [0, 1, 2].map(k => RIVALS[(sel.i * 3 + sel.j + k) % RIVALS.length]);
+    if (selData.pos) names.splice(selData.pos - 1, 0, BIZ);
+    const selList = names.slice(0, 3).map((name, k) => ({ key: k, rank: k + 1, name: name === BIZ ? name + ' (you)' : name, bg: name === BIZ ? 'rgba(80,200,120,.12)' : 'transparent', fg: name === BIZ ? G1 : FG }));
+    const engineTabs = ENGINES.map(e => {
+      let h = 0;
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (this.point(n, i, j, e).pos) h++;
+      const on = e.key === s.engine;
+      return { key: e.key, label: e.label, cov: Math.round(h / total * 100) + '%', bg: on ? FG : 'transparent', fg: on ? INK : '#a1a1a1', onClick: () => this.setState({ engine: e.key }) };
+    });
+
+    const steps = STEPS.map((st, i) => ({
+      key: st.key, n: st.n, label: st.label, op: i === s.step ? 1 : 0.55,
+      doneW: i < s.step ? '100%' : '0%', onClick: () => this.goStep(i),
+      bar: i === s.step ? React.createElement('div', { key: 'pb' + i + '-' + s.cycle, onAnimationEnd: this.nextStep, style: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 0, background: FG, animation: 'rbProgress 6s linear forwards' } }) : null
+    }));
+    const cur = STEPS[s.step];
+
+    const cpp = RATES.maps + ENGINES.reduce((a, e) => a + RATES[e.key], 0);
+    const scan77 = cpp * 49;
+    const yearData = 10 * 12 * scan77;
+
+    const pts = s.cg * s.cg;
+    const act = ENGINES.filter(e => s.ce[e.key]);
+    const perPoint = RATES.maps + act.reduce((a, e) => a + RATES[e.key], 0);
+    const scansYr = s.kw * (s.freq === 'weekly' ? 52 : 12);
+    const dataYr = scansYr * pts * perPoint;
+    const ours = price + dataYr, planYrV = plan * 12, max = Math.max(ours, planYrV, 1);
+    const seg = (on) => ({ bg: on ? FG : 'transparent', fg: on ? INK : '#a1a1a1' });
+
+    return {
+      price, priceStep, tier, left, nextPrice: price + priceStep, plan, refund,
+      planYr: usd0(planYrV), heroY1: usd0(price + yearData), heroY2: usd0(yearData),
+      cppLabel: '$' + cpp.toFixed(cpp < 0.01 ? 3 : 2), scanLabel: usd2(scan77),
+      steps, stepUrl: cur.url, stepNum: s.step + 1, stepCaption: cur.caption,
+      isScan: s.step === 0, isCompare: s.step === 1, isAudit: s.step === 2, isShare: s.step === 3,
+      engineTabs, engineLabel: eng.label, aiCells, mapCells,
+      aiStat: `${hits}/${total}`, mapStat: `top-3 at ${top3}/${total}`,
+      selPoint: 'Point ' + String.fromCharCode(65 + sel.i) + (sel.j + 1),
+      selDist: dist < 0.05 ? 'At the business pin' : `${dist.toFixed(1)} mi ${dir} of the pin`,
+      selList, selMaps: selData.rank > 20 ? 'Not in top 20' : '#' + selData.rank,
+      copy: this.copy, copyLabel: s.copied ? '✓ Copied' : 'Copy link', copyBg: s.copied ? 'oklch(0.62 0.15 150)' : FG, copyFg: s.copied ? '#ffffff' : INK,
+      nav1: navFor('AI Grid'), nav2: navFor('Auditor'),
+      fixTabs: FIX_TABS.map(t => ({ ...t, ...seg(s.fix === t.key), onClick: () => this.setState({ fix: t.key }) })),
+      fixFile: (FIX_TABS.find(t => t.key === s.fix) || FIX_TABS[0]).file,
+      isProfile: s.fix === 'profile', isFaq: s.fix === 'faq', isSchema: s.fix === 'schema', isLlms: s.fix === 'llms',
+      schemaCode: SCHEMA, llmsCode: LLMS,
+      reports: REPORTS.map(r => ({ ...r, key: r.link, bg: r.audit >= 70 ? G1 : r.audit >= 50 ? AMBER : ORANGE })),
+      segments: Array.from({ length: tier }, (_, i) => {
+        const sold = i < tier - left;
+        return { key: i, bg: sold ? '#3a3a3a' : 'rgba(239,91,91,.18)', border: sold ? '1px solid #4a4a4a' : '1px solid #ef5b5b' };
+      }),
+      ladder: [-2, -1, 0, 1, 2, 3, 4].map(k => ({
+        key: k, label: '$' + (price + k * priceStep), tag: k < 0 ? 'GONE' : k === 0 ? 'NOW' : k === 1 ? 'NEXT' : 'LATER',
+        h: (36 + (k + 2) * 12) + 'px', bg: k === 0 ? '#3a3a3a' : k < 0 ? 'transparent' : '#1a1a1a',
+        border: k < 0 ? '1px dashed #3a3a3a' : k === 0 ? '2px solid #f5f5f5' : '1px solid #2a2a2a',
+        fg: k === 0 ? FG : '#8a8a8a', strike: k < 0 ? 'line-through' : 'none', tagFg: k === 0 ? '#ef5b5b' : '#8a8a8a'
+      })),
+      showCompare: p.showCompare ?? true,
+      kw: s.kw, onKw: e => this.setState({ kw: parseInt(e.target.value, 10) || 1 }),
+      gridOpts: [3, 5, 7, 9].map(g => ({ key: g, label: g + '×' + g, ...seg(s.cg === g), onClick: () => this.setState({ cg: g }) })),
+      engOpts: ENGINES.map(e => ({ key: e.key, label: e.label, ...seg(!!s.ce[e.key]), onClick: () => this.setState(st => ({ ce: { ...st.ce, [e.key]: !st.ce[e.key] } })) })),
+      freqOpts: [['weekly', 'Weekly'], ['monthly', 'Monthly']].map(([k, l]) => ({ key: k, label: l, ...seg(s.freq === k), onClick: () => this.setState({ freq: k }) })),
+      calcData: usd2(dataYr), calcOurs: usd0(ours),
+      calcFormula: `${scansYr.toLocaleString('en-US')} scans × ${pts} points × ~$${perPoint.toFixed(4)}`,
+      calcPerPoint: '$' + perPoint.toFixed(4),
+      calcPlanW: (planYrV / max * 100) + '%', calcOursW: Math.max(2, ours / max * 100) + '%',
+      barY: s.showBar ? '0%' : '110%'
+    };
+  }
+}
+</script>
+</body>
+</html>

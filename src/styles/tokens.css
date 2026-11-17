@@ -1,0 +1,62 @@
+/*
+ * RankbyAI design tokens — extracted from the Claude Design handoff (/design/README.md).
+ * Dark theme only: the logo and every surface are designed for dark backgrounds.
+ * These CSS variables are the single source of truth. globals.css maps them into
+ * Tailwind (@theme) and into the shadcn/ui variable names.
+ */
+:root {
+  /* Surfaces */
+  --rb-bg: #0b0b0b; /* page background */
+  --rb-bg-alt: #111111; /* alternating bands, mock frames */
+  --rb-surface: #141414; /* cards */
+  --rb-surface-2: #161616; /* highlighted card, table column, popovers */
+  --rb-inset: #0e0e0e; /* app windows, inputs, segmented wells */
+  --rb-well: #121212; /* grid backdrop */
+
+  /* Lines */
+  --rb-line: #1c1c1c; /* section borders, window dividers */
+  --rb-border: #262626; /* card borders */
+  --rb-border-strong: #2e2e2e; /* pills, chips, secondary buttons */
+  --rb-border-heavy: #3a3a3a; /* price card, sold segments */
+
+  /* Text */
+  --rb-fg: #f5f5f5;
+  --rb-fg-2: #d4d4d4;
+  --rb-muted: #a1a1a1;
+  --rb-dim: #8a8a8a; /* dimmest text allowed on --rb-bg (4.5:1) */
+  --rb-faint: #6b6b6b; /* labels on dark wells only, never body text */
+
+  /* Signal */
+  --rb-danger: #ef5b5b;
+  --rb-danger-ring: rgba(239, 91, 91, 0.15);
+  --rb-danger-fill: rgba(239, 91, 91, 0.18);
+
+  /* Data colors (OKLCH with sRGB-safe rendering in modern browsers) */
+  --rb-g1: oklch(0.72 0.16 150); /* AI #1, Maps 1–3, positive deltas, "you" */
+  --rb-g2: oklch(0.55 0.12 150); /* AI #2 */
+  --rb-g3: oklch(0.4 0.08 150); /* AI #3 */
+  --rb-none: #232323; /* not mentioned */
+  --rb-amber: oklch(0.8 0.15 85); /* Maps 4–10, AI 4–5, P2, audit 50–69 */
+  --rb-orange: oklch(0.7 0.17 50); /* Maps 11–20, P1, negative delta, audit <50 */
+  --rb-red: oklch(0.6 0.19 25); /* Maps 20+, P0 */
+  --rb-copied: oklch(0.62 0.15 150);
+  --rb-you-tint: rgba(80, 200, 120, 0.12);
+
+  /* Window chrome dots */
+  --rb-dot-red: #ff5f57;
+  --rb-dot-yellow: #febc2e;
+  --rb-dot-green: #28c840;
+
+  /* Shadows */
+  --rb-shadow-frame: 0 40px 120px -40px rgba(0, 0, 0, 0.9);
+  --rb-shadow-popover: 0 30px 60px -20px rgba(0, 0, 0, 0.8);
+  --rb-shadow-price: 0 40px 100px -40px rgba(255, 255, 255, 0.08);
+  --rb-shadow-pill: 0 10px 30px rgba(0, 0, 0, 0.5);
+
+  /* Layout */
+  --rb-container: 1200px;
+  --rb-container-narrow: 1080px;
+  --rb-gutter: clamp(20px, 4vw, 40px);
+  --rb-section-y: clamp(80px, 10vw, 128px);
+  --rb-band-y: clamp(48px, 6vw, 72px);
+}

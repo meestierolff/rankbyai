@@ -1,0 +1,164 @@
+/**
+ * Vendor API price constants. ONE source of truth for the marketing calculator,
+ * the in-app estimate, the REST/MCP estimate and the cost guard, so they can never disagree.
+ *
+ * Every figure below was read on the vendor's public pricing page on the date given.
+ * Vendors set these rates and can change them. Values marked [estimate] are our
+ * calculation (token assumptions), not a vendor quote; the UI labels them the same way.
+ */
+export const PRICES_READ_ON = "17 Nov 2026";
+
+/** DataForSEO Google Maps SERP, USD per SERP of up to 100 results.
+ *  Source: https://dataforseo.com/pricing/serp/google-maps-serp-api (read 17 Nov 2026) */
+export const DATAFORSEO_MAPS_PER_POINT = {
+  standard: 0.0006, // ~5 min average turnaround
+  priority: 0.0012, // ~1 min
+  live: 0.002, // ~6 s
+} as const;
+export type MapsMode = keyof typeof DATAFORSEO_MAPS_PER_POINT;
+
+/** DataForSEO Business Data, Google My Business Info (live), USD per call.
+ *  Source: https://dataforseo.com/pricing/business-data/google-my-business-info (see docs/CONFIRM.md) */
+export const DATAFORSEO_BUSINESS_INFO_PER_CALL = 0.0054;
+
+/** OpenAI Responses API. Source: https://platform.openai.com/docs/pricing (read 17 Nov 2026) */
+export const OPENAI = {
+  webSearchPerCall: 0.01, // $10.00 per 1,000 web search tool calls
+  inputPer1M: 0.25, // gpt-5-mini input
+  outputPer1M: 2.0, // gpt-5-mini output
+  // [estimate] token assumptions per AI sample until 50 real samples replace them
+  estInputTokens: 10_000,
+  estOutputTokens: 400,
+} as const;
+
+/** Perplexity Agent API. Source: https://docs.perplexity.ai/docs/getting-started/pricing (read 17 Nov 2026) */
+export const PERPLEXITY = {
+  webSearchFastPerCall: 0.001,
+  inputPer1M: 0.25, // perplexity/sonar input
+  outputPer1M: 2.5, // perplexity/sonar output
+  estInputTokens: 2_000, // [estimate]
+  estOutputTokens: 400, // [estimate]
+} as const;
+
+/** Gemini API, Flash-Lite paid tier. Source: https://ai.google.dev/gemini-api/docs/pricing (read 17 Nov 2026) */
+export const GEMINI = {
+  inputPer1M: 0.3,
+  outputPer1M: 2.5,
+  groundedPer1000: 14, // Grounding with Google Maps / Google Search beyond the free allowance
+  freeGroundedRequestsPerMonth: 5_000, // shared across Gemini 3+ models, paid-tier keys only
+  estInputTokens: 2_000, // [estimate]
+  estOutputTokens: 400, // [estimate]
+} as const;
+
+/** LLM helper budgets [estimate], on gpt-5-mini rates. */
+export const LLM_PARSE_BUDGET_USD = 0.003;
+export const LLM_FIX_KIT_BUDGET_USD = 0.02;
+
+export type Engine = "openai" | "perplexity" | "gemini";
+export const ENGINES: readonly Engine[] = ["openai", "perplexity", "gemini"] as const;
+
+/** How we name engines in the UI: the consumer product people know + the API we actually call. */
+export const ENGINE_LABEL: Record<Engine, { short: string; api: string }> = {
+  openai: { short: "ChatGPT", api: "OpenAI API with web search" },
+  perplexity: { short: "Perplexity", api: "Perplexity Agent API with web search" },
+  gemini: { short: "Gemini", api: "Gemini API with Google Maps grounding" },
+};
+
+const tokens = (inTok: number, outTok: number, inPer1M: number, outPer1M: number) =>
+  (inTok * inPer1M + outTok * outPer1M) / 1_000_000;
+
+/** [estimate] USD per AI sample (one prompt, one engine, one grid point). */
+export const AI_SAMPLE_EST_USD = {
+  openai: OPENAI.webSearchPerCall + tokens(OPENAI.estInputTokens, OPENAI.estOutputTokens, OPENAI.inputPer1M, OPENAI.outputPer1M), // ≈ 0.0133
+  perplexity:
+    PERPLEXITY.webSearchFastPerCall +
+    tokens(PERPLEXITY.estInputTokens, PERPLEXITY.estOutputTokens, PERPLEXITY.inputPer1M, PERPLEXITY.outputPer1M), // ≈ 0.0025
+  geminiFree: tokens(GEMINI.estInputTokens, GEMINI.estOutputTokens, GEMINI.inputPer1M, GEMINI.outputPer1M), // ≈ 0.0016 inside the free allowance
+  geminiPaid:
+    GEMINI.groundedPer1000 / 1000 +
+    tokens(GEMINI.estInputTokens, GEMINI.estOutputTokens, GEMINI.inputPer1M, GEMINI.outputPer1M), // ≈ 0.0156 beyond it
+} as const;
+
+export const AI_GRID_SIZES = [1, 3, 5] as const;
+export const MAPS_GRID_SIZES = [3, 5, 7, 9] as const;
+export type AiGridSize = (typeof AI_GRID_SIZES)[number];
+export type MapsGridSize = (typeof MAPS_GRID_SIZES)[number];
+
+/** Published fair-use limits (never reduced for existing buyers). */
+export const FAIR_USE = { businesses: 1000, scheduledQueries: 2000, apiKeys: 5 } as const;
+
+/**
+ * Competitor prices. ONLY these figures may appear on the site, always with the date.
+ * Source: their public pricing pages on 17 Nov 2026 (brief section 9.12).
+ */
+export const COMPETITOR_PRICES_DATE = "17 Nov 2026";
+export const COMPETITORS = {
+  brightlocal: {
+    name: "BrightLocal",
+    plan: "Track, 6–10 locations, billed yearly",
+    yearUsd: 747,
+    monthlyEquivalent: "$62/mo billed yearly ($83 monthly)",
+    source: "brightlocal.com/pricing",
+  },
+  localfalcon: {
+    name: "Local Falcon",
+    plan: "Starter, billed yearly",
+    yearUsd: 299.88,
+    monthlyEquivalent: "$24.99/mo",
+    source: "localfalcon.com/pricing",
+  },
+  whitespark: {
+    name: "Whitespark",
+    plan: "Local Ranking Grids",
+    yearLabel: "from $10/mo (grids only)",
+    source: "whitespark.ca/pricing",
+  },
+  semrush: {
+    name: "Semrush",
+    plan: "Map Rank Tracker",
+    yearLabel: "€112/mo (as verified by the operator, 17 Nov 2026)",
+  },
+} as const;
+
+/** The published comparison scenario (brief 9.12): used by the hero cost card, the maths box and the compare table. */
+export const SCENARIO = {
+  clients: 10,
+  promptsPerClient: 3,
+  aiGrid: 3 as AiGridSize,
+  mapsGrid: 7 as MapsGridSize,
+  frequency: "monthly" as const,
+  description:
+    "An agency checks 10 clients, 3 prompts each, once a month on a 3×3 AI grid across 3 engines, plus a monthly 7×7 Maps grid for the same prompts.",
+};
+
+/** Included-scan packs (keys included). Prices in integer cents. */
+export const PACKS = {
+  pack_25: { credits: 25, priceCents: 1900, label: "Pack 25" },
+  pack_100: { credits: 100, priceCents: 5900, label: "Pack 100" },
+} as const;
+export type PackKey = keyof typeof PACKS;
+
+/** Credits per action (brief 10.3). */
+export const CREDIT_COST = {
+  ai_grid_1: 1,
+  ai_grid_3: 1,
+  ai_grid_5: 3,
+  maps_grid: 1,
+  audit: 1,
+  prospect_report: 2,
+  free_check: 0,
+} as const;
+
+/** Hard cap on house-key spend per included credit (env COST_MAX_PER_CREDIT_USD overrides at runtime). */
+export const DEFAULT_COST_MAX_PER_CREDIT_USD = 0.3;
+
+/**
+ * Payment fees, worst case for an NL Stripe account selling in USD to a US card
+ * (stripe.com/en-nl/pricing, read 16 Nov 2026): 3.15% international card + 2% currency
+ * conversion + 0.5% Stripe Tax, plus €0.25 fixed (≈ $0.29) [estimate].
+ */
+export const STRIPE_FEE_WORST_CASE = { percent: 0.0565, fixedUsd: 0.29 } as const;
+export const stripeFeeUsd = (amountUsd: number) =>
+  amountUsd * STRIPE_FEE_WORST_CASE.percent + STRIPE_FEE_WORST_CASE.fixedUsd;
+
+export const REFUND_DAYS = 14;

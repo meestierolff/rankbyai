@@ -1,0 +1,274 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "../styles/tokens.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Tailwind v4 is CSS-first: this @theme block is the tailwind.config for the design tokens. */
+@theme inline {
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-heading: var(--font-geist-sans), system-ui, sans-serif;
+
+  /* Brand tokens */
+  --color-bg: var(--rb-bg);
+  --color-bg-alt: var(--rb-bg-alt);
+  --color-surface: var(--rb-surface);
+  --color-surface-2: var(--rb-surface-2);
+  --color-inset: var(--rb-inset);
+  --color-well: var(--rb-well);
+  --color-line: var(--rb-line);
+  --color-border-strong: var(--rb-border-strong);
+  --color-border-heavy: var(--rb-border-heavy);
+  --color-fg: var(--rb-fg);
+  --color-fg-2: var(--rb-fg-2);
+  --color-dim: var(--rb-dim);
+  --color-faint: var(--rb-faint);
+  --color-danger: var(--rb-danger);
+  --color-danger-ring: var(--rb-danger-ring);
+  --color-danger-fill: var(--rb-danger-fill);
+  --color-g1: var(--rb-g1);
+  --color-g2: var(--rb-g2);
+  --color-g3: var(--rb-g3);
+  --color-none: var(--rb-none);
+  --color-amber: var(--rb-amber);
+  --color-orange: var(--rb-orange);
+  --color-red: var(--rb-red);
+  --color-copied: var(--rb-copied);
+  --color-you-tint: var(--rb-you-tint);
+
+  --shadow-frame: var(--rb-shadow-frame);
+  --shadow-popover: var(--rb-shadow-popover);
+  --shadow-price: var(--rb-shadow-price);
+  --shadow-pill: var(--rb-shadow-pill);
+
+  /* shadcn/ui variable names, mapped onto the same tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --animate-rb-progress: rb-progress 6s linear forwards;
+  --animate-rb-pop: rb-pop 0.35s ease both;
+
+  @keyframes rb-progress {
+    from {
+      width: 0;
+    }
+    to {
+      width: 100%;
+    }
+  }
+  @keyframes rb-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
+/* Dark only. `.dark` is set on <html> so shadcn `dark:` variants resolve. */
+:root,
+.dark {
+  color-scheme: dark;
+  --background: var(--rb-bg);
+  --foreground: var(--rb-fg);
+  --card: var(--rb-surface);
+  --card-foreground: var(--rb-fg);
+  --popover: var(--rb-surface-2);
+  --popover-foreground: var(--rb-fg);
+  --primary: var(--rb-fg);
+  --primary-foreground: var(--rb-bg);
+  --secondary: var(--rb-surface-2);
+  --secondary-foreground: var(--rb-fg);
+  --muted: var(--rb-line);
+  --muted-foreground: var(--rb-muted);
+  --accent: var(--rb-line);
+  --accent-foreground: var(--rb-fg);
+  --destructive: var(--rb-danger);
+  --border: var(--rb-border);
+  --input: var(--rb-border-strong);
+  --ring: var(--rb-dim);
+  --chart-1: var(--rb-g1);
+  --chart-2: var(--rb-amber);
+  --chart-3: var(--rb-orange);
+  --chart-4: var(--rb-red);
+  --chart-5: var(--rb-muted);
+  --radius: 0.625rem;
+  --sidebar: var(--rb-inset);
+  --sidebar-foreground: var(--rb-fg);
+  --sidebar-primary: var(--rb-fg);
+  --sidebar-primary-foreground: var(--rb-bg);
+  --sidebar-accent: var(--rb-line);
+  --sidebar-accent-foreground: var(--rb-fg);
+  --sidebar-border: var(--rb-line);
+  --sidebar-ring: var(--rb-dim);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 16px;
+  }
+  ::selection {
+    background: #3a3a3a;
+  }
+  summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  details[open] > summary .rb-chevron {
+    transform: rotate(180deg);
+  }
+  :focus-visible {
+    outline: 2px solid var(--rb-fg);
+    outline-offset: 2px;
+  }
+  [id] {
+    scroll-margin-top: 84px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+/* Layout + type roles from the handoff (one place, used on every page incl. the app) */
+@utility container-page {
+  width: 100%;
+  max-width: var(--rb-container);
+  margin-inline: auto;
+  padding-inline: var(--rb-gutter);
+}
+@utility container-narrow {
+  width: 100%;
+  max-width: var(--rb-container-narrow);
+  margin-inline: auto;
+  padding-inline: var(--rb-gutter);
+}
+@utility section-y {
+  padding-block: var(--rb-section-y);
+}
+@utility band-y {
+  padding-block: var(--rb-band-y);
+}
+@utility text-h1 {
+  font-weight: 600;
+  font-size: clamp(44px, 6.6vw, 88px);
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+@utility text-h2 {
+  font-weight: 600;
+  font-size: clamp(34px, 4.4vw, 58px);
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+@utility text-h3 {
+  font-weight: 600;
+  font-size: clamp(32px, 4vw, 52px);
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+@utility text-cta {
+  font-weight: 600;
+  font-size: clamp(44px, 6vw, 80px);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+@utility text-lead {
+  font-size: clamp(17px, 1.4vw, 20px);
+  line-height: 1.6;
+  color: var(--rb-muted);
+  text-wrap: pretty;
+}
+@utility text-eyebrow {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+@utility text-stat {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: clamp(36px, 4vw, 52px);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+@utility text-price {
+  font-weight: 600;
+  font-size: clamp(64px, 8vw, 96px);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+@utility grid-well {
+  background-color: var(--rb-well);
+  background-image:
+    linear-gradient(#1a1a1a 1px, transparent 1px), linear-gradient(90deg, #1a1a1a 1px, transparent 1px);
+  background-size: 26px 26px;
+  border: 1px solid #1f1f1f;
+}

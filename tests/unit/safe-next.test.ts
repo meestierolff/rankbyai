@@ -7,7 +7,7 @@ describe("safeNextPath (post-login redirect target)", () => {
     expect(safeNextPath("/app/ai-visibility?scan=1#top")).toBe("/app/ai-visibility?scan=1#top");
   });
 
-  it("reduces an absolute URL to its path (the magic-link template passes one)", () => {
+  it("reduces an absolute URL to its path (a sign-in callback may pass one)", () => {
     expect(safeNextPath("http://localhost:3100/app/billing")).toBe("/app/billing");
     expect(safeNextPath("https://evil.example/app/billing?x=1")).toBe("/app/billing?x=1");
   });

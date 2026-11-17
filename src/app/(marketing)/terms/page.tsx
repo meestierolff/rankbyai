@@ -35,7 +35,7 @@ export default function TermsPage() {
       <ul>
         <li>You must be 18 or older.</li>
         <li>RankbyAI is built for business use, such as agencies and freelancers who do local marketing.</li>
-        <li>Give a working email address. You sign in with a link we send to it.</li>
+        <li>Sign in with a Google account that is yours. We use its verified email address for your account.</li>
         <li>You are responsible for what happens in your workspace, including what your team members do.</li>
       </ul>
 
@@ -121,7 +121,7 @@ export default function TermsPage() {
 
       <h2>6. The free check</h2>
       <p>
-        The free check is a small sample report that needs no purchase. It is limited to one per verified email address and three per IP address per day. We run it on our own keys within a daily
+        The free check is a small sample report that needs no purchase. It is limited to one per Google account and three per IP address per day. We run it on our own keys within a daily
         budget, so a check may be delayed to the next day. We may refuse or pause free checks to stop abuse.
       </p>
 

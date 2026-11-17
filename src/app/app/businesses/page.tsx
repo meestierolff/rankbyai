@@ -30,11 +30,11 @@ interface ScanLite {
 
 export default async function BusinessesPage() {
   const ctx = await requireSession("/app/businesses");
-  const supabase = await currentUserDb();
+  const db = await currentUserDb();
   const [{ data }, keys, { data: scanRows }] = await Promise.all([
-    supabase.from("businesses").select("id, name, address, city, region, primary_category, rating, reviews_count").eq("workspace_id", ctx.workspace.id).neq("source", "prospect").order("created_at", { ascending: false }).limit(500),
+    db.from("businesses").select("id, name, address, city, region, primary_category, rating, reviews_count").eq("workspace_id", ctx.workspace.id).neq("source", "prospect").order("created_at", { ascending: false }).limit(500),
     getKeyStatuses(ctx.workspace.id),
-    supabase.from("scans").select("business_id, kind, grid_size, summary, created_at").eq("workspace_id", ctx.workspace.id).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(1000),
+    db.from("scans").select("business_id, kind, grid_size, summary, created_at").eq("workspace_id", ctx.workspace.id).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(1000),
   ]);
   const rows = (data ?? []) as Row[];
   // Latest finished scan of each kind per business (rows arrive newest first).

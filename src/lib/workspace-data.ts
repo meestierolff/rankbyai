@@ -14,14 +14,14 @@ export interface KeyStatus {
 }
 
 export async function getKeyStatuses(workspaceId: string): Promise<KeyStatus[]> {
-  const supabase = await currentUserDb();
-  const { data } = await supabase.from("api_credentials_public").select("provider, hint, status, last_validated_at, last_balance_usd").eq("workspace_id", workspaceId);
+  const db = await currentUserDb();
+  const { data } = await db.from("api_credentials_public").select("provider, hint, status, last_validated_at, last_balance_usd").eq("workspace_id", workspaceId);
   return (data ?? []) as KeyStatus[];
 }
 
 export async function getCreditBalance(workspaceId: string): Promise<number> {
-  const supabase = await currentUserDb();
-  const { data } = await supabase.from("credit_ledger").select("delta").eq("workspace_id", workspaceId);
+  const db = await currentUserDb();
+  const { data } = await db.from("credit_ledger").select("delta").eq("workspace_id", workspaceId);
   return (data ?? []).reduce((s, r) => s + (r.delta as number), 0);
 }
 
@@ -37,8 +37,8 @@ export interface OrderRow {
   refundable: boolean;
 }
 export async function getOrders(workspaceId: string): Promise<OrderRow[]> {
-  const supabase = await currentUserDb();
-  const { data } = await supabase
+  const db = await currentUserDb();
+  const { data } = await db
     .from("orders")
     .select("id, product_key, amount_cents, tax_cents, status, ladder_seat, created_at")
     .eq("workspace_id", workspaceId)
@@ -68,8 +68,8 @@ export interface ScanRow {
   businesses?: { name: string } | null;
 }
 export async function getRecentScans(workspaceId: string, limit = 8): Promise<ScanRow[]> {
-  const supabase = await currentUserDb();
-  const { data } = await supabase
+  const db = await currentUserDb();
+  const { data } = await db
     .from("scans")
     .select("id, business_id, kind, grid_size, status, funding, keyword, niche, engines, est_cost_usd, actual_cost_usd, summary, created_at, finished_at, businesses(name)")
     .eq("workspace_id", workspaceId)
@@ -80,11 +80,11 @@ export async function getRecentScans(workspaceId: string, limit = 8): Promise<Sc
 
 /** Spend on the user's OWN keys this calendar month (from scan actuals; never our money). */
 export async function getByokSpendThisMonth(workspaceId: string): Promise<number> {
-  const supabase = await currentUserDb();
+  const db = await currentUserDb();
   const start = new Date();
   start.setUTCDate(1);
   start.setUTCHours(0, 0, 0, 0);
-  const { data } = await supabase
+  const { data } = await db
     .from("scans")
     .select("actual_cost_usd")
     .eq("workspace_id", workspaceId)
@@ -94,7 +94,7 @@ export async function getByokSpendThisMonth(workspaceId: string): Promise<number
 }
 
 export async function countRows(table: "businesses" | "clients" | "tracked_queries" | "api_keys", workspaceId: string): Promise<number> {
-  const supabase = await currentUserDb();
-  const { count } = await supabase.from(table).select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId);
+  const db = await currentUserDb();
+  const { count } = await db.from(table).select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId);
   return count ?? 0;
 }

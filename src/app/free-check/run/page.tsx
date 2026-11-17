@@ -5,7 +5,7 @@ import { RunFreeCheck } from "./run-client";
 
 export const metadata: Metadata = { title: "Running your free check", robots: { index: false, follow: false } };
 
-/** Landing page of the free-check magic link. The proxy sends signed-out visitors to /login first. */
+/** Second step of the free check, reached after Google sign-in. The proxy sends signed-out visitors to /login first. */
 export default function FreeCheckRunPage() {
   return (
     <div className="flex min-h-dvh flex-col">

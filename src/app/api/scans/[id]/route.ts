@@ -11,8 +11,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return withSession(async () => {
     const id = z.uuid().safeParse((await params).id);
     if (!id.success) return err(400, "invalid_id", "Unknown scan.");
-    const supabase = await currentUserDb();
-    const { data: scan } = await supabase
+    const db = await currentUserDb();
+    const { data: scan } = await db
       .from("scans")
       .select("id, business_id, kind, keyword, niche, prompt_template, engines, grid_size, radius_miles, center_lat, center_lng, mode, funding, status, credits_used, est_cost_usd, actual_cost_usd, summary, error, created_at, finished_at, lease_until")
       .eq("id", id.data)
@@ -20,9 +20,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if (!scan) return err(404, "not_found", "Unknown scan.");
 
     const [{ data: points }, { data: samples }] = await Promise.all([
-      supabase.from("scan_points").select("idx, row, col, lat, lng, label, rank, top, status, error").eq("scan_id", scan.id).order("idx"),
+      db.from("scan_points").select("idx, row, col, lat, lng, label, rank, top, status, error").eq("scan_id", scan.id).order("idx"),
       scan.kind === "ai"
-        ? supabase.from("ai_samples").select("point_idx, engine, engine_variant, prompt, answer_text, mentioned, mention_position, named_businesses, sources, cost_usd, status, error").eq("scan_id", scan.id).order("point_idx")
+        ? db.from("ai_samples").select("point_idx, engine, engine_variant, prompt, answer_text, mentioned, mention_position, named_businesses, sources, cost_usd, status, error").eq("scan_id", scan.id).order("point_idx")
         : Promise.resolve({ data: [] as unknown[] }),
     ]);
 

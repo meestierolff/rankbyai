@@ -36,15 +36,15 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   const ctx = await requireSession("/app/compare");
   const sp = await searchParams;
   const kind = sp.kind === "maps" ? "maps" : "ai";
-  const supabase = await currentUserDb();
+  const db = await currentUserDb();
 
-  const { data: bizRows } = await supabase.from("businesses").select("id, name").eq("workspace_id", ctx.workspace.id).order("name").limit(500);
+  const { data: bizRows } = await db.from("businesses").select("id, name").eq("workspace_id", ctx.workspace.id).order("name").limit(500);
   const businesses = (bizRows ?? []) as { id: string; name: string }[];
   const businessId = sp.business && uuid.test(sp.business) ? sp.business : businesses[0]?.id;
   const business = businesses.find((b) => b.id === businessId);
 
   const { data: scanRows } = businessId
-    ? await supabase.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at").eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60)
+    ? await db.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at").eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60)
     : { data: [] };
   const scans = (scanRows ?? []) as ScanLite[];
   // Default: the latest scan (b) against the one before it (a).
@@ -95,7 +95,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   }
   // Order by date so "before" is always the older scan, whatever the selects said.
   const [before, after] = new Date(a.created_at) <= new Date(b.created_at) ? [a, b] : [b, a];
-  const { data: pointRows } = await supabase.from("scan_points").select("scan_id, idx, row, col, rank, status").in("scan_id", [before.id, after.id]).order("idx");
+  const { data: pointRows } = await db.from("scan_points").select("scan_id, idx, row, col, rank, status").in("scan_id", [before.id, after.id]).order("idx");
   const pts = (pointRows ?? []) as { scan_id: string; idx: number; row: number; col: number; rank: number | null; status: string }[];
   const where = (idx: number) => {
     const p = pts.find((x) => x.scan_id === after.id && x.idx === idx);
@@ -105,7 +105,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   let body: React.ReactNode;
   let headline: string;
   if (kind === "ai") {
-    const { data: sampleRows } = await supabase.from("ai_samples").select("scan_id, point_idx, engine, status, mentioned, mention_position").in("scan_id", [before.id, after.id]);
+    const { data: sampleRows } = await db.from("ai_samples").select("scan_id, point_idx, engine, status, mentioned, mention_position").in("scan_id", [before.id, after.id]);
     const all = (sampleRows ?? []) as (AiCompareSample & { scan_id: string })[];
     const sa = all.filter((s) => s.scan_id === before.id);
     const sb = all.filter((s) => s.scan_id === after.id);

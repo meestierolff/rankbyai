@@ -9,7 +9,7 @@ Live site: https://rankbyai.live · Built in public for the Ship or Die $100K Ha
 ## Stack
 
 - Next.js 16 (App Router, Cache Components, TypeScript strict), Tailwind CSS v4, shadcn/ui
-- Supabase (Postgres, Auth magic links, Storage) with row level security on every table
+- Neon (Postgres, Neon Auth with Google sign-in, Data API, Object Storage) with row level security on every table
 - Stripe Checkout (one-time payments, Stripe Tax)
 - Official APIs only: DataForSEO (Google Maps results), OpenAI, Perplexity, Gemini
 - Vitest for unit and database tests
@@ -25,7 +25,9 @@ Live site: https://rankbyai.live · Built in public for the Ship or Die $100K Ha
 | `src/app/app`, `src/components/app` | The dashboard |
 | `src/lib/pricing-constants.ts`, `src/lib/cost` | Vendor price constants and cost maths (one source for site and app) |
 | `src/lib/ladder.ts`, `src/lib/checkout.ts`, `src/lib/stripe-webhook.ts` | Lifetime price ladder, checkout, webhook |
-| `supabase/migrations` | Schema, RLS policies, functions |
+| `db/migrations` | Schema, RLS policies, functions (plain Postgres SQL) |
+| `db/local`, `scripts/db.mjs` | Local database stack (Postgres + PostgREST in Docker) and the migration runner |
+| `src/lib/db` | Database clients and the short-lived tokens the server signs for the Data API |
 | `tests/unit`, `tests/db` | Unit tests and tests that run against a real local Postgres |
 | `docs/` | Setup, progress log, vendor API notes |
 
@@ -33,8 +35,8 @@ Live site: https://rankbyai.live · Built in public for the Ship or Die $100K Ha
 
 ```bash
 pnpm install
-pnpm db:start            # local Supabase (Docker); ports are set in supabase/config.toml
-cp .env.example .env.local   # fill in the local Supabase URL and keys printed by the command above
+cp .env.example .env.local
+pnpm db:setup            # local Postgres + PostgREST (Docker): creates a signing key, writes the database lines to .env.local, applies db/migrations
 pnpm dev                 # http://localhost:3100
 ```
 

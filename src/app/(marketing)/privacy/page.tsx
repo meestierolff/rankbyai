@@ -35,7 +35,7 @@ export default function PrivacyPage() {
         <tbody>
           <tr>
             <td>Account</td>
-            <td>Your email address. You sign in with a link sent to it, so we store no password.</td>
+            <td>Your name, email address and profile picture, as Google shares them when you sign in with your Google account. We store no password.</td>
           </tr>
           <tr>
             <td>Workspace</td>
@@ -76,7 +76,7 @@ export default function PrivacyPage() {
           </tr>
           <tr>
             <td>Free check</td>
-            <td>The business name, city and email address you enter. To enforce the limits we store a hash of the email address and a hash of the IP address.</td>
+            <td>The business name and city you enter. To enforce the limits we store a hash of the email address of the Google account you sign in with and a hash of the IP address.</td>
           </tr>
           <tr>
             <td>Removal requests</td>
@@ -97,7 +97,7 @@ export default function PrivacyPage() {
       <h2>3. Why we use it</h2>
       <ul>
         <li>
-          <strong>To provide the service you asked for</strong> (contract): your account, workspace, scans, reports, payments, refunds and service emails such as sign-in links and receipts.
+          <strong>To provide the service you asked for</strong> (contract): your account, workspace, scans, reports, payments, refunds and service emails such as receipts.
         </li>
         <li>
           <strong>To meet legal duties</strong> (legal obligation): keeping payment and tax records.
@@ -142,8 +142,12 @@ export default function PrivacyPage() {
         </thead>
         <tbody>
           <tr>
-            <td>Supabase</td>
-            <td>Database, sign-in and file storage.</td>
+            <td>Neon</td>
+            <td>Database, sign-in sessions and file storage.</td>
+          </tr>
+          <tr>
+            <td>Google</td>
+            <td>Sign-in with your Google account. Google tells us your name, email address and profile picture.</td>
           </tr>
           <tr>
             <td>Vercel</td>
@@ -155,7 +159,7 @@ export default function PrivacyPage() {
           </tr>
           <tr>
             <td>Resend</td>
-            <td>Sending email, such as sign-in links and receipts.</td>
+            <td>Sending email, such as receipts.</td>
           </tr>
           <tr>
             <td>DataForSEO</td>
@@ -242,7 +246,7 @@ export default function PrivacyPage() {
           <strong>Security logs:</strong> a short time only.
         </li>
         <li>
-          <strong>Free check hashes:</strong> for as long as we need them to enforce the one-per-email limit.
+          <strong>Free check hashes:</strong> for as long as we need them to enforce the one-per-account limit.
         </li>
         <li>
           <strong>If we shut down:</strong> you get at least 60 days&rsquo; notice and an export first.

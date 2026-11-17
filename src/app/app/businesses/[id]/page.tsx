@@ -30,18 +30,18 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
   const ctx = await requireSession("/app/businesses");
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const supabase = await currentUserDb();
-  const { data: b } = await supabase.from("businesses").select("*").eq("id", id).eq("workspace_id", ctx.workspace.id).maybeSingle();
+  const db = await currentUserDb();
+  const { data: b } = await db.from("businesses").select("*").eq("id", id).eq("workspace_id", ctx.workspace.id).maybeSingle();
   if (!b) notFound();
 
-  const { data: scanRows } = await supabase
+  const { data: scanRows } = await db
     .from("scans")
     .select("id, kind, grid_size, radius_miles, status, keyword, niche, summary, actual_cost_usd, created_at")
     .eq("business_id", id)
     .order("created_at", { ascending: false })
     .limit(30);
   const scans = (scanRows ?? []) as ScanLite[];
-  const { data: share } = await supabase.from("reports").select("share_slug").eq("business_id", id).eq("kind", "share").eq("revoked", false).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: share } = await db.from("reports").select("share_slug").eq("business_id", id).eq("kind", "share").eq("revoked", false).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const usable = (s: ScanLite) => s.status === "done" || s.status === "partial";
   const latestMaps = scans.find((s) => s.kind === "maps" && usable(s)) ?? null;
   const latestAi = scans.find((s) => s.kind === "ai" && usable(s)) ?? null;
@@ -49,15 +49,15 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
   let mapsPts: MapPoint[] | null = null;
   let aiPts: MapPoint[] | null = null;
   if (latestMaps) {
-    const { data } = await supabase.from("scan_points").select("idx, row, col, lat, lng, rank, status").eq("scan_id", latestMaps.id).order("idx");
+    const { data } = await db.from("scan_points").select("idx, row, col, lat, lng, rank, status").eq("scan_id", latestMaps.id).order("idx");
     mapsPts = ((data ?? []) as { idx: number; row: number; col: number; lat: number; lng: number; rank: number | null; status: string }[])
       .filter((p) => p.status === "done")
       .map((p) => ({ key: `m${p.idx}`, lat: p.lat, lng: p.lng, ...mapsCellColors(p.rank), title: `Maps point ${pointName(p.row, p.col)}: ${p.rank ? `rank #${p.rank}` : "not in the top 20"}` }));
   }
   if (latestAi) {
     const [{ data: pts }, { data: smp }] = await Promise.all([
-      supabase.from("scan_points").select("idx, row, col, lat, lng").eq("scan_id", latestAi.id).order("idx"),
-      supabase.from("ai_samples").select("point_idx, status, mentioned, mention_position").eq("scan_id", latestAi.id),
+      db.from("scan_points").select("idx, row, col, lat, lng").eq("scan_id", latestAi.id).order("idx"),
+      db.from("ai_samples").select("point_idx, status, mentioned, mention_position").eq("scan_id", latestAi.id),
     ]);
     const samples = (smp ?? []) as { point_idx: number; status: string; mentioned: boolean | null; mention_position: number | null }[];
     aiPts = ((pts ?? []) as { idx: number; row: number; col: number; lat: number; lng: number }[]).map((p) => {

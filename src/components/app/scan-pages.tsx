@@ -32,20 +32,20 @@ const COPY = {
 
 export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionContext; kind: "ai" | "maps"; businessId?: string }) {
   const copy = COPY[kind];
-  const supabase = await currentUserDb();
+  const db = await currentUserDb();
   const ws = ctx.workspace;
   const [{ data: bizRows }, keyRows, credits, { data: scanRows }, { data: scheduleRows }] = await Promise.all([
-    supabase.from("businesses").select("id, name, city, primary_category").eq("workspace_id", ws.id).not("lat", "is", null).order("created_at", { ascending: false }).limit(500),
+    db.from("businesses").select("id, name, city, primary_category").eq("workspace_id", ws.id).not("lat", "is", null).order("created_at", { ascending: false }).limit(500),
     getKeyStatuses(ws.id),
     getCreditBalance(ws.id),
-    supabase
+    db
       .from("scans")
       .select("id, business_id, kind, grid_size, status, funding, keyword, niche, engines, est_cost_usd, actual_cost_usd, summary, created_at, finished_at, businesses(name)")
       .eq("workspace_id", ws.id)
       .eq("kind", kind)
       .order("created_at", { ascending: false })
       .limit(50),
-    supabase.from("tracked_queries").select("id, business_id, keyword, niche, grid_size, schedule, next_run_at, active, funding, businesses(name)").eq("workspace_id", ws.id).eq("kind", kind).neq("schedule", "none").order("created_at", { ascending: false }).limit(100),
+    db.from("tracked_queries").select("id, business_id, keyword, niche, grid_size, schedule, next_run_at, active, funding, businesses(name)").eq("workspace_id", ws.id).eq("kind", kind).neq("schedule", "none").order("created_at", { ascending: false }).limit(100),
   ]);
   const schedules = (scheduleRows ?? []) as unknown as { id: string; keyword: string | null; niche: string | null; grid_size: number; schedule: string; next_run_at: string | null; active: boolean; funding: string; businesses: { name: string } | null }[];
   const businesses: FormBusiness[] = ((bizRows ?? []) as { id: string; name: string; city: string | null; primary_category: string | null }[]).map((b) => ({ id: b.id, name: b.name, city: b.city, category: b.primary_category }));
@@ -134,11 +134,11 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
 export async function ScanDetailPage({ ctx, kind, scanId }: { ctx: SessionContext; kind: "ai" | "maps"; scanId: string }) {
   const copy = COPY[kind];
   if (!/^[0-9a-f-]{36}$/.test(scanId)) notFound();
-  const supabase = await currentUserDb();
-  const { data: scan } = await supabase.from("scans").select("id, kind, business_id, tracked_query_id, businesses(id, name)").eq("id", scanId).eq("workspace_id", ctx.workspace.id).maybeSingle();
+  const db = await currentUserDb();
+  const { data: scan } = await db.from("scans").select("id, kind, business_id, tracked_query_id, businesses(id, name)").eq("id", scanId).eq("workspace_id", ctx.workspace.id).maybeSingle();
   if (!scan || scan.kind !== kind) notFound();
   const business = (Array.isArray(scan.businesses) ? scan.businesses[0] : scan.businesses) as { id: string; name: string } | null;
-  const { data: siblings } = await supabase.from("scans").select("id, grid_size, keyword, niche, status, created_at").eq("business_id", scan.business_id).eq("kind", kind).order("created_at", { ascending: false }).limit(12);
+  const { data: siblings } = await db.from("scans").select("id, grid_size, keyword, niche, status, created_at").eq("business_id", scan.business_id).eq("kind", kind).order("created_at", { ascending: false }).limit(12);
   const history = (siblings ?? []) as { id: string; grid_size: number; keyword: string | null; niche: string | null; status: string; created_at: string }[];
   return (
     <>

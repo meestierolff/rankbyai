@@ -8,8 +8,8 @@ export async function GET(request: Request) {
   const sessionId = new URL(request.url).searchParams.get("session_id");
   if (!sessionId) return Response.json({ error: "session_id required" }, { status: 400 });
 
-  const supabase = await currentUserDb();
-  const { data } = await supabase
+  const db = await currentUserDb();
+  const { data } = await db
     .from("orders")
     .select("id, product_key, status, ladder_seat, amount_cents")
     .eq("stripe_checkout_session_id", sessionId)

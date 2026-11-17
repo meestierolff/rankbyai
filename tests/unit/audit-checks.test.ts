@@ -6,7 +6,7 @@ import type { BusinessInfo } from "@/lib/providers/dataforseo";
 
 const profile = (over: Partial<BusinessInfo> = {}): BusinessInfo => ({
   name: "Northgate Family Dental", description: "Family dentist.", category: "Dentist", additionalCategories: ["Cosmetic dentist"], cid: "1", placeId: null,
-  address: "100 North Loop Blvd, Austin, TX 78751", phone: "+1 512-555-0174", url: "https://northgate.example", domain: "northgate.example", totalPhotos: 12,
+  address: "100 North Loop Blvd, Austin, TX 78751", addressParts: null, phone: "+1 512-555-0174", url: "https://northgate.example", domain: "northgate.example", totalPhotos: 12,
   rating: 4.6, reviews: 38, isClaimed: true, hasHours: true, attributes: [], lat: 30.3, lng: -97.7, ...over,
 });
 const rival = (name: string, reviews: number, photos: number, cats = 3): { name: string; profile: BusinessInfo } => ({

@@ -17,6 +17,40 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | P0 / Maps 20+ red | `oklch(0.60 0.19 25)` | 4.5:1 contrast | `oklch(0.56 0.19 25)` so white text passes contrast |
 | Database, sign-in, files | n/a | Supabase (Postgres, magic-link sign-in, Storage) | Neon (Postgres, Neon Auth with Google sign-in, Data API, Object Storage), on the operator's instruction of 17 Nov 2026. The brief's rules are unchanged: RLS on every table, an automated RLS test, secrets on the server only |
 
+## M4 — Local AI Audit and Fix Kit (17 Nov 2026)
+
+**Status: built and tested with simulated vendors. A run on a real business with real keys, and a look at the screens in a signed-in browser, are still open.**
+
+### Acceptance criteria
+
+| Criterion | Result | Evidence |
+|---|---|---|
+| An audit returns a score, category scores, "% of checks ran", and findings per priority only when evidence exists | **Pass with simulated vendors; needs real keys** | `tests/db/audit.test.ts`: score 0–100, six category scores that equal the share of passed checks among those that ran, a finding for every failed check and for nothing else, each with evidence, a fix and a P0–P3 priority; checks that could not run carry a reason and are not findings |
+| Review maths matches a hand calculation | **Pass** | You 38, competitors 96 / 112 / 205 → median 112, gap 74, ÷ 3 months = 25 a month; ÷ 6 months = 13. Same numbers in the finding, its evidence and on the page |
+| The service-gap list cites competitor URLs | **Pass** | Every missing service carries a URL that starts with a competitor's site and came from that site's own links; the model (when used) can only pick URLs from the list it was given |
+| Page maths CSV downloads | **Pass (content); browser click not exercised** | 6 services × 4 areas = 24 rows + header, with suggested slug and title; lists are editable and the CSV follows the saved lists. The route answers 401 when signed out. Clicking the download in a browser waits for a Google sign-in |
+| Fix Kit JSON-LD validates in the schema validator | **Pass** | validator.schema.org on the generated markup: `Dentist` 0 errors, 0 warnings; `FAQPage` 0 errors, 0 warnings. Structure also asserted in `tests/unit/fixkit.test.ts` |
+| No finding contains a number absent from stored inputs | **Pass** | For every stored finding, each number in its title and fix appears in its evidence (`tests/db/audit.test.ts`, and per check in `tests/unit/audit-checks.test.ts`) |
+
+### Built
+
+- **Audit runner** (`src/lib/audit/run.ts`): estimate → confirm → run. Reuses the business's latest Maps and AI scans; when there is none it runs one Maps lookup and one 1×1 AI check itself. Competitors are the three businesses that hold the map pack most often around the business. One audit = 1 credit on included scans, with the credit returned if the audit fails.
+- **Checks and score** (part 1): six weighted categories; a check without its input is "not checked" and leaves the score's denominator.
+- **Screens** (`/app/audit`, `/app/audit/{id}`): score ring with the change since the previous audit, category bars with "n of m checks ran", findings grouped P0–P3 with evidence rows and source links, a "you and the map pack" table, review maths with a months selector, the editable page plan with CSV download, passed and not-checked lists, cost.
+- **Fix Kit** (`src/lib/audit/fixkit.ts`): LocalBusiness schema (right subtype, name/address/phone from the Google profile), FAQPage schema, llms.txt draft and checklist are assembled in code from stored facts. Only the description and the 8 FAQs come from one model call, and any sentence or answer containing a number that is not in the source text is dropped. Copy button per block. No ratings or opening hours are put in the schema, because we hold no verified values for them.
+- **API**: `POST /api/audits`, `GET/PATCH /api/audits/{id}`, `GET /api/audits/{id}/pages.csv`, `GET/POST /api/audits/{id}/fix-kit`. Cron closes audits whose worker died.
+
+### Worth knowing
+
+- Without an OpenAI key the audit still runs: services are read from page addresses and navigation, and the Fix Kit gives schema, llms.txt and checklist with a note that the description and FAQs need a key.
+- The website fetcher only connects to public addresses (no internal hosts), follows redirects by hand and stops at 2 MB per page.
+- The share link already shows the audit score and top findings (built in M3, now fed by real audits).
+
+### Needs the operator
+
+1. **Real keys** (DataForSEO at least; OpenAI for service extraction and the Fix Kit text) to run an audit on a real business and confirm the cost estimate.
+2. **Sign in with Google once** on a deployment or locally, so the signed-in screens can be reviewed in a browser. Password sign-in is off on purpose.
+
 ## Platform switch — Neon and Google sign-in (17 Nov 2026)
 
 **Status: done and verified locally and against the Neon gateway. Storage credentials and a Google OAuth client of your own are left for the operator.**

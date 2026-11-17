@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { revalidateTag } from "next/cache";
+import { failStalledAudits } from "@/lib/audit/run";
 import { cronEnv } from "@/lib/env";
 import { runDueSchedules } from "@/lib/schedules";
 import { findStalledScans, processScan } from "@/lib/scans/engine";
@@ -30,7 +31,10 @@ export async function GET(request: Request) {
   // 3. Scheduled re-checks that are due (weekly / monthly, opt-in).
   report.schedules = await runDueSchedules(5);
 
-  // 4. Housekeeping: old rate-limit windows.
+  // 4. Audits whose worker died are closed and their credit returned.
+  report.audits_timed_out = await failStalledAudits();
+
+  // 5. Housekeeping: old rate-limit windows.
   await admin.from("rate_limits").delete().lt("window_start", new Date(Date.now() - 2 * 86_400_000).toISOString());
 
   return Response.json({ ok: true, ...report });

@@ -190,6 +190,8 @@ export interface BusinessInfo {
   cid: string | null;
   placeId: string | null;
   address: string | null;
+  /** Structured address parts, when the profile returns them (used for schema markup). */
+  addressParts: { street: string | null; city: string | null; region: string | null; zip: string | null; country: string | null } | null;
   phone: string | null;
   url: string | null;
   domain: string | null;
@@ -211,6 +213,7 @@ interface RawBusinessInfo {
   cid?: string | number | null;
   place_id?: string | null;
   address?: string | null;
+  address_info?: { address?: string | null; city?: string | null; region?: string | null; zip?: string | null; country_code?: string | null } | null;
   phone?: string | null;
   url?: string | null;
   domain?: string | null;
@@ -234,6 +237,9 @@ export function parseBusinessInfo(it: RawBusinessInfo | null | undefined): Busin
     cid: it.cid != null ? String(it.cid) : null,
     placeId: it.place_id ?? null,
     address: it.address ?? null,
+    addressParts: it.address_info
+      ? { street: it.address_info.address ?? null, city: it.address_info.city ?? null, region: it.address_info.region ?? null, zip: it.address_info.zip ?? null, country: it.address_info.country_code ?? null }
+      : null,
     phone: it.phone ?? null,
     url: it.url ?? null,
     domain: it.domain ?? null,

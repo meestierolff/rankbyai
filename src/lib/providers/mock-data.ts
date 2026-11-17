@@ -1,5 +1,5 @@
 import type { Engine } from "@/lib/pricing-constants";
-import type { MapsItem } from "./dataforseo";
+import type { BusinessInfo, MapsItem } from "./dataforseo";
 import type { AiAnswer, GeoContext } from "./types";
 
 /* Deterministic simulated vendor responses for development (see lib/mock.ts). Not used in any deployed build. */
@@ -59,4 +59,54 @@ export function mockBusinessSearch(q: string): MapsItem[] {
     domain: "mock-business.example", url: "https://mock-business.example", phone: "+1 512 555 0100", address: `${100 + i} Mock Street, Austin, TX`,
     city: "Austin", region: "Texas", country: "US", lat: 30.3072 + i * 0.01, lng: -97.7431 - i * 0.01, category: "Dentist", rating: 4.6, reviews: 38 + i * 20,
   }));
+}
+
+// ───────────────────────── audit fixtures ─────────────────────────
+
+const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/** Simulated Google profile. The target is deliberately weaker than its rivals so findings appear. */
+export function mockBusinessInfo(name: string, isTarget: boolean, rivalIndex = 0): BusinessInfo {
+  const base = { cid: isTarget ? "mock-cid-target" : `mock-cid-${rivalIndex}`, placeId: null, lat: 30.3172, lng: -97.7231, attributes: [] as string[] };
+  if (isTarget) {
+    return {
+      ...base, name, description: null, category: "Dental clinic", additionalCategories: [],
+      address: "4100 Mock Lamar Blvd, Austin, TX 78756", addressParts: { street: "4100 Mock Lamar Blvd", city: "Austin", region: "Texas", zip: "78756", country: "US" },
+      phone: "+1 512 555 0174", url: `https://${slug(name)}.example`, domain: `${slug(name)}.example`,
+      totalPhotos: 12, rating: 4.4, reviews: 38, isClaimed: true, hasHours: true,
+    };
+  }
+  return {
+    ...base, name, description: `${name} is a simulated competitor profile.`, category: "Dentist", additionalCategories: ["Cosmetic dentist", "Emergency dental service"],
+    address: `${200 + rivalIndex * 10} Mock Street, Austin, TX 78701`, addressParts: { street: `${200 + rivalIndex * 10} Mock Street`, city: "Austin", region: "Texas", zip: "78701", country: "US" },
+    phone: `+1 512 555 02${10 + rivalIndex}`, url: `https://${slug(name)}.example`, domain: `${slug(name)}.example`,
+    totalPhotos: 40 + rivalIndex * 25, rating: 4.7 + rivalIndex * 0.1, reviews: [96, 112, 205][rivalIndex % 3], isClaimed: true, hasHours: true,
+  };
+}
+
+/** Simulated homepage HTML. It goes through the real parser, so the audit pipeline is exercised end to end. */
+export function mockSiteHtml(name: string, isTarget: boolean): string {
+  const origin = `https://${slug(name)}.example`;
+  const services = isTarget ? ["teeth-cleaning", "fillings"] : ["teeth-cleaning", "dental-implants", "invisalign", "emergency-dentist", "teeth-whitening"];
+  const nav = services.map((s) => `<li><a href="${origin}/services/${s}">${s.replace(/-/g, " ")}</a></li>`).join("");
+  if (isTarget) {
+    // Different phone than the profile, no schema, no FAQ, no tel: link: each produces a finding.
+    return `<!doctype html><html><head><title>Welcome | ${name}</title></head><body><nav><ul>${nav}<li><a href="${origin}/about">About</a></li></ul></nav>
+<h1>Welcome to our practice</h1><p>${name} has cared for families for many years.</p><p>Call (512) 555-0199</p><footer>4100 Mock Lamar Blvd, Austin, TX 78756</footer></body></html>`;
+  }
+  return `<!doctype html><html><head><title>Dentist in Austin | ${name}</title>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Dentist","name":"${name}","telephone":"+1 512 555 0210"}</script></head><body>
+<nav><ul>${nav}</ul></nav><h1>Dentist in Austin</h1><a href="tel:+15125550210">Call us</a><h2>Frequently asked questions</h2></body></html>`;
+}
+
+export const mockAreas = () => ["Hyde Park", "North Loop", "Rosedale", "Brentwood"];
+
+/** Simulated Fix Kit model output (no vendor call in development). */
+export function mockFixKitDraft(name: string, city: string | null) {
+  const place = city ?? "the area";
+  return {
+    description: `${name} is a dental practice in ${place}. (Simulated description for development.)`,
+    faqs: Array.from({ length: 8 }, (_, i) => ({ question: `Simulated question ${i + 1} about ${name}?`, answer: `Simulated answer ${i + 1}.` })),
+    llms_txt: `# ${name}\n\n> Dental practice in ${place}. (Simulated draft.)\n`,
+  };
 }

@@ -7,6 +7,8 @@ export const json = (body: unknown, status = 200) => Response.json(body, { statu
 export const err = (status: number, error: string, message: string, extra: object = {}) => json({ error, message, ...extra }, status);
 
 export async function withSession(handler: (ctx: SessionContext) => Promise<Response>): Promise<Response> {
+  // Outside the try on purpose: Next.js signals "this route is dynamic" by throwing from request
+  // APIs during the build, and that signal must reach the framework.
   const ctx = await getSessionContext();
   if (!ctx) return err(401, "unauthorized", "Sign in first.");
   try {

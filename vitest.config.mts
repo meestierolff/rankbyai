@@ -2,6 +2,8 @@ import { defineConfig } from "vitest/config";
 import path from "node:path";
 
 export default defineConfig({
+  // Server-render tests import React components: compile JSX with the automatic runtime.
+  esbuild: { jsx: "automatic" },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
@@ -10,7 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.{ts,tsx}"],
     setupFiles: ["tests/setup.ts"],
     testTimeout: 30_000,
     hookTimeout: 60_000,

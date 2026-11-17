@@ -4,8 +4,12 @@ import { priceCentsForSale } from "@/lib/ladder";
 import {
   AI_SAMPLE_EST_USD,
   CREDIT_COST,
+  DATAFORSEO_BUSINESS_INFO_PER_CALL,
+  DATAFORSEO_MAPS_PER_POINT,
   DEFAULT_COST_MAX_PER_CREDIT_USD,
   ENGINES,
+  LLM_FIX_KIT_BUDGET_USD,
+  LLM_PARSE_BUDGET_USD,
   PACKS,
   SCENARIO,
   stripeFeeUsd,
@@ -96,5 +100,18 @@ describe("every sale is priced above its delivery cost (brief non-negotiable 2)"
     // Prospect report = Maps 5×5 standard + AI 3×3 on 3 engines + quick audit, for 2 credits
     const prospect = estimateMapsGrid(5, "standard").totalUsd + estimateAiGrid(3, ENGINES, { geminiInsideFreeAllowance: false }).totalUsd + 0.06;
     expect(prospect).toBeLessThanOrEqual(CREDIT_COST.prospect_report * cap);
+  });
+
+  it("an included-scan audit with its Fix Kit costs us less than its one credit, even at twice the estimate", () => {
+    // Everything one credit pays for (brief 7.4 + 7.5): 4 profile lookups, 1 Maps lookup, the service
+    // extraction, a 1×1 AI check on 3 engines, and the single Fix Kit model call.
+    const estimate =
+      4 * DATAFORSEO_BUSINESS_INFO_PER_CALL + DATAFORSEO_MAPS_PER_POINT.live + 2 * LLM_PARSE_BUDGET_USD +
+      estimateAiGrid(1, ENGINES, { geminiInsideFreeAllowance: false }).totalUsd + LLM_FIX_KIT_BUDGET_USD;
+    expect(estimate).toBeLessThan(0.12);
+    expect(estimate * 2).toBeLessThanOrEqual(CREDIT_COST.audit * DEFAULT_COST_MAX_PER_CREDIT_USD);
+    // And the cheapest price a credit is ever sold for still clears that cap after fees (first test in this block).
+    const cheapestCreditUsd = Math.min(...Object.values(PACKS).map((p) => p.priceCents / 100 / p.credits));
+    expect(cheapestCreditUsd).toBeGreaterThan(DEFAULT_COST_MAX_PER_CREDIT_USD);
   });
 });

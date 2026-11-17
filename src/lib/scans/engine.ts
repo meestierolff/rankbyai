@@ -57,6 +57,8 @@ export interface CreateScanInput {
   radiusMiles: number;
   funding: Funding;
   trackedQueryId?: string | null;
+  /** Part of another paid action (an audit's 1×1 check): house keys and caps apply, but no extra credit is taken. */
+  noCharge?: boolean;
   confirm: boolean;
 }
 
@@ -115,7 +117,7 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
   if (input.funding === "byok" && (await runningScanCount(input.workspaceId)) >= BYOK_MAX_RUNNING_SCANS) {
     return fail(429, "too_many_running", `You already have ${BYOK_MAX_RUNNING_SCANS} scans running. Wait for one to finish.`, estimate);
   }
-  const credits = input.funding === "credits" ? creditsFor(spec) : 0;
+  const credits = input.funding === "credits" && !input.noCharge ? creditsFor(spec) : 0;
   if (input.funding !== "byok") {
     const budget = await houseBudgetCheck(input.funding as HouseFunding, estimate.highUsd);
     if (!budget.ok) return fail(429, "daily_cap", budget.message ?? "Daily capacity reached.", estimate);

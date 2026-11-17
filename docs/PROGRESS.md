@@ -17,6 +17,17 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | P0 / Maps 20+ red | `oklch(0.60 0.19 25)` | 4.5:1 contrast | `oklch(0.56 0.19 25)` so white text passes contrast |
 | Database, sign-in, files | n/a | Supabase (Postgres, magic-link sign-in, Storage) | Neon (Postgres, Neon Auth with Google sign-in, Data API, Object Storage), on the operator's instruction of 17 Nov 2026. The brief's rules are unchanged: RLS on every table, an automated RLS test, secrets on the server only |
 
+## Deployments (17 Nov 2026)
+
+| What | Address | State |
+|---|---|---|
+| Preview | https://rankbyai-preview.vercel.app | Works against the Neon `preview` branch: price ladder from the database, Google sign-in starts, unknown report links answer 404. Behind Vercel's login wall (visible to the Vercel account owner). No vendor keys and no Stripe keys yet |
+| Production target | https://rankbyai-tau.vercel.app | **Not intended.** Vercel promotes a new project's first deployment to production, so the first `vercel deploy` became one. It has no environment variables, so nothing works on it beyond the marketing page, and no domain is attached to it. rankbyai.live and DNS are untouched |
+
+- The Vercel project `rankbyai` is not connected to Git: a push does not deploy. Deployments are made from the command line on purpose.
+- The timer runs once a day because the team is on Vercel's Hobby plan (see docs/SETUP.md, "Background timer").
+- Preview environment variables set: database and sign-in (Neon `preview` branch), five generated secrets, the Stripe test-mode product and price ids, and the preview address. Production has none.
+
 ## M5 — prospect mode, PDF export, scan packs (17 Nov 2026)
 
 **Status: built and tested with simulated vendors. A real "dentist / Austin, TX" search and a test-mode pack purchase need real keys.**

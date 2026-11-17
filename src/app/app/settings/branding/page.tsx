@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BrandingForm } from "@/components/app/m3-controls";
+import { RegionalOptIn } from "@/components/app/regional-optin";
 import { PageHeader, Panel } from "@/components/app/ui";
 import { requireSession } from "@/lib/auth";
 import { signedUrl } from "@/lib/storage";
@@ -28,6 +29,9 @@ export default async function BrandingPage() {
             reply_to_email: ws.reply_to_email ?? "", hide_rankbyai_branding: ws.hide_rankbyai_branding, logoUrl,
           }}
         />
+      </Panel>
+      <Panel title="Public regional pages" className="mt-6">
+        <RegionalOptIn initial={ws.share_scans_for_regional_pages} canEdit={ctx.role === "owner"} />
       </Panel>
     </>
   );

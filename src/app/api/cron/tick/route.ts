@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { failStalledAudits } from "@/lib/audit/run";
 import { cronEnv } from "@/lib/env";
 import { findOpenBatches, processBatch } from "@/lib/prospects/batch";
+import { rebuildRegionalPages } from "@/lib/regional";
 import { runDueSchedules } from "@/lib/schedules";
 import { findStalledScans, processScan } from "@/lib/scans/engine";
 import { dbAdmin } from "@/lib/db/clients";
@@ -40,7 +41,10 @@ export async function GET(request: Request) {
   await Promise.all(batches.map((id) => processBatch(id, 150_000).catch(() => undefined)));
   report.batches_continued = batches.length;
 
-  // 6. Housekeeping: old rate-limit windows.
+  // 6. Public regional pages are rebuilt from the scans that may be published.
+  report.regional = await rebuildRegionalPages().catch(() => ({ pages: 0, indexable: 0 }));
+
+  // 7. Housekeeping: old rate-limit windows.
   await admin.from("rate_limits").delete().lt("window_start", new Date(Date.now() - 2 * 86_400_000).toISOString());
 
   return Response.json({ ok: true, ...report });

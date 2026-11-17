@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { publicEnv } from "@/lib/env-public";
 import { setAnalyticsClient } from "@/lib/analytics";
@@ -70,7 +71,7 @@ export function AnalyticsProvider() {
     >
       <p className="text-[14px] leading-normal text-muted-foreground">
         We count visits without cookies. May we also set an analytics cookie to see which pages help?{" "}
-        <a href="/privacy" className="text-fg underline underline-offset-2">Privacy</a>
+        <Link href="/privacy" className="text-fg underline underline-offset-2">Privacy</Link>
       </p>
       <div className="mt-3 flex gap-2">
         <button type="button" onClick={() => decide(false)} className="flex-1 cursor-pointer rounded-[9px] border border-border-strong px-3 py-2 text-[14px] font-medium hover:bg-line">

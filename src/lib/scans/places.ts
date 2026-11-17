@@ -18,10 +18,16 @@ export interface NamedPlace {
   lng: number;
 }
 
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+// Public Overpass servers are often at capacity. They are tried in order; results are cached for good.
+const OVERPASS_URLS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
 const UA = "RankbyAI/1.0 (+https://rankbyai.live; contact via site)";
 
-export async function fetchPlaces(center: { lat: number; lng: number }, radiusMiles: number, kinds = "suburb|neighbourhood|quarter|town|village|city"): Promise<NamedPlace[]> {
+/**
+ * Named places around a point (one cached request per area).
+ * `patienceMs` is how long the caller can wait in total: a scan setup waits briefly and goes on
+ * without labels; an audit runs this alongside its other work and can wait much longer.
+ */
+export async function fetchPlaces(center: { lat: number; lng: number }, radiusMiles: number, kinds = "suburb|neighbourhood|quarter|town|village|city", patienceMs = 15_000): Promise<NamedPlace[]> {
   if (isMockMode()) return [];
   const radiusM = Math.round(Math.min(Math.max(radiusMiles, 0.5) * 1.5, 40) * 1609.34);
   const key = `places:${center.lat.toFixed(2)},${center.lng.toFixed(2)}:${Math.round(radiusM / 500)}:${kinds}`;
@@ -29,24 +35,31 @@ export async function fetchPlaces(center: { lat: number; lng: number }, radiusMi
   const cached = await admin.from("geo_cache").select("value").eq("key", key).maybeSingle();
   if (cached.data?.value) return cached.data.value as NamedPlace[];
 
-  const query = `[out:json][timeout:12];node["place"~"^(${kinds})$"]["name"](around:${radiusM},${center.lat},${center.lng});out body 300;`;
-  try {
-    const res = await fetch(OVERPASS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA },
-      body: "data=" + encodeURIComponent(query),
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) return [];
-    const json = (await res.json()) as { elements?: { lat: number; lon: number; tags?: Record<string, string> }[] };
-    const places = (json.elements ?? [])
-      .filter((e) => e.tags?.name)
-      .map((e) => ({ name: e.tags!["name:en"] ?? e.tags!.name, kind: e.tags!.place, lat: e.lat, lng: e.lon }));
-    await admin.from("geo_cache").upsert({ key, kind: "places", value: places });
-    return places;
-  } catch {
-    return [];
+  const perTry = Math.min(patienceMs, 45_000);
+  const query = `[out:json][timeout:${Math.max(10, Math.floor(perTry / 1000) - 3)}];node["place"~"^(${kinds})$"]["name"](around:${radiusM},${center.lat},${center.lng});out body 300;`;
+  const deadline = Date.now() + patienceMs;
+  for (const url of OVERPASS_URLS) {
+    const left = deadline - Date.now();
+    if (left < 3000) break;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA },
+        body: "data=" + encodeURIComponent(query),
+        signal: AbortSignal.timeout(Math.min(perTry, left)),
+      });
+      if (!res.ok) continue; // at capacity or rate limited: try the next server
+      const json = (await res.json()) as { elements?: { lat: number; lon: number; tags?: Record<string, string> }[] };
+      const places = (json.elements ?? [])
+        .filter((e) => e.tags?.name)
+        .map((e) => ({ name: e.tags!["name:en"] ?? e.tags!.name, kind: e.tags!.place, lat: e.lat, lng: e.lon }));
+      await admin.from("geo_cache").upsert({ key, kind: "places", value: places });
+      return places;
+    } catch {
+      // timeout or network error: try the next server
+    }
   }
+  return [];
 }
 
 /** Nearest neighbourhood-level place within `maxMiles` of each point (city-level names are skipped: too coarse). */

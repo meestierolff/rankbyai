@@ -325,6 +325,14 @@ export async function processAudit(auditId: string): Promise<void> {
     // runs alongside: the slowest parts of an audit never add up.
     const aiPending = gatherAi(audit, business, service, (ws?.plan as "locked" | "lifetime") ?? "locked", creds, spend).catch(() => ({ ai: null, scanId: null }));
 
+    // Named places for the page plan come from public OpenStreetMap servers that are often slow, so
+    // the lookup also starts now and gets most of the audit's time.
+    const areasPending: Promise<string[]> = quick || business.lat == null || business.lng == null
+      ? Promise.resolve([])
+      : isMockMode()
+        ? Promise.resolve(mockAreas())
+        : fetchPlaces({ lat: business.lat, lng: business.lng }, AUDIT_RADIUS_MILES, "city|town|suburb|neighbourhood", 120_000).then((ps) => [...new Set(ps.map((p) => p.name))].slice(0, MAX_AREAS)).catch(() => []);
+
     // 1. Who holds the map pack here, and the Google profiles of the business and those competitors.
     const maps = await gatherMaps(business, service, creds, spend);
     const [profile, ...rivalProfiles] = await Promise.all([
@@ -364,12 +372,9 @@ export async function processAudit(auditId: string): Promise<void> {
       services = { yours: yourServices.map((s) => s.service), missing: missingServices(yourServices, rivalServices), method };
     }
 
-    // 4. Named places around the business, for the page plan.
-    let areas: AuditInputs["areas"] = null;
-    if (!quick && business.lat != null && business.lng != null) {
-      const names = isMockMode() ? mockAreas() : [...new Set((await fetchPlaces({ lat: business.lat, lng: business.lng }, AUDIT_RADIUS_MILES, "city|town|suburb|neighbourhood")).map((p) => p.name))].slice(0, MAX_AREAS);
-      if (names.length) areas = { names, radiusMiles: AUDIT_RADIUS_MILES };
-    }
+    // 4. Named places around the business, for the page plan (started above).
+    const areaNames = await areasPending;
+    const areas: AuditInputs["areas"] = areaNames.length ? { names: areaNames, radiusMiles: AUDIT_RADIUS_MILES } : null;
 
     const ai = await aiPending;
 

@@ -10,6 +10,7 @@ import { Footer } from "@/components/marketing/footer";
 import { FreeCheck } from "@/components/marketing/free-check";
 import { Header } from "@/components/marketing/header";
 import { Hero } from "@/components/marketing/hero";
+import { LandingView } from "@/components/marketing/landing-view";
 import { OfferProvider } from "@/components/marketing/offer-context";
 import { Pricing } from "@/components/marketing/pricing";
 import { ApiMcp, CostBand, Fix, HowItWorks, KeySecurity, Problem } from "@/components/marketing/sections";
@@ -51,6 +52,7 @@ export default async function HomePage() {
   return (
     <OfferProvider initial={live}>
       <JsonLd data={graph(organizationLd(), websiteLd(), softwareLd(offer), faqLd(faq))} />
+      <LandingView />
       <EarlyAccessBanner />
       <Header />
       <main>

@@ -2,8 +2,10 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { NOT_AFFILIATED } from "@/lib/copy";
 import { legalEnv } from "@/lib/env";
+import { SEO_PAGES } from "@/lib/seo-pages";
 
 const LINKS = [
+  { href: "/pricing", label: "Pricing" },
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
   { href: "/refunds", label: "Refunds" },
@@ -21,7 +23,7 @@ export function Footer({ padForStickyBar = false }: { padForStickyBar?: boolean 
   const email = legalEnv.email();
   return (
     <footer className="border-t border-line">
-      <div className={`container-page flex flex-wrap items-end justify-between gap-6 pt-10 ${padForStickyBar ? "pb-[120px]" : "pb-12"}`}>
+      <div className="container-page flex flex-wrap items-end justify-between gap-6 pt-10 pb-10">
         <div className="flex max-w-[520px] flex-col gap-[10px]">
           <Link href="/" className="flex items-center gap-3 no-underline">
             <Logo height={30} />
@@ -37,6 +39,14 @@ export function Footer({ padForStickyBar = false }: { padForStickyBar?: boolean 
             <Link key={l.href} href={l.href} className="text-muted-foreground no-underline transition-colors hover:text-fg">{l.label}</Link>
           ))}
           {email ? <a href={`mailto:${email}`} className="text-muted-foreground no-underline transition-colors hover:text-fg">Contact</a> : null}
+        </nav>
+      </div>
+      <div className={`container-page -mt-4 ${padForStickyBar ? "pb-[120px]" : "pb-12"}`}>
+        <nav aria-label="Guides and comparisons" className="flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-6 text-[14px]">
+          <span className="text-dim">Guides and comparisons:</span>
+          {SEO_PAGES.map((p) => (
+            <Link key={p.path} href={p.path} className="text-muted-foreground no-underline transition-colors hover:text-fg">{p.title.split(":")[0].replace(/ You Pay For Once| for Local Businesses| for Agencies, Paid Once| \(and Two Other Options\)/, "")}</Link>
+          ))}
         </nav>
       </div>
     </footer>

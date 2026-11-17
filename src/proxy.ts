@@ -32,6 +32,20 @@ async function reportExists(slug: string): Promise<boolean | null> {
   }
 }
 
+async function regionalExists(niche: string, city: string): Promise<boolean | null> {
+  const url = process.env.DATA_API_URL;
+  if (!url || !process.env.DATA_API_JWT_PRIVATE_JWK) return false;
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/regional_pages?select=id&niche_slug=eq.${niche}&city_slug=eq.${city}&limit=1`, {
+      headers: { Authorization: `Bearer ${await mintDbToken("anonymous")}` }, cache: "no-store", signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    return ((await res.json()) as unknown[]).length > 0;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 1. Share links: real 404s.
  * 2. /app, /admin, /free-check: signed-out visitors go to /login (keeping where they wanted to go),
@@ -54,6 +68,19 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
+  // Regional pages: same reason as share links. An unknown niche/city must answer 404, not 200.
+  const regional = path.match(/^\/ai\/([^/]+)\/([^/]+)\/?$/);
+  if (regional) {
+    const ok = /^[a-z0-9-]{1,60}$/.test(regional[1]) && /^[a-z0-9-]{1,60}$/.test(regional[2]) ? await regionalExists(regional[1], regional[2]) : false;
+    if (ok === false) {
+      return new NextResponse(NOT_FOUND_HTML.replace("Report not found", "Page not found").replace("This report link is not active.", "There is no page for this niche and city yet.").replace("The link may have been revoked or replaced by whoever shared it with you. Ask them for the current link.", "Regional pages appear once enough scans exist for a niche in a city."), {
+        status: 404, headers: { "Content-Type": "text/html; charset=utf-8", "X-Robots-Tag": "noindex, nofollow", "Cache-Control": "no-store" },
+      });
+    }
+    return NextResponse.next({ request });
+  }
+  if (path.startsWith("/ai")) return NextResponse.next({ request });
+
   if (!isAuthConfigured()) return NextResponse.next({ request });
 
   const response = await neonAuth().middleware({ loginUrl: "/login" })(request);
@@ -70,5 +97,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*", "/admin/:path*", "/free-check/:path*", "/r/:path*"],
+  matcher: ["/app/:path*", "/admin/:path*", "/free-check/:path*", "/r/:path*", "/ai/:niche/:city"],
 };

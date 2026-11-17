@@ -163,6 +163,19 @@ describe("included-scan credits", () => {
     expect(Number(spend[0].usd)).toBeCloseTo(Number(scan.actual_cost_usd), 4);
   });
 
+  it("a 3×3 AI grid on three engines completes on its one credit (parallel reservations must not starve it)", async () => {
+    await sql("insert into public.credit_ledger (workspace_id, delta, reason) values ($1, 1, 'test_grant')", [u.workspaceId]);
+    const r = await createScan(base(AI_3, { funding: "credits" }));
+    if (!r.ok) throw new Error("create failed: " + JSON.stringify(r));
+    await processScan(r.scanId);
+    const [scan] = await sql<{ status: string; actual_cost_usd: string; credits_used: number }>("select status, actual_cost_usd, credits_used from public.scans where id = $1", [r.scanId]);
+    const done = await sql("select 1 from public.ai_samples where scan_id = $1 and status = 'done'", [r.scanId]);
+    expect(done).toHaveLength(27);
+    expect(scan).toMatchObject({ status: "done", credits_used: 1 });
+    expect(Number(scan.actual_cost_usd)).toBeLessThanOrEqual(0.3); // still inside the one-credit cap
+    expect((await admin.rpc("credit_balance", { p_workspace_id: u.workspaceId })).data).toBe(0);
+  });
+
   it("refunds the credit when fewer than 80% of samples complete", async () => {
     process.env.RANKBYAI_MOCK_FAIL_ENGINE = "openai"; // 1 of 3 engines fails → 67% complete
     await sql("insert into public.credit_ledger (workspace_id, delta, reason) values ($1, 1, 'test_grant')", [u.workspaceId]);

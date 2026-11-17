@@ -58,12 +58,45 @@ Where the design handoff and the build brief disagree, the brief wins on content
 
 | What | Address | State |
 |---|---|---|
-| Preview | https://rankbyai-preview.vercel.app | Works against the Neon `preview` branch: price ladder from the database, Google sign-in starts, unknown report links answer 404. Behind Vercel's login wall (visible to the Vercel account owner). No vendor keys and no Stripe keys yet |
-| Production target | https://rankbyai-tau.vercel.app | **Not intended.** Vercel promotes a new project's first deployment to production, so the first `vercel deploy` became one. It has no environment variables, so nothing works on it beyond the marketing page, and no domain is attached to it. rankbyai.live and DNS are untouched |
+| **Production** | **https://rankbyai.live** | Live with a valid certificate, on the Neon `main` branch. Approved by the operator on 17 Nov 2026. `www` redirects to it. DNS: an A record and a `www` CNAME at Spaceship; the existing SPF and DMARC records and Spaceship's nameservers (DNSSEC) were left alone |
+| Preview | https://rankbyai-preview.vercel.app | On the Neon `preview` branch, behind Vercel's login wall |
 
-- The Vercel project `rankbyai` is not connected to Git: a push does not deploy. Deployments are made from the command line on purpose.
-- The timer runs once a day because the team is on Vercel's Hobby plan (see docs/SETUP.md, "Background timer").
-- Preview environment variables set: database and sign-in (Neon `preview` branch), five generated secrets, the Stripe test-mode product and price ids, and the preview address. Production has none.
+- Works on production now: the site, pricing from the live counter, Google sign-in (Neon's shared Google app), the dashboard, the REST API and the MCP server.
+- Not switched on yet, each waiting for a key only the operator can add: **checkout** (Stripe live keys; the app refuses test keys on production), the **free check** and the **removal form** (Cloudflare Turnstile; they refuse to run without it on production), **included scans** (house API keys).
+- The legal pages show the operator "Top of the World", its address and KVK number. The contact email is still marked "not set" (`LEGAL_EMAIL`).
+- The Vercel project is not connected to Git: a push does not deploy. The timer runs once a day (Hobby plan; see docs/SETUP.md).
+- The first `vercel deploy` of the new project became a production deployment by Vercel's default, before production was approved. It had no settings and no domain. It has since been replaced by the approved deployment.
+
+### Real vendor check (17 Nov 2026, DataForSEO house login, $0.04 spent)
+
+`LIVE_DFS=1 pnpm vitest run tests/live/dataforseo-live.test.ts`: the login is valid; "dentist in Austin, TX" returned 100 businesses for $0.002 (M5 criterion: at least 20); a 3×3 Maps grid stored 9 real ranks for $0.018, exactly the estimate (M2 criterion b, small grid); an audit of a real practice returned score 50, 19 of 23 checks ran, 9 findings with evidence, for $0.022 against an estimate of $0.028 (M4 criterion). The AI checks were "not checked" because no AI key is set. The area lookup timed out on the public OpenStreetMap server; it now starts earlier, waits longer and tries mirrors.
+
+## M7 — search pages, regional pages, remaining screens (17 Nov 2026)
+
+**Status: built, tested and deployed.**
+
+### Acceptance criteria
+
+| Criterion | Result | Evidence |
+|---|---|---|
+| `/ai/...` pages render with schema and the indexability rule | **Pass** | `tests/db/regional.test.ts`: own-key scans stay private unless the workspace opts in; scans on our keys count; a page becomes public at 27 answers from 2 scans and not before (row-level security hides thinner pages completely, so they are neither reachable nor in the sitemap); no page row carries a workspace, user or business id. The page has BreadcrumbList, ItemList of LocalBusiness, Dataset and FAQPage with three data-derived answers, and a removal link |
+| OG images generate | **Pass** | Every search page and regional page has its own 1200×630 image (checked: 200, image/png) |
+| Lighthouse ≥ 90 on `/` and `/pricing` | **Pass** | Mobile, production build: 100 / 100 / 100 / 100 on `/`, `/pricing` and `/ai-visibility-tracker` |
+| All analytics events fire | **Pass by code search** | All 23 event names from the brief are sent from at least one place (`landing_view` was missing and was added). Not verified in PostHog itself: no PostHog key is set |
+| Optional retro pricing skin | **Left off** | Optional in the brief |
+| Early-access banner removed if M3–M6 shipped | **Pass** | The banner only shows when `EARLY_ACCESS_NOTE` is set; it is not set |
+| First competitor-watch add-on | **Not done** | The watch log lives outside this repository |
+
+### Built
+
+- **Ten search pages** from one content registry (`src/lib/seo-pages.ts`) and one template: `/alternatives/local-falcon`, `/alternatives/brightlocal`, `/ai-visibility-tracker`, `/local-falcon-vs-brightlocal`, `/blog/semrush-map-rank-tracker`, `/ai-rank-tracker`, `/local-seo-software`, `/blog/local-falcon-pricing`, `/map-rank-tracker`, `/blog/how-to-show-up-in-chatgpt`. Each opens with the answer, uses question headings, has an FAQ with FAQPage schema, a breadcrumb, a canonical address, a social image, one call to action ("Run a free check") and links to related pages. Unknown addresses answer a real 404.
+- **Comparison tables** show only the competitor prices verified on 17 Nov 2026, with that date and source; where we hold no verified fact the cell says "See their site". Each page says what the other tool does well, and none claims RankbyAI was first.
+- **`/pricing`** as its own page; **regional pages** `/ai` and `/ai/{niche}/{city}` rebuilt by the timer; an opt-in under Settings → Branding.
+- **Clients** (group businesses, add and delete) and **Requests** (ask, vote once per person, changelog): the last two placeholder screens are now real.
+
+### Found and fixed on the way
+
+- **Included 3×3 AI scans were cut short.** Fifteen answers are requested at once, and their combined worst-case cost reservations alone exceeded a one-credit cap, so later answers were skipped for good and the scan refunded itself, although the real cost was a third of the cap. Reservations now wait for calls in flight to settle; an answer is skipped only when settled costs leave no room. Regression test in `tests/db/scan-engine.test.ts`.
 
 ## M5 — prospect mode, PDF export, scan packs (17 Nov 2026)
 

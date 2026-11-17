@@ -278,6 +278,7 @@ async function runAi(scan: ScanRow, business: BusinessRow, creds: ProviderCreden
   const house = scan.funding !== "byok";
   const cap = house ? houseCapUsd(scan.funding as HouseFunding, scan.credits_used) : Number.POSITIVE_INFINITY;
   let spent = ((spentRows ?? []) as { cost_usd: number | null }[]).reduce((s, r) => s + Number(r.cost_usd ?? 0), 0);
+  let inFlight = 0; // the part of `spent` that is reservations of calls not yet settled
   const perProvider: Record<string, number> = {};
   const geminiBeyondFree = await geminiBeyondAllowance(scan);
   const mock = isMockMode();
@@ -299,12 +300,19 @@ async function runAi(scan: ScanRow, business: BusinessRow, creds: ProviderCreden
         return;
       }
       // Reserve this sample's worst-case cost before the call, so parallel workers cannot overshoot the cap.
+      // `spent` = settled costs + reservations of calls still in flight. When only the reservations
+      // are in the way, wait for them to settle (real costs are usually far below the worst case);
+      // skip only when the settled costs themselves leave no room.
       const reserve = house ? WORST_CASE_SAMPLE_USD[engine] : 0;
-      if (spent + reserve > cap) {
-        await admin.from("ai_samples").update({ status: "skipped", error: "Skipped: the cost cap for this included scan was reached." }).eq("id", s.id);
-        return;
+      while (spent + reserve > cap) {
+        if (spent - inFlight + reserve > cap || inFlight <= 0 || Date.now() > deadline) {
+          await admin.from("ai_samples").update({ status: "skipped", error: "Skipped: the cost cap for this included scan was reached." }).eq("id", s.id);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 40));
       }
       spent += reserve;
+      inFlight += reserve;
       const pt = pointAt.get(s.point_idx) ?? { lat: scan.center_lat, lng: scan.center_lng };
       const geo: GeoContext = { lat: pt.lat, lng: pt.lng, city: business.city, region: business.region, country: business.country };
       try {
@@ -341,9 +349,11 @@ async function runAi(scan: ScanRow, business: BusinessRow, creds: ProviderCreden
           sources: answer.sources.slice(0, 25), cost_usd: cost, raw_path: rawPath, error: null,
         }).eq("id", s.id);
         spent += cost - reserve;
+        inFlight -= reserve;
         perProvider[engine] = (perProvider[engine] ?? 0) + cost;
       } catch (err) {
         spent -= reserve;
+        inFlight -= reserve;
         const pe = err instanceof ProviderError ? err : null;
         const message = `Engine unavailable: ${pe ? pe.message : "unexpected error"}`.slice(0, 300);
         if (pe && (pe.kind === "auth" || pe.kind === "quota")) dead = message;

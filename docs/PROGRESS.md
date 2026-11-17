@@ -17,6 +17,41 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | P0 / Maps 20+ red | `oklch(0.60 0.19 25)` | 4.5:1 contrast | `oklch(0.56 0.19 25)` so white text passes contrast |
 | Database, sign-in, files | n/a | Supabase (Postgres, magic-link sign-in, Storage) | Neon (Postgres, Neon Auth with Google sign-in, Data API, Object Storage), on the operator's instruction of 17 Nov 2026. The brief's rules are unchanged: RLS on every table, an automated RLS test, secrets on the server only |
 
+## M5 — prospect mode, PDF export, scan packs (17 Nov 2026)
+
+**Status: built and tested with simulated vendors. A real "dentist / Austin, TX" search and a test-mode pack purchase need real keys.**
+
+### Acceptance criteria
+
+| Criterion | Result | Evidence |
+|---|---|---|
+| "dentist / Austin, TX" lists ≥ 20 businesses | **Pass with simulated vendors; needs a real key** | `tests/db/prospects.test.ts`: the search returns 20+ businesses, each with a map location. The real call is one Google Maps search with depth 100 |
+| A 5-business batch on credits deducts 10 credits and completes | **Pass** | Same file: balance 12 → 2, five reports, ten scans (Maps 5×5 standard + AI 3×3 each) with no further credit taken, five audits |
+| A 20-row CSV resolves ≥ 80% | **Pass with simulated vendors** | 18 of 20 rows matched; the 2 unmatched rows are listed with a reason, never guessed |
+| Zip of PDFs and CSV export open cleanly | **Pass** | The zip is unpacked in the test: one valid PDF per report (`%PDF-` … `%%EOF`), unique file names for businesses that share a name. The CSV parses back with the eight columns from the brief plus a status column. A sample PDF was rendered and read by eye |
+| Pack purchase (test mode) grants credits | **Pass at the webhook; a real test purchase needs Stripe test keys** | `tests/db/webhook.test.ts`: a signed pack event grants credits once, also when delivered twice; packs require lifetime access |
+| Unit test: every product price > max delivery cost + fees | **Pass** | `tests/unit/pricing.test.ts`: packs, lifetime at every tier, each credit-funded action, and an audit with its Fix Kit at twice the estimate |
+
+### Built
+
+- **Find businesses**: search a service and a city (one Google Maps search, first 100 results; businesses already in the top 3 start unticked), or upload a CSV of up to 200 rows (name and city required; quoted fields, semicolons and common header names are understood).
+- **Prospect report** per business: Google Maps 5×5 grid on the standard queue, AI 3×3 grid, a quick audit (homepage only, P0 and P1 findings), and an opener. 2 credits each or your own keys; a report that fails gives its credits back.
+- **Opener**: one or two sentences built only from the report's numbers ("At 7 of 9 spots around Austin, AI assistants named Smile Dental and not …"). When a business does well everywhere there is no opener; it is not padded.
+- **Batch page**: progress, per-row status, link to each live report, PDF per report, "Download all PDFs (zip)", "Export CSV".
+- **PDF** (`src/lib/pdf/report-pdf.tsx`): the content of the live report on one A4 page: heatmaps as vector shapes, audit findings, white-label footer with "Get this fixed by {agency}", the "AI answers vary" line and a QR code to the live link. Also available from a business's share link card.
+- **Batches survive restarts**: one worker holds a batch at a time (claimed in the database), every step can be repeated, and cron continues batches that are waiting for the Maps queue.
+
+### Worth knowing
+
+- Lookups cost money before any report exists. On your own DataForSEO key they are rate limited (60 an hour). On included scans they also need a balance that could pay for a report and are limited to 10 searches or 3 CSV checks a day, so they cannot be used as a free search service.
+- The PDF is light on white paper for printing and email; the site and the live report stay dark.
+- No email addresses are collected and nothing is sent from RankbyAI (brief 7.7). Spreadsheet formulas in exported names are neutralised.
+
+### Needs the operator
+
+1. A DataForSEO login (and AI keys) to run a real search and a real batch.
+2. Stripe test keys for one test pack purchase.
+
 ## M4 — Local AI Audit and Fix Kit (17 Nov 2026)
 
 **Status: built and tested with simulated vendors. A run on a real business with real keys, and a look at the screens in a signed-in browser, are still open.**

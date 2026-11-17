@@ -69,6 +69,8 @@ export interface CreateAuditInput {
   months?: number;
   funding: Extract<Funding, "byok" | "credits">;
   confirm: boolean;
+  /** Part of a prospect report: already paid for by the batch, homepage-only, and not counted against the running limit. */
+  quick?: boolean;
 }
 
 export type CreateAuditResult =
@@ -100,19 +102,19 @@ export async function createAudit(input: CreateAuditInput): Promise<CreateAuditR
       input.funding === "byok" ? "The audit reads Google profile details through DataForSEO. Add your DataForSEO login in Settings → API keys, or use an included scan." : "Included scans are not available right now.", estimate);
   }
   const { count: running } = await admin.from("audits").select("id", { count: "exact", head: true }).eq("workspace_id", input.workspaceId).in("status", ["queued", "running"]);
-  if ((running ?? 0) >= 2) return fail(429, "too_many_running", "Two audits are already running. Wait for one to finish.", estimate);
-  if (input.funding === "credits") {
+  if (!input.quick && (running ?? 0) >= 2) return fail(429, "too_many_running", "Two audits are already running. Wait for one to finish.", estimate);
+  if (input.funding === "credits" && !input.quick) {
     const budget = await houseBudgetCheck("credits", estimate.totalUsd);
     if (!budget.ok) return fail(429, "daily_cap", budget.message ?? "Daily capacity reached.", estimate);
   }
 
   const { data: audit, error } = await admin
     .from("audits")
-    .insert({ workspace_id: input.workspaceId, business_id: input.businessId, funding: input.funding, status: "queued", est_cost_usd: estimate.totalUsd, inputs: { service, months, ...(isMockMode() ? { mock: true } : {}) } })
+    .insert({ workspace_id: input.workspaceId, business_id: input.businessId, funding: input.funding, status: "queued", est_cost_usd: estimate.totalUsd, inputs: { service, months, ...(input.quick ? { quick: true } : {}), ...(isMockMode() ? { mock: true } : {}) } })
     .select("id").single<{ id: string }>();
   if (error || !audit) return fail(500, "server_error", "The audit could not be created. Nothing was charged.", estimate);
 
-  if (input.funding === "credits") {
+  if (input.funding === "credits" && !input.quick) {
     const { data: paid, error: creditError } = await admin.rpc("use_credits", { p_workspace_id: input.workspaceId, p_n: CREDIT_COST.audit, p_reason: "audit", p_ref: creditRef(audit.id) });
     if (creditError || paid !== true) {
       await admin.from("audits").delete().eq("id", audit.id);
@@ -268,13 +270,15 @@ interface AuditRow {
   business_id: string;
   funding: Extract<Funding, "byok" | "credits">;
   status: string;
-  inputs: { service?: string; months?: number } & Row;
+  inputs: { service?: string; months?: number; quick?: boolean } & Row;
 }
 
 export interface StoredAuditInputs {
   service: string;
   months: number;
   mock?: boolean;
+  /** Prospect-report audit: homepage only, no page plan. */
+  quick?: boolean;
   /** Every check, including passed and not-checked ones. Findings are the failed ones. */
   checks: CheckResult[];
   competitors: { name: string; website: string | null; reviews: number | null; rating: number | null; category: string | null }[];
@@ -313,6 +317,7 @@ export async function processAudit(auditId: string): Promise<void> {
     if (!business) return void (await failWith("The business was deleted."));
     const service = String(audit.inputs.service ?? business.primary_category ?? "").trim();
     const months = Number(audit.inputs.months ?? 3);
+    const quick = audit.inputs.quick === true;
     const creds = await resolveCredentials(audit.workspace_id, audit.funding);
     if (!isMockMode() && !creds.dataforseo) return void (await failWith("No DataForSEO login is available for this audit."));
 
@@ -336,7 +341,7 @@ export async function processAudit(auditId: string): Promise<void> {
       if (isMockMode()) {
         const home = extractFacts(website, mockSiteHtml(business.name, true));
         crawl = { home, pages: [], hasLlmsTxt: false, fetched: 1 };
-      } else crawl = await crawlSite(website, 20, Math.min(Date.now() + CRAWL_BUDGET_MS, startedAt + AUDIT_BUDGET_MS - 90_000)).catch(() => null);
+      } else crawl = await crawlSite(website, quick ? 0 : 20, Math.min(Date.now() + (quick ? 20_000 : CRAWL_BUDGET_MS), startedAt + AUDIT_BUDGET_MS - 90_000)).catch(() => null);
     }
     const rivalSites = await Promise.all(competitors.map(async (c) => ({ name: c.name, facts: await homepageFacts(c.profile?.url ?? null, c.name, false) })));
 
@@ -347,7 +352,7 @@ export async function processAudit(auditId: string): Promise<void> {
       yourServices = heuristicServices(crawl.home);
       let rivalServices = rivalSites.map((r) => ({ name: r.name, services: heuristicServices(r.facts) }));
       let method: "llm" | "heuristic" = "heuristic";
-      if (!isMockMode() && creds.openai && Date.now() < startedAt + AUDIT_BUDGET_MS - 60_000) {
+      if (!quick && !isMockMode() && creds.openai && Date.now() < startedAt + AUDIT_BUDGET_MS - 60_000) {
         const llm = await llmServices(creds.openai, [{ site: "YOU", facts: crawl.home }, ...rivalSites.map((r) => ({ site: r.name, facts: r.facts }))]);
         if (llm) {
           spend.openai = (spend.openai ?? 0) + llm.costUsd;
@@ -361,7 +366,7 @@ export async function processAudit(auditId: string): Promise<void> {
 
     // 4. Named places around the business, for the page plan.
     let areas: AuditInputs["areas"] = null;
-    if (business.lat != null && business.lng != null) {
+    if (!quick && business.lat != null && business.lng != null) {
       const names = isMockMode() ? mockAreas() : [...new Set((await fetchPlaces({ lat: business.lat, lng: business.lng }, AUDIT_RADIUS_MILES, "city|town|suburb|neighbourhood")).map((p) => p.name))].slice(0, MAX_AREAS);
       if (names.length) areas = { names, radiusMiles: AUDIT_RADIUS_MILES };
     }
@@ -380,7 +385,7 @@ export async function processAudit(auditId: string): Promise<void> {
 
     const pagePlanCheck = checks.find((c) => c.key === "page_math");
     const stored: StoredAuditInputs = {
-      service, months, ...(isMockMode() ? { mock: true } : {}),
+      service, months, ...(isMockMode() ? { mock: true } : {}), ...(quick ? { quick: true } : {}),
       checks,
       competitors: competitors.map((c) => ({ name: c.name, website: c.profile?.url ?? null, reviews: c.profile?.reviews ?? null, rating: c.profile?.rating ?? null, category: c.profile?.category ?? null })),
       profile,

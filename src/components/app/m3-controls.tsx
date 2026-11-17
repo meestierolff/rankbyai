@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { track } from "@/lib/analytics";
 import { useState } from "react";
 import { ctaClass, secondaryClass } from "@/components/brand/primitives";
 import { inputClass, labelClass } from "./ui";
@@ -77,6 +78,7 @@ export function ShareLinkCard({ businessId, slug, origin, locked }: { businessId
         </button>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-[13px] text-dim">
+        <a href={`/api/reports/${slug}/pdf`} download className={`${smallBtn} no-underline`} onClick={() => track("pdf_downloaded", { kind: "share" })}>Download PDF</a>
         <button type="button" disabled={busy} className={smallBtn} onClick={() => call("POST")}>Regenerate</button>
         <button type="button" disabled={busy} className={`${smallBtn} border-danger/50 text-danger`} onClick={() => call("DELETE")}>Revoke</button>
         <span>Regenerating or revoking makes the current link stop working. Share links are never indexed by search engines.</span>

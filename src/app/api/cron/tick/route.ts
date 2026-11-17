@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { failStalledAudits } from "@/lib/audit/run";
 import { cronEnv } from "@/lib/env";
+import { findOpenBatches, processBatch } from "@/lib/prospects/batch";
 import { runDueSchedules } from "@/lib/schedules";
 import { findStalledScans, processScan } from "@/lib/scans/engine";
 import { dbAdmin } from "@/lib/db/clients";
@@ -34,7 +35,12 @@ export async function GET(request: Request) {
   // 4. Audits whose worker died are closed and their credit returned.
   report.audits_timed_out = await failStalledAudits();
 
-  // 5. Housekeeping: old rate-limit windows.
+  // 5. Prospect batches waiting on the Maps queue are continued.
+  const batches = await findOpenBatches(3);
+  await Promise.all(batches.map((id) => processBatch(id, 150_000).catch(() => undefined)));
+  report.batches_continued = batches.length;
+
+  // 6. Housekeeping: old rate-limit windows.
   await admin.from("rate_limits").delete().lt("window_start", new Date(Date.now() - 2 * 86_400_000).toISOString());
 
   return Response.json({ ok: true, ...report });

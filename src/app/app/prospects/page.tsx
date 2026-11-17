@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import { ModulePreview } from "@/components/app/module-preview";
+import { ProspectIndexPage } from "@/components/app/prospects-pages";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Prospects" };
 
-export default function Page() {
-  return <ModulePreview title="Prospects" description="Niche + city in, white-label prospect reports out." ships="In development." />;
+export default async function Page() {
+  const ctx = await requireSession("/app/prospects");
+  return <ProspectIndexPage ctx={ctx} />;
 }

@@ -151,7 +151,9 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
   const auditQuery = admin.from("audits").select("id, score, created_at").eq("status", "done").order("created_at", { ascending: false }).limit(1);
   const { data: auditRow } = report.audit_id ? await auditQuery.eq("id", report.audit_id) : report.kind === "share" ? await auditQuery.eq("business_id", business.id) : { data: null };
   if (auditRow?.[0]) {
-    const { data: findings } = await admin.from("audit_findings").select("priority, title, fix").eq("audit_id", auditRow[0].id).order("priority").limit(report.kind === "prospect" ? 4 : 6);
+    // A prospect report carries the quick audit: P0 and P1 findings only (brief 7.7).
+    const findingQuery = admin.from("audit_findings").select("priority, title, fix").eq("audit_id", auditRow[0].id).order("priority");
+    const { data: findings } = report.kind === "prospect" ? await findingQuery.in("priority", ["P0", "P1"]).limit(6) : await findingQuery.limit(6);
     audit = { score: auditRow[0].score, date: auditRow[0].created_at, findings: (findings ?? []) as { priority: string; title: string; fix: string }[] };
   }
 

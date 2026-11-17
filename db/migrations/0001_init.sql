@@ -1,28 +1,59 @@
--- RankbyAI initial schema (brief section 4).
+-- RankbyAI schema for plain Postgres (Neon in production, a local Postgres + PostgREST in development).
 -- Rules enforced here:
 --   * RLS is ON for every table.
---   * anon/authenticated get NO default privileges; each grant below is explicit.
---   * Secrets (key ciphertext, API key hashes) and money tables are never writable or
---     readable by clients; public data leaves only through explicit views.
---   * Plan, credits, orders and the ladder change only through SECURITY DEFINER
---     functions that are executable by service_role alone.
+--   * The API roles (anonymous, authenticated) get NO default privileges; each grant below is explicit.
+--   * Secrets (key ciphertext, API key hashes) and money tables are never writable or readable by
+--     clients; public data leaves only through explicit views.
+--   * Plan, credits, orders and the ladder change only through SECURITY DEFINER functions that are
+--     executable by service_role alone.
+--
+-- Roles (PostgREST / Neon Data API convention: the request's JWT names the role to switch to):
+--   anonymous      public visitors: the ladder view and indexable regional pages only
+--   authenticated  a signed-in user: their own workspace, through RLS
+--   service_role   the application server: trusted writes. Never given to a browser.
 
-create extension if not exists pgcrypto with schema extensions;
+create extension if not exists pgcrypto;
+
+do $$
+begin
+  if not exists (select from pg_roles where rolname = 'anonymous') then create role anonymous nologin; end if;
+  if not exists (select from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
+  if not exists (select from pg_roles where rolname = 'service_role') then create role service_role nologin; end if;
+  -- The API gateway connects as "authenticator" and switches to the role named in the JWT.
+  if exists (select from pg_roles where rolname = 'authenticator') then
+    grant anonymous, authenticated, service_role to authenticator;
+  end if;
+end $$;
 
 create schema if not exists private;
 revoke all on schema private from public;
-grant usage on schema private to authenticated, anon, service_role;
+grant usage on schema private to authenticated, anonymous, service_role;
+grant usage on schema public to authenticated, anonymous, service_role;
+
+-- The signed-in user's id, from the request's JWT ("sub").
+-- Neon's Data API exposes it as auth.user_id(); PostgREST exposes the claims as a setting.
+do $$
+begin
+  if to_regprocedure('auth.user_id()') is not null then
+    execute $f$create or replace function private.uid() returns uuid language sql stable set search_path = '' as
+      $b$ select nullif(auth.user_id(), '')::uuid $b$ $f$;
+  else
+    execute $f$create or replace function private.uid() returns uuid language sql stable set search_path = '' as
+      $b$ select nullif(nullif(current_setting('request.jwt.claims', true), '')::json ->> 'sub', '')::uuid $b$ $f$;
+  end if;
+end $$;
+grant execute on function private.uid() to authenticated, anonymous, service_role;
 
 -- ───────────────────────── identity ─────────────────────────
 create table public.profiles (
-  id uuid primary key references auth.users (id) on delete cascade,
+  id uuid primary key, -- the user id issued by the auth provider (Neon Auth)
   email text not null,
   created_at timestamptz not null default now()
 );
 
 create table public.workspaces (
   id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null references auth.users (id) on delete cascade,
+  owner_id uuid not null references public.profiles (id) on delete cascade,
   name text not null,
   plan text not null default 'locked' check (plan in ('locked', 'lifetime')),
   lifetime_seat int,
@@ -39,7 +70,7 @@ create table public.workspaces (
 
 create table public.workspace_members (
   workspace_id uuid not null references public.workspaces (id) on delete cascade,
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
   role text not null default 'member' check (role in ('owner', 'member')),
   created_at timestamptz not null default now(),
   primary key (workspace_id, user_id)
@@ -51,7 +82,7 @@ create or replace function private.is_workspace_member(ws uuid)
 returns boolean language sql stable security definer set search_path = '' as $$
   select exists (
     select 1 from public.workspace_members m
-    where m.workspace_id = ws and m.user_id = (select auth.uid())
+    where m.workspace_id = ws and m.user_id = (select private.uid())
   );
 $$;
 
@@ -59,28 +90,31 @@ create or replace function private.is_workspace_owner(ws uuid)
 returns boolean language sql stable security definer set search_path = '' as $$
   select exists (
     select 1 from public.workspaces w
-    where w.id = ws and w.owner_id = (select auth.uid())
+    where w.id = ws and w.owner_id = (select private.uid())
   );
 $$;
-grant execute on function private.is_workspace_member(uuid), private.is_workspace_owner(uuid) to authenticated, anon, service_role;
+grant execute on function private.is_workspace_member(uuid), private.is_workspace_owner(uuid) to authenticated, anonymous, service_role;
 
--- New auth user → profile + personal workspace + owner membership.
-create or replace function private.handle_new_user()
-returns trigger language plpgsql security definer set search_path = '' as $$
+-- First sign-in → profile + personal workspace + owner membership. Idempotent; called by the server.
+create or replace function public.ensure_user(p_id uuid, p_email text)
+returns uuid language plpgsql security definer set search_path = '' as $$
 declare
   ws_id uuid;
 begin
-  insert into public.profiles (id, email) values (new.id, coalesce(new.email, ''))
-  on conflict (id) do nothing;
-  insert into public.workspaces (owner_id, name)
-  values (new.id, coalesce(nullif(split_part(coalesce(new.email, ''), '@', 1), ''), 'My workspace'))
-  returning id into ws_id;
-  insert into public.workspace_members (workspace_id, user_id, role) values (ws_id, new.id, 'owner');
-  return new;
+  insert into public.profiles (id, email) values (p_id, coalesce(p_email, ''))
+  on conflict (id) do update set email = excluded.email where public.profiles.email is distinct from excluded.email;
+  -- Serialise concurrent first requests of the same user.
+  perform 1 from public.profiles where id = p_id for update;
+  select m.workspace_id into ws_id from public.workspace_members m where m.user_id = p_id order by m.created_at limit 1;
+  if ws_id is null then
+    insert into public.workspaces (owner_id, name)
+    values (p_id, coalesce(nullif(split_part(coalesce(p_email, ''), '@', 1), ''), 'My workspace'))
+    returning id into ws_id;
+    insert into public.workspace_members (workspace_id, user_id, role) values (ws_id, p_id, 'owner');
+  end if;
+  return ws_id;
 end;
 $$;
-create trigger on_auth_user_created after insert on auth.users
-  for each row execute function private.handle_new_user();
 
 -- ───────────────────────── BYOK vault ─────────────────────────
 create table public.api_credentials (
@@ -130,7 +164,6 @@ create table public.businesses (
   rating numeric(3, 2),
   reviews_count int,
   source text not null default 'search' check (source in ('search', 'csv', 'prospect', 'manual')),
-  share_slug text unique,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -180,6 +213,9 @@ create table public.scans (
   actual_cost_usd numeric(10, 5),
   summary jsonb not null default '{}'::jsonb,
   error text,
+  label text,
+  -- One worker at a time per scan (claimed with a single conditional UPDATE).
+  lease_until timestamptz,
   created_at timestamptz not null default now(),
   started_at timestamptz,
   finished_at timestamptz
@@ -213,6 +249,7 @@ create table public.ai_samples (
   point_idx int not null,
   engine text not null check (engine in ('openai', 'perplexity', 'gemini')),
   engine_variant text,
+  model text,
   prompt text not null,
   answer_text text,
   mentioned boolean,
@@ -321,7 +358,7 @@ create index reports_business_idx on public.reports (business_id);
 create table public.orders (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces (id) on delete restrict,
-  user_id uuid references auth.users (id) on delete set null,
+  user_id uuid references public.profiles (id) on delete set null,
   email text,
   product_key text not null check (product_key in ('lifetime', 'pack_25', 'pack_100')),
   amount_cents int not null check (amount_cents >= 0),
@@ -374,7 +411,7 @@ insert into public.ladder_lock (id) values (1);
 create table public.ladder_holds (
   id uuid primary key default gen_random_uuid(),
   stripe_checkout_session_id text unique,
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
   workspace_id uuid not null references public.workspaces (id) on delete cascade,
   price_cents int not null,
   expires_at timestamptz not null,
@@ -478,7 +515,7 @@ create table public.feature_requests (
 );
 create table public.feature_request_votes (
   request_id uuid not null references public.feature_requests (id) on delete cascade,
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
   created_at timestamptz not null default now(),
   primary key (request_id, user_id)
 );
@@ -534,16 +571,24 @@ alter table public.feature_request_votes enable row level security;
 alter table public.regional_pages enable row level security;
 
 -- Start from zero privileges for client roles, then grant explicitly.
-revoke all on all tables in schema public from anon, authenticated;
-revoke all on all sequences in schema public from anon, authenticated;
-alter default privileges in schema public revoke all on tables from anon, authenticated;
-alter default privileges in schema public revoke all on functions from anon, authenticated, public;
+revoke all on all tables in schema public from anonymous, authenticated;
+revoke all on all sequences in schema public from anonymous, authenticated;
+alter default privileges in schema public revoke all on tables from anonymous, authenticated;
+alter default privileges in schema public revoke all on functions from anonymous, authenticated, public;
 grant all on all tables in schema public to service_role;
+-- The server role sees everything, stated as explicit policies (no reliance on a BYPASSRLS attribute).
+do $$
+declare t record;
+begin
+  for t in select tablename from pg_tables where schemaname = 'public' loop
+    execute format('create policy service_all on public.%I for all to service_role using (true) with check (true)', t.tablename);
+  end loop;
+end $$;
 
 -- profiles: own row
 grant select on public.profiles to authenticated;
 create policy profiles_select_own on public.profiles for select to authenticated
-  using (id = (select auth.uid()));
+  using (id = (select private.uid()));
 
 -- workspaces: members read; owner may update BRAND columns only (column grant).
 grant select on public.workspaces to authenticated;
@@ -553,7 +598,7 @@ grant update (name, brand_name, brand_logo_path, brand_color_hex, brand_website,
 create policy workspaces_select_member on public.workspaces for select to authenticated
   using (private.is_workspace_member(id));
 create policy workspaces_update_owner on public.workspaces for update to authenticated
-  using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
+  using (owner_id = (select private.uid())) with check (owner_id = (select private.uid()));
 
 grant select on public.workspace_members to authenticated;
 create policy workspace_members_select on public.workspace_members for select to authenticated
@@ -616,8 +661,8 @@ create policy feature_requests_insert on public.feature_requests for insert to a
   with check (private.is_workspace_member(workspace_id));
 
 -- regional pages: public read of indexable rows only.
-grant select on public.regional_pages to anon, authenticated;
-create policy regional_pages_public_read on public.regional_pages for select to anon, authenticated
+grant select on public.regional_pages to anonymous, authenticated;
+create policy regional_pages_public_read on public.regional_pages for select to anonymous, authenticated
   using (indexable);
 
 -- Server-only tables (no policies, no grants): api_credentials, ladder_lock, ladder_holds,
@@ -647,7 +692,7 @@ select
   ((counts.paid_total + counts.holds_active) / cfg.seats_per_step) as band_index,
   cfg.closes_at
 from cfg, counts;
-grant select on public.ladder_state to anon, authenticated, service_role;
+grant select on public.ladder_state to anonymous, authenticated, service_role;
 
 -- The ladder terms can be tuned before launch but never after the first sale or hold.
 create or replace function private.ladder_config_guard()
@@ -952,10 +997,10 @@ create or replace function public.vote_feature_request(p_request_id uuid)
 returns int language plpgsql security definer set search_path = '' as $$
 declare v int;
 begin
-  if (select auth.uid()) is null then
+  if (select private.uid()) is null then
     raise exception 'not signed in';
   end if;
-  insert into public.feature_request_votes (request_id, user_id) values (p_request_id, (select auth.uid()))
+  insert into public.feature_request_votes (request_id, user_id) values (p_request_id, (select private.uid()))
   on conflict do nothing;
   if found then
     update public.feature_requests set votes = votes + 1 where id = p_request_id returning votes into v;
@@ -966,15 +1011,39 @@ begin
 end;
 $$;
 
+-- ═════════════════════════ estimates + spend ═════════════════════════
+-- Median cost per engine over the latest real samples, for estimates (brief 10.1).
+create or replace function public.engine_cost_medians(p_min_samples int default 50, p_window int default 200)
+returns table (engine text, median_usd numeric, n int)
+language sql stable security definer set search_path = '' as $$
+  with ranked as (
+    select s.engine, s.cost_usd, row_number() over (partition by s.engine order by s.created_at desc) as rn
+    from public.ai_samples s
+    where s.status = 'done' and s.cost_usd is not null and s.cost_usd > 0
+  )
+  select r.engine, percentile_cont(0.5) within group (order by r.cost_usd)::numeric as median_usd, count(*)::int as n
+  from ranked r
+  where r.rn <= p_window
+  group by r.engine
+  having count(*) >= p_min_samples;
+$$;
+
+-- House-key spend for a day (cost guard + /admin).
+create or replace function public.house_spend(p_day date default (now() at time zone 'utc')::date)
+returns table (funding text, provider text, usd numeric)
+language sql stable security definer set search_path = '' as $$
+  select l.funding, l.provider, coalesce(sum(l.usd), 0)::numeric
+  from public.spend_log l where l.day = p_day
+  group by l.funding, l.provider;
+$$;
+
+
 -- Function privileges: everything is service_role only, except the vote RPC.
-revoke all on all functions in schema public from public, anon, authenticated;
+revoke all on all functions in schema public from public, anonymous, authenticated;
 grant execute on all functions in schema public to service_role;
 grant execute on function public.vote_feature_request(uuid) to authenticated;
 
--- ═════════════════════════ storage ═════════════════════════
--- Private buckets; the server signs or streams every object. No storage policies for clients.
-insert into storage.buckets (id, name, public) values
-  ('reports', 'reports', false),
-  ('brand', 'brand', false),
-  ('ai-raw', 'ai-raw', false)
-on conflict (id) do nothing;
+-- Files (brand logos, raw AI answers, PDFs) live in S3-compatible object storage, not in the database.
+
+-- PostgREST caches the schema: tell it to reload (harmless where nothing listens).
+notify pgrst, 'reload schema';

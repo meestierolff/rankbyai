@@ -1,9 +1,13 @@
 import { config } from "dotenv";
 
-// Tests run against the LOCAL Supabase stack only (never a hosted project).
+// Database tests truncate tables. They run against the LOCAL stack only (docker compose in
+// db/local), never against Neon or any other hosted database.
 config({ path: ".env.local", quiet: true });
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-if (url && !/^http:\/\/(127\.0\.0\.1|localhost):/.test(url)) {
-  throw new Error(`Refusing to run tests against a non-local database: ${url}`);
+const LOCAL = /^(http|postgres(ql)?):\/\/([^@/]*@)?(127\.0\.0\.1|localhost)[:/]/;
+for (const name of ["DATA_API_URL", "DATABASE_URL"] as const) {
+  const value = process.env[name] ?? "";
+  if (value && !LOCAL.test(value)) {
+    throw new Error(`Refusing to run tests: ${name} does not point at the local database.`);
+  }
 }

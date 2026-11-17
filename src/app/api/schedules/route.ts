@@ -3,7 +3,7 @@ import { err, json, withSession } from "@/lib/api";
 import { validateSpec, type ScanSpec } from "@/lib/cost-guard";
 import { upsertTrackedQuery } from "@/lib/schedules";
 import { validateTemplate } from "@/lib/scans/prompt";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 
 const Body = z.object({
   business_id: z.uuid(),
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       const tErr = validateTemplate(b.prompt_template);
       if (tErr) return err(400, "invalid_prompt", tErr);
     }
-    const { data: business } = await supabaseAdmin().from("businesses").select("id").eq("id", b.business_id).eq("workspace_id", ctx.workspace.id).maybeSingle();
+    const { data: business } = await dbAdmin().from("businesses").select("id").eq("id", b.business_id).eq("workspace_id", ctx.workspace.id).maybeSingle();
     if (!business) return err(404, "business_not_found", "That business was not found in this workspace.");
 
     const result = await upsertTrackedQuery({

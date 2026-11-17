@@ -9,7 +9,7 @@ import { mapsLive, type MapsItem } from "@/lib/providers/dataforseo";
 import { mockBusinessSearch, mockMapsItems } from "@/lib/providers/mock-data";
 import { createScan, locationCodeFor, processScan } from "@/lib/scans/engine";
 import { findInMaps } from "@/lib/scans/match";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 
 /**
  * Free check (brief 10.4): one 1×1 AI check on 3 engines at the business location plus the Maps rank
@@ -27,29 +27,24 @@ export type FreeCheckStart =
   | { ok: true; id: string }
   | { ok: false; status: number; error: string; message: string };
 
-/** Records the request (before the email is verified) and enforces the per-email and per-IP limits. */
-export async function startFreeCheck(input: { email: string; ip: string; businessName: string; city: string }): Promise<FreeCheckStart> {
-  const admin = supabaseAdmin();
+/**
+ * Step 1: record the request and enforce the per-network limit. The email is not known yet: it is
+ * bound in step 2 from the visitor's verified Google account, which is where the 1-per-email limit applies.
+ */
+export async function startFreeCheck(input: { ip: string; businessName: string; city: string }): Promise<FreeCheckStart> {
+  const admin = dbAdmin();
   const env = costEnv.get();
-  if (isDisposableEmail(input.email)) return { ok: false, status: 400, error: "disposable_email", message: "Please use your work email." };
-
-  const emailHash = hashIdentifier(input.email);
   const ipHash = hashIdentifier(input.ip);
-  const { data: existing } = await admin.from("free_checks").select("id, status, report_id").eq("email_hash", emailHash).maybeSingle();
-  if (existing) {
-    // An unfinished request for the same email may be resumed; a finished one cannot be repeated.
-    if (existing.status === "pending") {
-      await admin.from("free_checks").update({ business_name: input.businessName, city: input.city, ip_hash: ipHash }).eq("id", existing.id);
-      return { ok: true, id: existing.id };
-    }
-    return { ok: false, status: 409, error: "already_used", message: `You have used your free check (${env.FREE_CHECKS_PER_EMAIL} per email). Lifetime access unlocks full grids.` };
-  }
   const since = new Date(Date.now() - 86_400_000).toISOString();
   const { count } = await admin.from("free_checks").select("id", { count: "exact", head: true }).eq("ip_hash", ipHash).gte("created_at", since);
   if ((count ?? 0) >= env.FREE_CHECKS_PER_IP_PER_DAY) {
     return { ok: false, status: 429, error: "ip_limit", message: "Too many free checks from this network today. Try again tomorrow." };
   }
-  const { data, error } = await admin.from("free_checks").insert({ email_hash: emailHash, ip_hash: ipHash, business_name: input.businessName, city: input.city, status: "pending" }).select("id").single();
+  const { data, error } = await admin
+    .from("free_checks")
+    .insert({ email_hash: `pending:${randomToken(18)}`, ip_hash: ipHash, business_name: input.businessName, city: input.city, status: "pending" })
+    .select("id")
+    .single();
   if (error || !data) return { ok: false, status: 500, error: "server_error", message: "We could not start your free check. Try again." };
   return { ok: true, id: data.id };
 }
@@ -60,9 +55,31 @@ export type FreeCheckRun =
 
 /** Runs the check for a signed-in, email-verified user. Idempotent: a finished check returns its report. */
 export async function runFreeCheck(input: { freeCheckId: string; userEmail: string; workspaceId: string; country?: string }): Promise<FreeCheckRun> {
-  const admin = supabaseAdmin();
-  const { data: fc } = await admin.from("free_checks").select("*").eq("id", input.freeCheckId).maybeSingle();
-  if (!fc || fc.email_hash !== hashIdentifier(input.userEmail)) return { ok: false, status: 404, error: "not_found", message: "This free check belongs to a different email address." };
+  const admin = dbAdmin();
+  const env = costEnv.get();
+  const emailHash = hashIdentifier(input.userEmail);
+  let { data: fc } = await admin.from("free_checks").select("*").eq("id", input.freeCheckId).maybeSingle();
+  if (!fc) return { ok: false, status: 404, error: "not_found", message: "This free check link is not valid." };
+
+  if (String(fc.email_hash).startsWith("pending:")) {
+    if (isDisposableEmail(input.userEmail)) return { ok: false, status: 400, error: "disposable_email", message: "Please sign in with your work Google account." };
+    // Bind the request to this verified email. The unique index makes "one per email" atomic.
+    const { data: bound, error: bindError } = await admin.from("free_checks").update({ email_hash: emailHash }).eq("id", fc.id).like("email_hash", "pending:%").select("*").maybeSingle();
+    // Two requests for the same link at once (double click, React effect running twice): the other
+    // one bound it a moment ago. Read the row again instead of treating it as a second free check.
+    const { data: reread } = !bound ? await admin.from("free_checks").select("*").eq("id", fc.id).maybeSingle() : { data: null };
+    if (reread && reread.email_hash === emailHash) fc = reread;
+    else if (bindError || !bound) {
+      const { data: earlier } = await admin.from("free_checks").select("report_id").eq("email_hash", emailHash).maybeSingle();
+      if (earlier?.report_id) {
+        const { data: rep } = await admin.from("reports").select("share_slug").eq("id", earlier.report_id).eq("revoked", false).maybeSingle();
+        if (rep) return { ok: true, slug: rep.share_slug }; // show the check they already have
+      }
+      return { ok: false, status: 409, error: "already_used", message: `You have used your free check (${env.FREE_CHECKS_PER_EMAIL} per account). Lifetime access unlocks full grids.` };
+    } else fc = bound;
+  } else if (fc.email_hash !== emailHash) {
+    return { ok: false, status: 404, error: "not_found", message: "This free check belongs to a different account." };
+  }
 
   if (fc.report_id) {
     const { data: rep } = await admin.from("reports").select("share_slug").eq("id", fc.report_id).maybeSingle();
@@ -150,6 +167,6 @@ export async function runFreeCheck(input: { freeCheckId: string; userEmail: stri
     await admin.from("free_checks").update({ status: "done", report_id: report.id }).eq("id", fc.id);
     return { ok: true, slug };
   } catch {
-    return failWith("The check did not complete. Open the link from your email again to retry.");
+    return failWith("The check did not complete. Reload this page to try again.");
   }
 }

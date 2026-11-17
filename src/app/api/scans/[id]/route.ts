@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { err, json, withSession } from "@/lib/api";
 import { processScan } from "@/lib/scans/engine";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { currentUserDb } from "@/lib/db/session";
 
 export const maxDuration = 300;
 
@@ -11,7 +11,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return withSession(async () => {
     const id = z.uuid().safeParse((await params).id);
     if (!id.success) return err(400, "invalid_id", "Unknown scan.");
-    const supabase = await createSupabaseServer();
+    const supabase = await currentUserDb();
     const { data: scan } = await supabase
       .from("scans")
       .select("id, business_id, kind, keyword, niche, prompt_template, engines, grid_size, radius_miles, center_lat, center_lng, mode, funding, status, credits_used, est_cost_usd, actual_cost_usd, summary, error, created_at, finished_at, lease_until")

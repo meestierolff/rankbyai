@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 import { clientIp } from "@/lib/request";
 import { verifyTurnstile } from "@/lib/turnstile";
 
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   if (!check.ok) return Response.json({ error: "turnstile_failed", message: "Please complete the anti-bot check." }, { status: 400 });
 
   try {
-    const admin = supabaseAdmin();
+    const admin = dbAdmin();
     // Fail closed: anything other than an explicit "allowed" stops the write.
     const { data: allowed, error: rlError } = await admin.rpc("rate_limit_hit", { p_key: `removal:${ip}`, p_window_seconds: 3600, p_limit: 5 });
     if (rlError || allowed !== true) return Response.json({ error: "rate_limited", message: "Too many requests. Try again later." }, { status: 429 });

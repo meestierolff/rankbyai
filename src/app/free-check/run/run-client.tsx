@@ -14,18 +14,28 @@ export function RunFreeCheck() {
     started.current = true;
     const fc = new URLSearchParams(window.location.search).get("fc");
     (async () => {
-      try {
-        const res = await fetch("/api/free-check/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fc }) });
-        const json = (await res.json().catch(() => ({}))) as { slug?: string; message?: string };
-        if (res.ok && json.slug) {
-          track("free_check_completed");
-          window.location.replace(`/r/${json.slug}`);
+      // "running" means another tab or an earlier load of this page is already doing the work:
+      // ask again until its report is ready (the call is idempotent).
+      for (let attempt = 0; attempt < 30; attempt++) {
+        try {
+          const res = await fetch("/api/free-check/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fc }) });
+          const json = (await res.json().catch(() => ({}))) as { slug?: string; message?: string; error?: string };
+          if (res.ok && json.slug) {
+            track("free_check_completed");
+            window.location.replace(`/r/${json.slug}`);
+            return;
+          }
+          if (json.error !== "running") {
+            setMessage(json.message ?? "The check could not run. Reload this page to try again.");
+            return;
+          }
+        } catch {
+          setMessage("The check could not run. Reload this page to try again.");
           return;
         }
-        setMessage(json.message ?? "The check could not run. Open the link from your email again.");
-      } catch {
-        setMessage("The check could not run. Open the link from your email again.");
+        await new Promise((r) => setTimeout(r, 5000));
       }
+      setMessage("The check is taking longer than expected. Reload this page in a minute.");
     })();
   }, []);
 

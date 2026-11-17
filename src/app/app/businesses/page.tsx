@@ -5,7 +5,7 @@ import { EmptyState, PageHeader, Panel, fmtDate } from "@/components/app/ui";
 import { secondaryClass } from "@/components/brand/primitives";
 import { requireSession } from "@/lib/auth";
 import { isMockMode } from "@/lib/mock";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { currentUserDb } from "@/lib/db/session";
 import { getKeyStatuses } from "@/lib/workspace-data";
 
 export const metadata: Metadata = { title: "Businesses" };
@@ -30,7 +30,7 @@ interface ScanLite {
 
 export default async function BusinessesPage() {
   const ctx = await requireSession("/app/businesses");
-  const supabase = await createSupabaseServer();
+  const supabase = await currentUserDb();
   const [{ data }, keys, { data: scanRows }] = await Promise.all([
     supabase.from("businesses").select("id, name, address, city, region, primary_category, rating, reviews_count").eq("workspace_id", ctx.workspace.id).neq("source", "prospect").order("created_at", { ascending: false }).limit(500),
     getKeyStatuses(ctx.workspace.id),

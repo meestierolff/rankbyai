@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getSessionContext } from "@/lib/auth";
 import { MissingEnvError } from "@/lib/env";
 import { getStripe } from "@/lib/stripe";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 import { REFUND_DAYS } from "@/lib/pricing-constants";
 
 const Body = z.object({ order_id: z.uuid() });
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid_body" }, { status: 400 });
 
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const { data: order } = await admin
     .from("orders")
     .select("id, workspace_id, status, stripe_payment_intent_id, created_at")

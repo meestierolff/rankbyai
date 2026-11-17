@@ -1,5 +1,6 @@
 import { err, json, requireOwner, withSession } from "@/lib/api";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
+import { isStorageConfigured, putObject, removeObject } from "@/lib/storage";
 
 const MAX_BYTES = 512 * 1024;
 
@@ -25,14 +26,14 @@ export async function POST(request: Request) {
     const kind = sniff(bytes);
     if (!kind) return err(400, "invalid_type", "Upload a PNG, JPEG or WebP image.");
 
-    const admin = supabaseAdmin();
+    if (!isStorageConfigured()) return err(503, "storage_not_configured", "File storage is not configured on this deployment yet.");
+    const admin = dbAdmin();
     const path = `${ctx.workspace.id}/logo-${Date.now()}.${kind.ext}`;
-    const { error: upErr } = await admin.storage.from("brand").upload(path, bytes, { contentType: kind.type, upsert: false });
-    if (upErr) return err(500, "server_error", "The logo could not be stored.");
+    if (!(await putObject(`brand/${path}`, bytes, kind.type))) return err(500, "server_error", "The logo could not be stored.");
     const previous = ctx.workspace.brand_logo_path;
     const { error } = await admin.from("workspaces").update({ brand_logo_path: path }).eq("id", ctx.workspace.id);
     if (error) return err(500, "server_error", "The logo could not be saved.");
-    if (previous && previous.startsWith(`${ctx.workspace.id}/`)) await admin.storage.from("brand").remove([previous]);
+    if (previous && previous.startsWith(`${ctx.workspace.id}/`)) await removeObject(`brand/${previous}`);
     return json({ ok: true });
   });
 }
@@ -41,10 +42,10 @@ export async function DELETE() {
   return withSession(async (ctx) => {
     const denied = requireOwner(ctx);
     if (denied) return denied;
-    const admin = supabaseAdmin();
+    const admin = dbAdmin();
     const previous = ctx.workspace.brand_logo_path;
     await admin.from("workspaces").update({ brand_logo_path: null }).eq("id", ctx.workspace.id);
-    if (previous && previous.startsWith(`${ctx.workspace.id}/`)) await admin.storage.from("brand").remove([previous]);
+    if (previous && previous.startsWith(`${ctx.workspace.id}/`)) await removeObject(`brand/${previous}`);
     return json({ ok: true });
   });
 }

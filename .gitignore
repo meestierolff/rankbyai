@@ -59,3 +59,7 @@ supabase/.branches
 
 # private research references: never commit (third-party screenshots, other-project material)
 /docs/references
+
+# local database stack secrets
+/db/local/.env
+.env.neon.local

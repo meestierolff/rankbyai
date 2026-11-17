@@ -20,33 +20,54 @@ afterAll(async () => {
   await closePool();
 });
 
-const start = (email: string, ip = "203.0.113.7") => startFreeCheck({ email, ip, businessName: "Northgate Family Dental", city: "Austin, TX" });
+const start = (ip = "203.0.113.7") => startFreeCheck({ ip, businessName: "Northgate Family Dental", city: "Austin, TX" });
 
 describe("free check limits", () => {
-  it("runs once per email: the second attempt with the same email is refused", async () => {
-    const first = await start(u.email);
+  it("runs once per verified email: a second request from the same account shows the first report, and runs nothing", async () => {
+    const first = await start();
     expect(first.ok).toBe(true);
     if (!first.ok) return;
     const run = await runFreeCheck({ freeCheckId: first.id, userEmail: u.email, workspaceId: u.workspaceId });
     expect(run.ok).toBe(true);
 
-    const second = await start(u.email.toUpperCase()); // same inbox, different case
-    expect(second).toMatchObject({ ok: false, status: 409, error: "already_used" });
-    // Re-opening the emailed link returns the same report instead of running again.
-    const again = await runFreeCheck({ freeCheckId: first.id, userEmail: u.email, workspaceId: u.workspaceId });
-    expect(again).toEqual(run);
+    // Opening the same link again returns the same report instead of running again.
+    expect(await runFreeCheck({ freeCheckId: first.id, userEmail: u.email, workspaceId: u.workspaceId })).toEqual(run);
+
+    // A new request by the same account (different letter case, other network) does not run a second check.
+    const second = await start("198.51.100.20");
+    if (!second.ok) throw new Error("start failed");
+    expect(await runFreeCheck({ freeCheckId: second.id, userEmail: u.email.toUpperCase(), workspaceId: u.workspaceId })).toEqual(run);
     expect((await sql("select 1 from public.scans")).length).toBe(1);
   });
 
+  it("two simultaneous runs of the same link produce one check, and the loser is told it is running", async () => {
+    const s = await start();
+    if (!s.ok) throw new Error("start failed");
+    const run = () => runFreeCheck({ freeCheckId: s.id, userEmail: u.email, workspaceId: u.workspaceId });
+    const results = await Promise.all([run(), run()]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.find((r) => !r.ok)).toMatchObject({ status: 409, error: "running" });
+    expect((await sql("select 1 from public.scans")).length).toBe(1);
+  });
+
+  it("refuses a second request while the first has no report yet", async () => {
+    const first = await start();
+    const second = await start("198.51.100.20");
+    if (!first.ok || !second.ok) throw new Error("start failed");
+    await sql("insert into public.spend_log (provider, usd, funding) values ('openai', 2.99, 'free')"); // budget used up: first stays queued
+    await runFreeCheck({ freeCheckId: first.id, userEmail: u.email, workspaceId: u.workspaceId });
+    expect(await runFreeCheck({ freeCheckId: second.id, userEmail: u.email, workspaceId: u.workspaceId })).toMatchObject({ ok: false, status: 409, error: "already_used" });
+  });
+
   it("allows 3 per IP per day and refuses the 4th", async () => {
-    for (let i = 0; i < 3; i++) expect((await start(`person${i}@agency.example`)).ok).toBe(true);
-    expect(await start("person4@agency.example")).toMatchObject({ ok: false, status: 429, error: "ip_limit" });
-    expect((await start("person5@agency.example", "198.51.100.9")).ok).toBe(true); // another network is fine
+    for (let i = 0; i < 3; i++) expect((await start()).ok).toBe(true);
+    expect(await start()).toMatchObject({ ok: false, status: 429, error: "ip_limit" });
+    expect((await start("198.51.100.9")).ok).toBe(true); // another network is fine
   });
 
   it("queues for tomorrow when the daily free budget is used up", async () => {
     await sql("insert into public.spend_log (provider, usd, funding) values ('openai', 2.99, 'free')"); // cap is $3
-    const s = await start(u.email);
+    const s = await start();
     if (!s.ok) throw new Error("start failed");
     const run = await runFreeCheck({ freeCheckId: s.id, userEmail: u.email, workspaceId: u.workspaceId });
     expect(run).toMatchObject({ ok: false, status: 429, error: "daily_cap", queued: true });
@@ -59,14 +80,26 @@ describe("free check limits", () => {
 
   it("blocks disposable inboxes and other people's links", async () => {
     expect(isDisposableEmail("x@mailinator.com")).toBe(true);
-    expect(await start("x@mailinator.com")).toMatchObject({ ok: false, error: "disposable_email" });
-    const s = await start("someone-else@agency.example");
+    const d = await start();
+    if (!d.ok) throw new Error("start failed");
+    expect(await runFreeCheck({ freeCheckId: d.id, userEmail: "x@mailinator.com", workspaceId: u.workspaceId })).toMatchObject({ ok: false, error: "disposable_email" });
+
+    // Once an account has claimed a request, nobody else can run or read it.
+    const s = await start("198.51.100.20");
     if (!s.ok) throw new Error("start failed");
+    await sql("insert into public.spend_log (provider, usd, funding) values ('openai', 2.99, 'free')");
+    await runFreeCheck({ freeCheckId: s.id, userEmail: "owner@agency.example", workspaceId: u.workspaceId });
     expect(await runFreeCheck({ freeCheckId: s.id, userEmail: u.email, workspaceId: u.workspaceId })).toMatchObject({ ok: false, status: 404 });
   });
 
   it("stores hashes, never the email or IP", async () => {
-    await start(u.email);
+    const s = await start();
+    if (!s.ok) throw new Error("start failed");
+    const [pending] = await sql<{ email_hash: string; ip_hash: string }>("select email_hash, ip_hash from public.free_checks");
+    expect(pending.email_hash).toMatch(/^pending:/);
+    expect(pending.ip_hash).toMatch(/^[0-9a-f]{64}$/);
+    await sql("insert into public.spend_log (provider, usd, funding) values ('openai', 2.99, 'free')");
+    await runFreeCheck({ freeCheckId: s.id, userEmail: u.email, workspaceId: u.workspaceId });
     const [row] = await sql<{ email_hash: string; ip_hash: string }>("select email_hash, ip_hash from public.free_checks");
     expect(row.email_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(row)).not.toContain(u.email);
@@ -76,7 +109,7 @@ describe("free check limits", () => {
 
 describe("free check report", () => {
   it("is a watermarked 1×1 report on a locked workspace, funded by the house, with no customer data leaking", async () => {
-    const s = await start(u.email);
+    const s = await start();
     if (!s.ok) throw new Error("start failed");
     const run = await runFreeCheck({ freeCheckId: s.id, userEmail: u.email, workspaceId: u.workspaceId });
     if (!run.ok) throw new Error("run failed: " + run.message);

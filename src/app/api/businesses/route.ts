@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { err, json, withSession } from "@/lib/api";
 import { FAIR_USE } from "@/lib/pricing-constants";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 
 const Body = z.object({
   name: z.string().trim().min(1).max(300),
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     if (ctx.workspace.plan !== "lifetime") return err(403, "lifetime_required", "Adding businesses needs lifetime access.");
     const parsed = Body.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return err(400, "invalid_body", "The listing is missing a name or a map location.");
-    const admin = supabaseAdmin();
+    const admin = dbAdmin();
     const { count } = await admin.from("businesses").select("id", { count: "exact", head: true }).eq("workspace_id", ctx.workspace.id);
     if ((count ?? 0) >= FAIR_USE.businesses) return err(409, "limit_reached", `The fair-use limit is ${FAIR_USE.businesses.toLocaleString("en-US")} businesses per workspace.`);
     const b = parsed.data;

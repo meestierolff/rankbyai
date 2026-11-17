@@ -16,12 +16,12 @@ if (!existsSync(staticDir)) {
 }
 
 const SERVER_ONLY_NAMES = [
-  "SUPABASE_SERVICE_ROLE_KEY", "KEY_ENCRYPTION_SECRET", "HASH_PEPPER", "CRON_SECRET",
+  "DATA_API_JWT_PRIVATE_JWK", "DATABASE_URL", "NEON_AUTH_COOKIE_SECRET", "STORAGE_SECRET_ACCESS_KEY", "KEY_ENCRYPTION_SECRET", "HASH_PEPPER", "CRON_SECRET",
   "HOUSE_DATAFORSEO_LOGIN", "HOUSE_DATAFORSEO_PASSWORD", "HOUSE_OPENAI_API_KEY", "HOUSE_PERPLEXITY_API_KEY",
   "HOUSE_GEMINI_API_KEY", "DATAFORSEO_PINGBACK_SECRET", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
-  "RESEND_API_KEY", "TURNSTILE_SECRET_KEY", "SUPABASE_DB_URL",
+  "RESEND_API_KEY", "TURNSTILE_SECRET_KEY",
 ];
-const PREFIXES = [/sk_live_[A-Za-z0-9]{8,}/, /sk_test_[A-Za-z0-9]{8,}/, /rk_live_[A-Za-z0-9]{8,}/, /whsec_[A-Za-z0-9]{8,}/, /sb_secret_[A-Za-z0-9_-]{8,}/, /"role":"service_role"/, /re_[A-Za-z0-9]{20,}/];
+const PREFIXES = [/sk_live_[A-Za-z0-9]{8,}/, /sk_test_[A-Za-z0-9]{8,}/, /rk_live_[A-Za-z0-9]{8,}/, /whsec_[A-Za-z0-9]{8,}/, /sb_secret_[A-Za-z0-9_-]{8,}/, /"d":"[A-Za-z0-9_-]{20,}"/, /re_[A-Za-z0-9]{20,}/];
 
 const env = { ...process.env };
 for (const file of [".env.local", ".env"]) {

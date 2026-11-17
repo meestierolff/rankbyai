@@ -6,7 +6,7 @@ import { DotGrid, aiCellColors, mapsCellColors, pointName, type CellView } from 
 import { requireSession } from "@/lib/auth";
 import { ENGINE_LABEL } from "@/lib/pricing-constants";
 import { compareAi, compareHeadline, compareMaps, type AiCompareSample, type MapsComparePoint } from "@/lib/scans/compare";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { currentUserDb } from "@/lib/db/session";
 import { CompareViewed } from "./viewed";
 
 export const metadata: Metadata = { title: "Compare scans" };
@@ -36,7 +36,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   const ctx = await requireSession("/app/compare");
   const sp = await searchParams;
   const kind = sp.kind === "maps" ? "maps" : "ai";
-  const supabase = await createSupabaseServer();
+  const supabase = await currentUserDb();
 
   const { data: bizRows } = await supabase.from("businesses").select("id, name").eq("workspace_id", ctx.workspace.id).order("name").limit(500);
   const businesses = (bizRows ?? []) as { id: string; name: string }[];

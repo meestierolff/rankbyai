@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { err, json, requireOwner, withSession } from "@/lib/api";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 
 const httpUrl = z
   .string()
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       },
     );
     if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Check the branding fields.");
-    const { error } = await supabaseAdmin().from("workspaces").update(parsed.data).eq("id", ctx.workspace.id);
+    const { error } = await dbAdmin().from("workspaces").update(parsed.data).eq("id", ctx.workspace.id);
     return error ? err(500, "server_error", "Branding could not be saved.") : json({ ok: true });
   });
 }

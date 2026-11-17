@@ -1,5 +1,5 @@
 import type Stripe from "stripe";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Db } from "@/lib/db/clients";
 import { PACKS, type PackKey } from "@/lib/pricing-constants";
 
 /**
@@ -8,7 +8,7 @@ import { PACKS, type PackKey } from "@/lib/pricing-constants";
  * event changes nothing. Access is granted ONLY here, never from the success URL.
  */
 export interface WebhookDeps {
-  admin: SupabaseClient;
+  admin: Db;
   onPurchase?: (p: { workspaceId: string; email: string | null; productKey: string; amountCents: number; seat: number | null }) => Promise<void> | void;
   onRefund?: (p: { workspaceId: string; productKey: string; amountCents: number }) => Promise<void> | void;
 }
@@ -109,13 +109,13 @@ export async function handleStripeEvent(event: Stripe.Event, deps: WebhookDeps):
  * Event de-duplication on stripe_events.id. Returns "skip" for an event that was already
  * fully processed; a half-processed event (crash mid-way) is processed again, which is safe.
  */
-export async function claimEvent(admin: SupabaseClient, event: { id: string; type: string }): Promise<"process" | "skip"> {
+export async function claimEvent(admin: Db, event: { id: string; type: string }): Promise<"process" | "skip"> {
   const { error } = await admin.from("stripe_events").insert({ id: event.id, type: event.type });
   if (!error) return "process";
   const { data } = await admin.from("stripe_events").select("processed_at").eq("id", event.id).maybeSingle();
   return data?.processed_at ? "skip" : "process";
 }
 
-export async function markEventProcessed(admin: SupabaseClient, eventId: string): Promise<void> {
+export async function markEventProcessed(admin: Db, eventId: string): Promise<void> {
   await admin.from("stripe_events").update({ processed_at: new Date().toISOString() }).eq("id", eventId);
 }

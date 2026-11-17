@@ -4,7 +4,7 @@ import { AiGridMock, MapsGridMock } from "@/components/marketing/feature-mocks";
 import { SampleTag } from "@/components/brand/primitives";
 import type { SessionContext } from "@/lib/auth";
 import { isMockMode } from "@/lib/mock";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { currentUserDb } from "@/lib/db/session";
 import { getCreditBalance, getKeyStatuses, type ScanRow } from "@/lib/workspace-data";
 import { ScheduleActions } from "./m3-controls";
 import { ScanForm, type FormBusiness } from "./scan-form";
@@ -32,7 +32,7 @@ const COPY = {
 
 export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionContext; kind: "ai" | "maps"; businessId?: string }) {
   const copy = COPY[kind];
-  const supabase = await createSupabaseServer();
+  const supabase = await currentUserDb();
   const ws = ctx.workspace;
   const [{ data: bizRows }, keyRows, credits, { data: scanRows }, { data: scheduleRows }] = await Promise.all([
     supabase.from("businesses").select("id, name, city, primary_category").eq("workspace_id", ws.id).not("lat", "is", null).order("created_at", { ascending: false }).limit(500),
@@ -134,7 +134,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
 export async function ScanDetailPage({ ctx, kind, scanId }: { ctx: SessionContext; kind: "ai" | "maps"; scanId: string }) {
   const copy = COPY[kind];
   if (!/^[0-9a-f-]{36}$/.test(scanId)) notFound();
-  const supabase = await createSupabaseServer();
+  const supabase = await currentUserDb();
   const { data: scan } = await supabase.from("scans").select("id, kind, business_id, tracked_query_id, businesses(id, name)").eq("id", scanId).eq("workspace_id", ctx.workspace.id).maybeSingle();
   if (!scan || scan.kind !== kind) notFound();
   const business = (Array.isArray(scan.businesses) ? scan.businesses[0] : scan.businesses) as { id: string; name: string } | null;

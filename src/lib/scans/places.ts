@@ -1,6 +1,6 @@
 import "server-only";
 import { isMockMode } from "@/lib/mock";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 import { milesBetween, type GridPoint } from "./grid";
 
 /**
@@ -25,7 +25,7 @@ export async function fetchPlaces(center: { lat: number; lng: number }, radiusMi
   if (isMockMode()) return [];
   const radiusM = Math.round(Math.min(Math.max(radiusMiles, 0.5) * 1.5, 40) * 1609.34);
   const key = `places:${center.lat.toFixed(2)},${center.lng.toFixed(2)}:${Math.round(radiusM / 500)}:${kinds}`;
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const cached = await admin.from("geo_cache").select("value").eq("key", key).maybeSingle();
   if (cached.data?.value) return cached.data.value as NamedPlace[];
 

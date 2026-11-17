@@ -1,7 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { buildOffer, type LadderConfig, type Offer } from "@/lib/ladder";
-import { supabasePublicEnv } from "@/lib/env";
-import { supabasePublic } from "@/lib/supabase/public";
+import { dbAnon, isDatabaseConfigured } from "@/lib/db/clients";
 
 /**
  * The live lifetime offer. One source for every price on the site.
@@ -22,9 +21,9 @@ interface LadderStateRow {
 }
 
 export async function fetchOfferFresh(now: Date = new Date()): Promise<OfferResult> {
-  if (!supabasePublicEnv.isConfigured()) return { available: false, reason: "not_configured" };
+  if (!isDatabaseConfigured()) return { available: false, reason: "not_configured" };
   try {
-    const { data, error } = await supabasePublic().from("ladder_state").select("*").single<LadderStateRow>();
+    const { data, error } = await dbAnon().from("ladder_state").select("*").single<LadderStateRow>();
     if (error || !data) return { available: false, reason: "unreachable" };
     const cfg: LadderConfig = {
       basePriceCents: data.base_price_cents,

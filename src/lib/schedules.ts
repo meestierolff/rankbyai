@@ -2,7 +2,7 @@ import "server-only";
 import type { ScanSpec } from "@/lib/cost-guard";
 import { FAIR_USE, type Engine, type MapsMode } from "@/lib/pricing-constants";
 import { createScan, processScan } from "@/lib/scans/engine";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 
 /**
  * Scheduled re-checks (brief 7.2). A tracked query stores a scan setup; the cron tick runs the due
@@ -58,7 +58,7 @@ export interface TrackInput {
 
 /** Create (or update) the schedule for one business + kind + keyword. */
 export async function upsertTrackedQuery(input: TrackInput, now: Date = new Date()): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const keyword = input.keyword.trim();
   const { data: existing } = await admin
     .from("tracked_queries")
@@ -104,7 +104,7 @@ export interface ScheduleRunReport {
  * conditional UPDATE, so two overlapping cron ticks can never start the same schedule twice.
  */
 export async function runDueSchedules(limit = 10, now: Date = new Date(), process: (scanId: string) => Promise<void> = (id) => processScan(id, 150_000)): Promise<ScheduleRunReport> {
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const { data } = await admin.from("tracked_queries").select("*").eq("active", true).neq("schedule", "none").lte("next_run_at", now.toISOString()).order("next_run_at").limit(limit);
   const due = (data ?? []) as TrackedQueryRow[];
   const report: ScheduleRunReport = { due: due.length, started: 0, skipped: [] };

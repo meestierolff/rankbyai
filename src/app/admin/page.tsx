@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { costEnv } from "@/lib/env";
 import { fmtPrice } from "@/lib/ladder";
 import { fetchOfferFresh } from "@/lib/offer";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false, follow: false } };
 export const instant = false;
@@ -24,7 +24,7 @@ const hoursAgoIso = (h: number) => new Date(Date.now() - h * 3_600_000).toISOStr
 /** Operator view (ADMIN_USER_IDS only): house spend, failures, ladder, orders, refunds. */
 async function Admin() {
   const ctx = await requireAdmin();
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const env = costEnv.get();
   const since = hoursAgoIso(24);
   const [{ data: spendRows }, offer, { data: orders }, { data: failed }, { count: freeToday }, { count: queued }] = await Promise.all([

@@ -11,8 +11,8 @@ const Body = z.object({ fc: z.uuid() });
 export async function POST(request: Request) {
   return withSession(async (ctx) => {
     const parsed = Body.safeParse(await request.json().catch(() => null));
-    if (!parsed.success) return err(400, "invalid_body", "This link is incomplete. Open it from your email again.");
-    if (!ctx.user.email || !ctx.user.email_confirmed_at) return err(403, "email_unverified", "Verify your email first.");
+    if (!parsed.success) return err(400, "invalid_body", "This link is incomplete. Start the free check again from the home page.");
+    if (!ctx.user.email || !ctx.user.emailVerified) return err(403, "email_unverified", "Your Google account email is not verified.");
     const result = await runFreeCheck({ freeCheckId: parsed.data.fc, userEmail: ctx.user.email, workspaceId: ctx.workspace.id });
     if (!result.ok) return err(result.status, result.error, result.message, result.queued ? { queued: true } : {});
     await captureServer("free_check_completed", ctx.workspace.id);

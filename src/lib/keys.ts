@@ -7,7 +7,7 @@ import { validateGemini } from "@/lib/providers/gemini";
 import { validateOpenAi } from "@/lib/providers/openai";
 import { validatePerplexity } from "@/lib/providers/perplexity";
 import { last4, type Provider, type ProviderCredentials, type ValidationResult } from "@/lib/providers/types";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 
 /**
  * BYOK vault (brief 7.1). Keys are validated, encrypted with AES-256-GCM (AAD = workspace:provider)
@@ -35,7 +35,7 @@ export async function saveCredential(workspaceId: string, input: CredentialInput
   const result = await validate(input);
   if (!result.ok) return { ok: false, message: result.message };
   const sealed = encryptSecret(serialize(input), aadFor(workspaceId, input.provider));
-  const { error } = await supabaseAdmin()
+  const { error } = await dbAdmin()
     .from("api_credentials")
     .upsert(
       {
@@ -58,12 +58,12 @@ export async function saveCredential(workspaceId: string, input: CredentialInput
 }
 
 export async function deleteCredential(workspaceId: string, provider: Provider): Promise<boolean> {
-  const { error } = await supabaseAdmin().from("api_credentials").delete().eq("workspace_id", workspaceId).eq("provider", provider);
+  const { error } = await dbAdmin().from("api_credentials").delete().eq("workspace_id", workspaceId).eq("provider", provider);
   return !error;
 }
 
 export async function markCredential(workspaceId: string, provider: Provider, status: "valid" | "invalid", balanceUsd?: number | null) {
-  await supabaseAdmin()
+  await dbAdmin()
     .from("api_credentials")
     .update({ status, last_validated_at: new Date().toISOString(), ...(balanceUsd !== undefined ? { last_balance_usd: balanceUsd } : {}) })
     .eq("workspace_id", workspaceId)
@@ -80,7 +80,7 @@ interface Row {
 
 /** The workspace's own keys, decrypted for one unit of work. Never log or return the result. */
 async function loadByok(workspaceId: string): Promise<ProviderCredentials> {
-  const { data, error } = await supabaseAdmin().from("api_credentials").select("provider, ciphertext, iv, auth_tag, key_version").eq("workspace_id", workspaceId);
+  const { data, error } = await dbAdmin().from("api_credentials").select("provider, ciphertext, iv, auth_tag, key_version").eq("workspace_id", workspaceId);
   if (error) throw new Error("Could not load API keys.");
   const creds: ProviderCredentials = {};
   for (const row of (data ?? []) as Row[]) {

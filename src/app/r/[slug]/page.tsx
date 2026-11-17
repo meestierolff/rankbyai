@@ -6,7 +6,7 @@ import { AiDisclaimer, PriorityBadge, ScoreRing, ctaClass, type Priority } from 
 import { DotGrid } from "@/components/brand/grid";
 import { Logo } from "@/components/brand/logo";
 import { NOT_AFFILIATED } from "@/lib/copy";
-import { supabaseAdminEnv } from "@/lib/env";
+import { isDatabaseConfigured } from "@/lib/db/clients";
 import { getReportView, type ReportView } from "@/lib/reports";
 import { ReportViewed } from "./viewed";
 
@@ -22,7 +22,7 @@ export const instant = false;
 export default async function ReportPage({ params }: { params: Promise<{ slug: string }> }) {
   await io();
   const { slug } = await params;
-  if (!supabaseAdminEnv.isConfigured()) notFound();
+  if (!isDatabaseConfigured()) notFound();
   const view = await getReportView(slug);
   if (!view) notFound();
   return <ReportBody view={view} />;

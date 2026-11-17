@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safeNextPath } from "@/lib/auth";
+import { safeNextPath } from "@/lib/safe-next";
 
 describe("safeNextPath (post-login redirect target)", () => {
   it("keeps same-site paths", () => {

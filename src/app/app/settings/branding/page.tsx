@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { BrandingForm } from "@/components/app/m3-controls";
 import { PageHeader, Panel } from "@/components/app/ui";
 import { requireSession } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { signedUrl } from "@/lib/storage";
 
 export const metadata: Metadata = { title: "Branding" };
 
@@ -11,8 +11,7 @@ export default async function BrandingPage() {
   const ws = ctx.workspace;
   let logoUrl: string | null = null;
   if (ws.brand_logo_path && ws.brand_logo_path.startsWith(`${ws.id}/`)) {
-    const { data } = await supabaseAdmin().storage.from("brand").createSignedUrl(ws.brand_logo_path, 3600);
-    logoUrl = data?.signedUrl ?? null;
+    logoUrl = await signedUrl(`brand/${ws.brand_logo_path}`);
   }
   const locked = ws.plan !== "lifetime";
   return (

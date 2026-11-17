@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { revalidateTag } from "next/cache";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 import { claimEvent, handleStripeEvent, markEventProcessed } from "@/lib/stripe-webhook";
 import { sendEmail } from "@/lib/email";
 import { captureServer } from "@/lib/analytics-server";
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid_signature" }, { status: 400 });
   }
 
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   if ((await claimEvent(admin, event)) === "skip") {
     return Response.json({ received: true, duplicate: true });
   }

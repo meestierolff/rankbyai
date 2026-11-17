@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getSessionContext } from "@/lib/auth";
 import { MissingEnvError, publicEnv, stripeEnv } from "@/lib/env";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 import { getStripe } from "@/lib/stripe";
 import { startCheckout } from "@/lib/checkout";
 import { captureServer } from "@/lib/analytics-server";
@@ -14,7 +14,7 @@ const Body = z.object({
 export async function POST(request: Request) {
   const ctx = await getSessionContext();
   if (!ctx) return Response.json({ error: "unauthorized", message: "Sign in first." }, { status: 401 });
-  if (!ctx.user.email || !ctx.user.email_confirmed_at) {
+  if (!ctx.user.email || !ctx.user.emailVerified) {
     return Response.json({ error: "email_unverified", message: "Verify your email first." }, { status: 403 });
   }
 
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
         expectedPriceCents: parsed.data.expected_price_cents,
       },
       {
-        admin: supabaseAdmin(),
+        admin: dbAdmin(),
         stripe: getStripe(),
         siteUrl: publicEnv.siteUrl,
         products: {

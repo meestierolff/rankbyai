@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { err, json, withSession } from "@/lib/api";
 import { processScan } from "@/lib/scans/engine";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 
 export const maxDuration = 300;
 
@@ -12,7 +12,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const id = z.uuid().safeParse((await params).id);
     if (!id.success) return err(400, "invalid_id", "Unknown scan.");
     if (ctx.workspace.plan !== "lifetime") return err(403, "lifetime_required", "Running scans needs lifetime access.");
-    const admin = supabaseAdmin();
+    const admin = dbAdmin();
     const { data: scan } = await admin.from("scans").select("id, workspace_id, kind, status, funding").eq("id", id.data).maybeSingle();
     if (!scan || scan.workspace_id !== ctx.workspace.id) return err(404, "not_found", "Unknown scan.");
     if (scan.status !== "partial" && scan.status !== "failed") return err(409, "nothing_to_retry", "This scan has no failed parts.");

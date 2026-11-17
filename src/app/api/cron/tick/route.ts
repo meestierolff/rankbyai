@@ -3,7 +3,7 @@ import { revalidateTag } from "next/cache";
 import { cronEnv } from "@/lib/env";
 import { runDueSchedules } from "@/lib/schedules";
 import { findStalledScans, processScan } from "@/lib/scans/engine";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 
 export const maxDuration = 300;
 
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const expected = Buffer.from(`Bearer ${cronEnv.get().CRON_SECRET}`);
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return Response.json({ error: "forbidden" }, { status: 403 });
 
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const report: Record<string, unknown> = {};
 
   // 1. Expired checkout holds give their seat back.

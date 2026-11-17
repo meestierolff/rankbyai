@@ -1,5 +1,5 @@
 import type Stripe from "stripe";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Db } from "@/lib/db/clients";
 import { PACKS, type PackKey } from "@/lib/pricing-constants";
 
 /**
@@ -23,7 +23,7 @@ export interface CheckoutInput {
 }
 
 export interface CheckoutDeps {
-  admin: SupabaseClient;
+  admin: Db;
   stripe: { checkout: { sessions: Pick<Stripe.Checkout.SessionResource, "create" | "retrieve"> } };
   siteUrl: string;
   products: { lifetimeProductId: string; pack25PriceId?: string; pack100PriceId?: string };

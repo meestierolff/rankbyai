@@ -9,7 +9,7 @@ import { aiCellColors, mapsCellColors, pointName } from "@/components/brand/grid
 import { requireSession } from "@/lib/auth";
 import { publicEnv } from "@/lib/env";
 import { combinedInsight, type AiSummary, type MapsSummary } from "@/lib/scans/summary";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { currentUserDb } from "@/lib/db/session";
 
 export const metadata: Metadata = { title: "Business" };
 
@@ -30,7 +30,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
   const ctx = await requireSession("/app/businesses");
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const supabase = await createSupabaseServer();
+  const supabase = await currentUserDb();
   const { data: b } = await supabase.from("businesses").select("*").eq("id", id).eq("workspace_id", ctx.workspace.id).maybeSingle();
   if (!b) notFound();
 

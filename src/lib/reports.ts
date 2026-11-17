@@ -2,7 +2,8 @@ import "server-only";
 import { aiCellColors, mapsCellColors, pointName, type CellView } from "@/components/brand/grid";
 import { ENGINE_LABEL, type Engine } from "@/lib/pricing-constants";
 import type { AiSummary, MapsSummary } from "@/lib/scans/summary";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
+import { signedUrl } from "@/lib/storage";
 
 /**
  * Public report view for /r/{slug} (brief 7.6). Read with the service role on the server and reduced
@@ -66,7 +67,7 @@ interface ScanLite {
 
 export async function getReportView(slug: string): Promise<ReportView | null> {
   if (!/^[A-Za-z0-9_-]{12,64}$/.test(slug)) return null;
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const { data: report } = await admin.from("reports").select("*").eq("share_slug", slug).eq("revoked", false).maybeSingle();
   if (!report || !report.business_id) return null;
 
@@ -159,8 +160,7 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
   // Brand fields are owner-editable, so they are validated again here, at the point of use:
   // the logo must live in the workspace's own folder and the website must be a plain http(s) link.
   if (lifetime && ws?.brand_logo_path && String(ws.brand_logo_path).startsWith(`${report.workspace_id}/`)) {
-    const { data: signed } = await admin.storage.from("brand").createSignedUrl(ws.brand_logo_path, 3600);
-    logoUrl = signed?.signedUrl ?? null;
+    logoUrl = await signedUrl(`brand/${ws.brand_logo_path}`);
   }
   return {
     kind: report.kind,

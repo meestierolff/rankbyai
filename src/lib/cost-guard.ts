@@ -4,7 +4,7 @@ import { costEnv } from "@/lib/env";
 import {
   AI_GRID_SIZES, CREDIT_COST, ENGINE_LABEL, ENGINES, MAPS_GRID_SIZES, type AiGridSize, type Engine, type MapsGridSize, type MapsMode,
 } from "@/lib/pricing-constants";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
 
 /**
  * Cost guard (brief 10.2). Estimate before every run; for house-key scans, hard caps:
@@ -51,7 +51,7 @@ export async function measuredRates(): Promise<Partial<EngineRates>> {
   if (medianCache && Date.now() - medianCache.at < 10 * 60_000) return medianCache.rates;
   const rates: Partial<EngineRates> = {};
   try {
-    const { data } = await supabaseAdmin().rpc("engine_cost_medians", { p_min_samples: 50, p_window: 200 });
+    const { data } = await dbAdmin().rpc("engine_cost_medians", { p_min_samples: 50, p_window: 200 });
     for (const row of (data ?? []) as { engine: Engine; median_usd: number }[]) rates[row.engine] = Number(row.median_usd);
   } catch {}
   medianCache = { at: Date.now(), rates };
@@ -78,14 +78,14 @@ export async function estimateScan(spec: ScanSpec): Promise<Estimate> {
 }
 
 export async function runningScanCount(workspaceId: string): Promise<number> {
-  const { count } = await supabaseAdmin().from("scans").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).in("status", ["queued", "running"]);
+  const { count } = await dbAdmin().from("scans").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).in("status", ["queued", "running"]);
   return count ?? 0;
 }
 
 export type HouseFunding = "credits" | "free" | "internal";
 
 export async function houseSpendToday(funding: HouseFunding): Promise<number> {
-  const { data } = await supabaseAdmin().rpc("house_spend");
+  const { data } = await dbAdmin().rpc("house_spend");
   return ((data ?? []) as { funding: string; usd: number }[]).filter((r) => r.funding === funding).reduce((s, r) => s + Number(r.usd), 0);
 }
 
@@ -103,7 +103,7 @@ export async function houseBudgetCheck(funding: HouseFunding, estUsd: number): P
 
 export async function logHouseSpend(funding: HouseFunding, scanId: string | null, perProvider: Record<string, number>) {
   const rows = Object.entries(perProvider).filter(([, usd]) => usd > 0).map(([provider, usd]) => ({ provider, usd, scan_id: scanId, funding, kind: "commit" }));
-  if (rows.length) await supabaseAdmin().from("spend_log").insert(rows);
+  if (rows.length) await dbAdmin().from("spend_log").insert(rows);
 }
 
 /** Hard cap on house spend for a credit-funded action: credits × COST_MAX_PER_CREDIT_USD. A free check gets a fixed small cap. */

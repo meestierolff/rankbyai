@@ -11,7 +11,8 @@ import { mockAiAnswer, mockMapsItems, type MockCtx } from "@/lib/providers/mock-
 import { askOpenAi, openAiJson } from "@/lib/providers/openai";
 import { askPerplexity } from "@/lib/providers/perplexity";
 import { ProviderError, type AiAnswer, type GeoContext, type ProviderCredentials } from "@/lib/providers/types";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { dbAdmin } from "@/lib/db/clients";
+import { putObject } from "@/lib/storage";
 import { buildGrid, milesBetween } from "./grid";
 import { findInMaps, mentionedInText, namesMatch, positionInNames, type BusinessIdentity } from "./match";
 import { PARSE_INSTRUCTIONS, PARSE_SCHEMA, parseNamedBusinesses } from "./parse";
@@ -75,7 +76,7 @@ const WORST_CASE_SAMPLE_USD: Record<Engine, number> = {
 };
 
 export async function createScan(input: CreateScanInput): Promise<CreateScanResult> {
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const { spec } = input;
 
   const specError = validateSpec(spec);
@@ -203,22 +204,15 @@ interface ScanRow {
 
 const LEASE_SECONDS = 120;
 
+/** Atomic claim in the database (see db/migrations/0002_claim_scan.sql). Null when another worker holds it. */
 async function claim(scanId: string): Promise<ScanRow | null> {
-  const admin = supabaseAdmin();
-  const now = new Date();
-  const { data } = await admin
-    .from("scans")
-    .update({ lease_until: new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString(), status: "running", started_at: now.toISOString() })
-    .eq("id", scanId)
-    .in("status", ["queued", "running"])
-    .or(`lease_until.is.null,lease_until.lt.${now.toISOString()}`)
-    .select("*")
-    .maybeSingle<ScanRow>();
-  return data ?? null;
+  const { data, error } = await dbAdmin().rpc("claim_scan", { p_scan_id: scanId, p_lease_seconds: LEASE_SECONDS });
+  if (error) throw new Error(`claim_scan failed: ${error.message}`);
+  return ((data ?? []) as ScanRow[])[0] ?? null;
 }
 
 const extendLease = (scanId: string) =>
-  supabaseAdmin().from("scans").update({ lease_until: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString() }).eq("id", scanId);
+  dbAdmin().from("scans").update({ lease_until: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString() }).eq("id", scanId);
 
 async function pool<T>(items: T[], size: number, worker: (item: T) => Promise<void>) {
   let i = 0;
@@ -231,7 +225,7 @@ async function pool<T>(items: T[], size: number, worker: (item: T) => Promise<vo
 export async function processScan(scanId: string, budgetMs = 240_000): Promise<void> {
   const scan = await claim(scanId);
   if (!scan) return;
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const deadline = Date.now() + budgetMs;
   try {
     const { data: business } = await admin.from("businesses").select("*").eq("id", scan.business_id).maybeSingle<BusinessRow>();
@@ -269,7 +263,7 @@ async function askEngine(engine: Engine, creds: ProviderCredentials, prompt: str
 }
 
 async function runAi(scan: ScanRow, business: BusinessRow, creds: ProviderCredentials, deadline: number) {
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const [{ data: pending }, { data: pointRows }, { data: spentRows }] = await Promise.all([
     admin.from("ai_samples").select("id, point_idx, engine, prompt").eq("scan_id", scan.id).eq("status", "pending"),
     admin.from("scan_points").select("idx, lat, lng").eq("scan_id", scan.id),
@@ -336,7 +330,7 @@ async function runAi(scan: ScanRow, business: BusinessRow, creds: ProviderCreden
         const mentioned = position != null || mentionedInText(answer.text, who);
 
         const rawPath = `${scan.id}/${engine}-${s.point_idx}.json`;
-        void admin.storage.from("ai-raw").upload(rawPath, JSON.stringify(answer.raw), { contentType: "application/json", upsert: true }).catch(() => {});
+        void putObject(`ai-raw/${rawPath}`, JSON.stringify(answer.raw), "application/json"); // best effort
 
         await admin.from("ai_samples").update({
           status: "done", engine_variant: answer.variant ?? null, model: answer.model, answer_text: answer.text.slice(0, 20_000),
@@ -368,7 +362,7 @@ async function geminiBeyondAllowance(scan: ScanRow): Promise<boolean> {
   const start = new Date();
   start.setUTCDate(1);
   start.setUTCHours(0, 0, 0, 0);
-  let q = supabaseAdmin().from("ai_samples").select("id, scans!inner(workspace_id, funding)", { count: "exact", head: true }).eq("engine", "gemini").eq("status", "done").gte("created_at", start.toISOString());
+  let q = dbAdmin().from("ai_samples").select("id, scans!inner(workspace_id, funding)", { count: "exact", head: true }).eq("engine", "gemini").eq("status", "done").gte("created_at", start.toISOString());
   q = scan.funding === "byok" ? q.eq("scans.workspace_id", scan.workspace_id).eq("scans.funding", "byok") : q.neq("scans.funding", "byok");
   const { count } = await q;
   return (count ?? 0) >= GEMINI.freeGroundedRequestsPerMonth;
@@ -378,7 +372,7 @@ const compactTop = (items: MapsItem[]) => items.slice(0, 20).map((i) => ({ rank:
 
 async function storeMapsPoint(scanId: string, idx: number, items: MapsItem[], who: BusinessIdentity, costUsd?: number) {
   const hit = findInMaps(items, who);
-  await supabaseAdmin().from("scan_points").update({ status: "done", rank: hit ? hit.rank : null, top: compactTop(items), error: null, ...(costUsd !== undefined ? { cost_usd: costUsd } : {}) }).eq("scan_id", scanId).eq("idx", idx);
+  await dbAdmin().from("scan_points").update({ status: "done", rank: hit ? hit.rank : null, top: compactTop(items), error: null, ...(costUsd !== undefined ? { cost_usd: costUsd } : {}) }).eq("scan_id", scanId).eq("idx", idx);
 }
 
 /**
@@ -396,7 +390,7 @@ function pingbackUrl(tag: string): string | undefined {
 }
 
 async function runMaps(scan: ScanRow, business: BusinessRow, creds: ProviderCredentials, deadline: number) {
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const who = identity(business);
   const keyword = scan.keyword ?? business.primary_category ?? business.name;
   const { data } = await admin.from("scan_points").select("idx, lat, lng, status, dfs_task_id").eq("scan_id", scan.id).in("status", ["pending", "posted"]);
@@ -478,7 +472,7 @@ async function runMaps(scan: ScanRow, business: BusinessRow, creds: ProviderCred
 
 /** A DataForSEO pingback for one task: store that point, then finalise if it was the last. */
 export async function ingestMapsTask(taskId: string, tag: string): Promise<boolean> {
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const [scanId, idx] = tag.split(":");
   const { data: point } = await admin.from("scan_points").select("scan_id, idx, status, dfs_task_id").eq("scan_id", scanId).eq("idx", Number(idx)).maybeSingle<{ scan_id: string; idx: number; status: string; dfs_task_id: string | null }>();
   if (!point || point.status !== "posted" || point.dfs_task_id !== taskId) return false;
@@ -496,7 +490,7 @@ export async function ingestMapsTask(taskId: string, tag: string): Promise<boole
 }
 
 async function finalizeIfComplete(scan: ScanRow, business: BusinessRow) {
-  const admin = supabaseAdmin();
+  const admin = dbAdmin();
   const house = scan.funding !== "byok";
   const base = { mock: scan.summary?.mock === true ? true : undefined };
 
@@ -532,7 +526,7 @@ async function finalizeIfComplete(scan: ScanRow, business: BusinessRow) {
 /** Scans that are queued or running with no live worker (timeout, deploy, crash). Called by cron. */
 export async function findStalledScans(limit = 10): Promise<string[]> {
   const now = new Date().toISOString();
-  const { data } = await supabaseAdmin().from("scans").select("id").in("status", ["queued", "running"]).or(`lease_until.is.null,lease_until.lt.${now}`).order("created_at").limit(limit);
+  const { data } = await dbAdmin().from("scans").select("id").in("status", ["queued", "running"]).or(`lease_until.is.null,lease_until.lt.${now}`).order("created_at").limit(limit);
   return ((data ?? []) as { id: string }[]).map((r) => r.id);
 }
 

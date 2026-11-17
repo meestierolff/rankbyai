@@ -1,18 +1,18 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { PostgrestClient } from "@supabase/postgrest-js";
 import pg from "pg";
 import { randomUUID } from "node:crypto";
+import { dbAdmin, dbAnon, dbUser, type Db } from "@/lib/db/clients";
 
-export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-export const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-export const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-export const DB_URL = process.env.SUPABASE_DB_URL!;
+export const DATA_API_URL = process.env.DATA_API_URL!;
+export const DB_URL = process.env.DATABASE_URL!;
 
-export const admin: SupabaseClient = createClient(SUPABASE_URL, SERVICE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
-
-export const anon = (): SupabaseClient =>
-  createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+/** The application server's client (service role). */
+export const admin: Db = dbAdmin();
+/** A signed-out visitor. */
+export const anon = (): Db => dbAnon();
+/** A request with no token at all (or a forged one): must get nothing. */
+export const rawClient = (token?: string): Db =>
+  new PostgrestClient(DATA_API_URL, token ? { headers: { Authorization: `Bearer ${token}` } } : {});
 
 let pool: pg.Pool | undefined;
 export const sql = async <T extends pg.QueryResultRow = pg.QueryResultRow>(text: string, params: unknown[] = []) => {
@@ -28,21 +28,16 @@ export interface TestUser {
   id: string;
   email: string;
   workspaceId: string;
-  client: SupabaseClient;
+  client: Db;
 }
 
-/** Creates a confirmed user (the signup trigger builds profile + workspace) and a signed-in client. */
+/** Creates a user the way the app does on first sign-in (profile + workspace), plus a client acting as them. */
 export async function createTestUser(label: string): Promise<TestUser> {
-  const email = `${label}-${randomUUID().slice(0, 8)}@test.rankbyai.local`;
-  const password = randomUUID();
-  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
-  if (error || !data.user) throw new Error(`createUser failed: ${error?.message}`);
-  const client = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-  const signIn = await client.auth.signInWithPassword({ email, password });
-  if (signIn.error) throw new Error(`signIn failed: ${signIn.error.message}`);
-  const rows = await sql<{ workspace_id: string }>("select workspace_id from public.workspace_members where user_id = $1", [data.user.id]);
-  if (!rows[0]) throw new Error("signup trigger did not create a workspace");
-  return { id: data.user.id, email, workspaceId: rows[0].workspace_id, client };
+  const id = randomUUID();
+  const email = `${label}-${id.slice(0, 8)}@test.rankbyai.local`;
+  const rows = await sql<{ workspace_id: string }>("select public.ensure_user($1, $2) as workspace_id", [id, email]);
+  if (!rows[0]?.workspace_id) throw new Error("ensure_user did not create a workspace");
+  return { id, email, workspaceId: rows[0].workspace_id, client: dbUser(id) };
 }
 
 /** Removes everything the tests created. Only ever runs against the local stack (see tests/setup.ts). */
@@ -59,7 +54,8 @@ export async function resetData() {
 }
 
 export async function deleteTestUsers() {
-  await sql(`delete from auth.users where email like '%@test.rankbyai.local'`);
+  await sql(`delete from public.workspaces where owner_id in (select id from public.profiles where email like '%@test.rankbyai.local')`);
+  await sql(`delete from public.profiles where email like '%@test.rankbyai.local'`);
 }
 
 /** Inserts n paid lifetime orders directly (fast path for ladder maths tests). */

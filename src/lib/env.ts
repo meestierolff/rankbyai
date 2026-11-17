@@ -55,24 +55,6 @@ const num = (def: number) => z.coerce.number().default(def);
 
 export { publicEnv } from "./env-public";
 
-export const supabasePublicEnv = group(
-  "supabase",
-  { NEXT_PUBLIC_SUPABASE_URL: z.url(), NEXT_PUBLIC_SUPABASE_ANON_KEY: str },
-  () => ({
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  }),
-);
-
-export const supabaseAdminEnv = group(
-  "supabase-admin",
-  { NEXT_PUBLIC_SUPABASE_URL: z.url(), SUPABASE_SERVICE_ROLE_KEY: str },
-  () => ({
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-  }),
-);
-
 export const stripeEnv = group(
   "stripe",
   {

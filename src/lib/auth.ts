@@ -2,9 +2,12 @@ import "server-only";
 import { cache } from "react";
 import { io } from "next/cache";
 import { redirect } from "next/navigation";
-import type { User } from "@supabase/supabase-js";
-import { createSupabaseServer } from "@/lib/supabase/server";
-import { supabasePublicEnv, miscEnv } from "@/lib/env";
+import { captureServer } from "@/lib/analytics-server";
+import { isAuthConfigured, neonAuth } from "@/lib/auth-neon/server";
+import { dbAdmin, dbUser, isDatabaseConfigured } from "@/lib/db/clients";
+import { miscEnv } from "@/lib/env";
+
+export { safeNextPath } from "@/lib/safe-next";
 
 export interface Workspace {
   id: string;
@@ -23,34 +26,56 @@ export interface Workspace {
   created_at: string;
 }
 
+export interface SessionUser {
+  id: string;
+  email: string;
+  /** Google sign-in delivers a verified address. */
+  emailVerified: boolean;
+  name: string | null;
+}
+
 export interface SessionContext {
-  user: User;
+  user: SessionUser;
   workspace: Workspace;
   role: "owner" | "member";
   isAdmin: boolean;
 }
 
-/** Current user + their workspace (RLS-scoped), or null when signed out / auth not configured. */
+type MembershipRow = { role: "owner" | "member"; workspaces: Workspace | Workspace[] };
+
+async function loadMembership(userId: string): Promise<{ role: "owner" | "member"; workspace: Workspace } | null> {
+  const { data } = await dbUser(userId)
+    .from("workspace_members")
+    .select("role, workspaces(*)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true })
+    .limit(1);
+  const row = (data as MembershipRow[] | null)?.[0];
+  const workspace = row ? (Array.isArray(row.workspaces) ? row.workspaces[0] : row.workspaces) : undefined;
+  return row && workspace ? { role: row.role, workspace } : null;
+}
+
+/** Current user + their workspace (read through RLS), or null when signed out or not configured. */
 export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
   // Everything behind a session is request-time work (it may read the clock, generate ids, etc.).
   await io();
-  if (!supabasePublicEnv.isConfigured()) return null;
-  const supabase = await createSupabaseServer();
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) return null;
-  const user = data.user;
+  if (!isAuthConfigured() || !isDatabaseConfigured()) return null;
 
-  const { data: memberships } = await supabase
-    .from("workspace_members")
-    .select("role, workspaces(*)")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: true })
-    .limit(1);
-  const row = memberships?.[0] as { role: "owner" | "member"; workspaces: Workspace | Workspace[] } | undefined;
-  const workspace = row ? (Array.isArray(row.workspaces) ? row.workspaces[0] : row.workspaces) : undefined;
-  if (!row || !workspace) return null;
+  const { data: session } = await neonAuth().getSession();
+  const u = session?.user;
+  if (!u?.id || !u.email) return null;
+  const user: SessionUser = { id: u.id, email: u.email, emailVerified: u.emailVerified === true, name: u.name ?? null };
 
-  return { user, workspace, role: row.role, isAdmin: miscEnv.adminUserIds().includes(user.id) };
+  let membership = await loadMembership(user.id);
+  if (!membership) {
+    // First sign-in: create the profile and a personal workspace, then read it back through RLS.
+    const { error } = await dbAdmin().rpc("ensure_user", { p_id: user.id, p_email: user.email });
+    if (error) return null;
+    await captureServer("signup_completed", user.id);
+    membership = await loadMembership(user.id);
+  }
+  if (!membership) return null;
+  return { user, workspace: membership.workspace, role: membership.role, isAdmin: miscEnv.adminUserIds().includes(user.id) };
 });
 
 export async function requireSession(nextPath = "/app"): Promise<SessionContext> {
@@ -63,34 +88,4 @@ export async function requireAdmin(): Promise<SessionContext> {
   const ctx = await requireSession("/admin");
   if (!ctx.isAdmin) redirect("/app");
   return ctx;
-}
-
-const PLACEHOLDER_ORIGIN = "https://placeholder.invalid";
-
-/**
- * Post-login redirect target. Returns a same-site path, never an origin.
- * The value is normalised with the same URL parser the redirect uses, so tricks that rely on
- * parser differences ("//host", "/\\host", tabs or newlines inside the path) fall back to the default.
- * Absolute http(s) URLs (the magic-link template passes one) contribute only their path, query and hash.
- */
-export function safeNextPath(next: string | null | undefined, fallback = "/app"): string {
-  if (!next) return fallback;
-  const stripped = String(next).replace(/[\u0000-\u001f\u007f\s]/g, "");
-  if (!stripped || stripped.includes("\\")) return fallback;
-  let path: string;
-  try {
-    if (/^https?:\/\//i.test(stripped)) {
-      const abs = new URL(stripped);
-      path = abs.pathname + abs.search + abs.hash; // the origin is deliberately discarded
-    } else {
-      path = stripped;
-    }
-    if (!path.startsWith("/") || path.startsWith("//")) return fallback;
-    const u = new URL(path, PLACEHOLDER_ORIGIN);
-    if (u.origin !== PLACEHOLDER_ORIGIN) return fallback;
-    const out = u.pathname + u.search + u.hash;
-    return out.startsWith("/") && !out.startsWith("//") ? out : fallback;
-  } catch {
-    return fallback;
-  }
 }

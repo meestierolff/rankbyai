@@ -47,6 +47,7 @@ export function ScanForm({
   const [grid, setGrid] = useState<number>(kind === "ai" ? 3 : 7);
   const [radius, setRadius] = useState(2);
   const [mode, setMode] = useState<"standard" | "priority" | "live">("priority");
+  const [repeat, setRepeat] = useState<"none" | "weekly" | "monthly">("none");
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -87,6 +88,12 @@ export function ScanForm({
     const json = (await res.json().catch(() => ({}))) as { scan_id?: string; message?: string };
     if (res.ok && json.scan_id) {
       track("scan_estimated", { kind, est_usd: estimate?.totalUsd ?? 0, funding });
+      if (repeat !== "none") {
+        // Opt-in schedule: same setup, re-run every week or month (the first repeat is one period from now).
+        const { confirm: _c, mode: _m, ...setup } = body(true) as Record<string, unknown>;
+        void _c; void _m;
+        await fetch("/api/schedules", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...setup, schedule: repeat }) }).catch(() => {});
+      }
       router.push(`/app/${kind === "ai" ? "ai-visibility" : "maps-grid"}/${json.scan_id}`);
       return;
     }
@@ -169,6 +176,19 @@ export function ScanForm({
             />
           </div>
         ) : null}
+
+        <div className="flex flex-col gap-[6px]">
+          <span className={labelClass}>Repeat</span>
+          <Segmented
+            label="Repeat" value={repeat} onChange={setRepeat}
+            options={[{ value: "none" as const, label: "Just once" }, { value: "weekly" as const, label: "Weekly" }, { value: "monthly" as const, label: "Monthly" }]}
+          />
+          {repeat !== "none" ? (
+            <span className="text-[13px] text-dim">
+              Runs now, then every {repeat === "weekly" ? "week" : "month"} at about the same cost per run{kind === "maps" ? " (scheduled Maps runs use the cheaper Standard queue)" : ""}. Pause or delete it any time under Schedules.
+            </span>
+          ) : null}
+        </div>
 
         <div className="flex flex-col gap-[6px]">
           <span className={labelClass}>Paid with</span>

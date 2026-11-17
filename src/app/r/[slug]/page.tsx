@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { io } from "next/cache";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 import { AiDisclaimer, PriorityBadge, ScoreRing, ctaClass, type Priority } from "@/components/brand/primitives";
 import { DotGrid } from "@/components/brand/grid";
 import { Logo } from "@/components/brand/logo";
@@ -16,15 +15,11 @@ export const metadata: Metadata = { title: "Report", robots: { index: false, fol
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
 
-export default function ReportPage({ params }: { params: Promise<{ slug: string }> }) {
-  return (
-    <Suspense fallback={<div className="container-page py-24"><div className="h-64 animate-pulse rounded-2xl bg-surface" aria-busy="true" aria-label="Loading report" /></div>}>
-      <Report params={params} />
-    </Suspense>
-  );
-}
+// A blocking route on purpose: the lookup must finish before any byte is sent, so an unknown or
+// revoked link gets a real HTTP 404 (a streamed shell would already have answered 200).
+export const instant = false;
 
-async function Report({ params }: { params: Promise<{ slug: string }> }) {
+export default async function ReportPage({ params }: { params: Promise<{ slug: string }> }) {
   await io();
   const { slug } = await params;
   if (!supabaseAdminEnv.isConfigured()) notFound();

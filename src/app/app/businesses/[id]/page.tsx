@@ -3,9 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CombinedView } from "@/components/app/combined-view";
 import type { MapPoint } from "@/components/app/grid-map";
+import { ShareLinkCard } from "@/components/app/m3-controls";
 import { EmptyState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatTile, StatusChip, fmtDateTime, fmtUsd } from "@/components/app/ui";
 import { aiCellColors, mapsCellColors, pointName } from "@/components/brand/grid";
 import { requireSession } from "@/lib/auth";
+import { publicEnv } from "@/lib/env";
 import { combinedInsight, type AiSummary, type MapsSummary } from "@/lib/scans/summary";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
@@ -39,6 +41,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
     .order("created_at", { ascending: false })
     .limit(30);
   const scans = (scanRows ?? []) as ScanLite[];
+  const { data: share } = await supabase.from("reports").select("share_slug").eq("business_id", id).eq("kind", "share").eq("revoked", false).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const usable = (s: ScanLite) => s.status === "done" || s.status === "partial";
   const latestMaps = scans.find((s) => s.kind === "maps" && usable(s)) ?? null;
   const latestAi = scans.find((s) => s.kind === "ai" && usable(s)) ?? null;
@@ -101,6 +104,10 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
         ) : (
           <EmptyState title="Nothing to show yet" body="Run an AI check and a Maps grid for this business. The latest of each is drawn on one map, so you can see where it ranks on Maps but is missing from AI answers." />
         )}
+      </Panel>
+
+      <Panel title="Client report (live share link)" className="mt-6">
+        <ShareLinkCard businessId={b.id} slug={share?.share_slug ?? null} origin={publicEnv.siteUrl} locked={ctx.workspace.plan !== "lifetime"} />
       </Panel>
 
       <Panel title="Scans" className="mt-6">

@@ -16,6 +16,31 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | Tokens | CSS values | `tailwind.config` + CSS variables | Tailwind v4 is CSS-first: tokens in `src/styles/tokens.css`, mapped in the `@theme` block of `globals.css` |
 | P0 / Maps 20+ red | `oklch(0.60 0.19 25)` | 4.5:1 contrast | `oklch(0.56 0.19 25)` so white text passes contrast |
 
+## M3 — history, compare, schedules, share links, white-label (17 Nov 2026)
+
+Tested with simulated vendors (see the M2 note) against the real local database, and in the browser.
+
+### Acceptance criteria
+
+| Criterion | Result | Evidence |
+|---|---|---|
+| Compare of two scans shows per-point deltas + metric deltas | **Pass** | `tests/db/m3.test.ts` (AI and Maps maths, no delta invented where one side has no data) and `/app/compare` in the browser: before grid, after grid, change-per-point grid with ▲/▼ chips, metric deltas, a data-only headline |
+| A weekly schedule fires from cron and charges the right funding | **Pass** | Same test file: a due weekly schedule starts exactly one scan (also with two overlapping cron ticks), BYOK leaves the house spend log empty, a credit-funded schedule spends one credit or is skipped when the balance is empty, paused schedules and locked workspaces do not run |
+| `/r/{slug}` shows the latest data, is `noindex`, respects white-label + hide-branding | **Pass** | Test file (latest scan replaces the older one on the same link; agency name, colour, website; hide-branding) and a signed-out request in the browser: `noindex` present, "Get this fixed by {agency}" shown |
+| Revoking a slug 404s it | **Pass** | Checked on a production build: unknown link 404, valid link 200, revoked link 404 with `X-Robots-Tag: noindex` |
+
+### Built
+
+- Compare page for AI and Maps scans; scan history strip on every result; schedules list with pause, resume and delete.
+- "Repeat: just once / weekly / monthly" in the scan setup. Schedules are opt-in and the first repeat is one period away. Scheduled Maps runs use the Standard queue.
+- Live share link per business (create, copy, regenerate, revoke) and white-label settings (name, logo upload, colour, website, reply-to, hide RankbyAI).
+- Cron tick now also runs due schedules.
+
+### Two things worth knowing
+
+- **Share-link 404s are decided in the proxy.** A streamed page has already answered 200 by the time its lookup finishes, and a rewrite to a prerendered page is served from cache with 200, so the proxy answers 404 itself.
+- **Brand fields are validated where they are used.** Owners may update brand columns through the database API directly, so the public report page re-checks them: only `http(s)` websites become links and the logo must sit in the workspace's own folder.
+
 ## M2 — BYOK vault, AI grid, Maps grid, free check, cost guard (17 Nov 2026)
 
 **Honest status: built and tested end to end with simulated vendors; not yet run against real vendor APIs.** No real API keys exist in this environment (adding them is the operator's step), so every vendor call below was exercised through a development-only mock (`RANKBYAI_MOCK_PROVIDERS=1`, impossible to enable on Vercel) and through response fixtures taken from the vendors' docs. The first run with real keys may surface differences; treat (a) and (b) as open until then.

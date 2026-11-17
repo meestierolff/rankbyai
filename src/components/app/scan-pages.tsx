@@ -6,6 +6,7 @@ import type { SessionContext } from "@/lib/auth";
 import { isMockMode } from "@/lib/mock";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { getCreditBalance, getKeyStatuses, type ScanRow } from "@/lib/workspace-data";
+import { ScheduleActions } from "./m3-controls";
 import { ScanForm, type FormBusiness } from "./scan-form";
 import { ScanResult } from "./scan-result";
 import { EmptyState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatusChip, fmtDateTime, fmtUsd } from "./ui";
@@ -33,7 +34,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
   const copy = COPY[kind];
   const supabase = await createSupabaseServer();
   const ws = ctx.workspace;
-  const [{ data: bizRows }, keyRows, credits, { data: scanRows }] = await Promise.all([
+  const [{ data: bizRows }, keyRows, credits, { data: scanRows }, { data: scheduleRows }] = await Promise.all([
     supabase.from("businesses").select("id, name, city, primary_category").eq("workspace_id", ws.id).not("lat", "is", null).order("created_at", { ascending: false }).limit(500),
     getKeyStatuses(ws.id),
     getCreditBalance(ws.id),
@@ -44,7 +45,9 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
       .eq("kind", kind)
       .order("created_at", { ascending: false })
       .limit(50),
+    supabase.from("tracked_queries").select("id, business_id, keyword, niche, grid_size, schedule, next_run_at, active, funding, businesses(name)").eq("workspace_id", ws.id).eq("kind", kind).neq("schedule", "none").order("created_at", { ascending: false }).limit(100),
   ]);
+  const schedules = (scheduleRows ?? []) as unknown as { id: string; keyword: string | null; niche: string | null; grid_size: number; schedule: string; next_run_at: string | null; active: boolean; funding: string; businesses: { name: string } | null }[];
   const businesses: FormBusiness[] = ((bizRows ?? []) as { id: string; name: string; city: string | null; primary_category: string | null }[]).map((b) => ({ id: b.id, name: b.name, city: b.city, category: b.primary_category }));
   const scans = (scanRows ?? []) as unknown as ScanRow[];
   const mock = isMockMode();
@@ -74,6 +77,27 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
           <ScanForm kind={kind} businesses={businesses} keys={keys} credits={credits} locked={locked} defaultBusinessId={businessId} />
         </Panel>
       )}
+
+      {schedules.length ? (
+        <Panel title="Schedules" className="mt-6">
+          <ul className="m-0 flex list-none flex-col p-0">
+            {schedules.map((t) => (
+              <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-3 last:border-b-0">
+                <span className="flex min-w-0 flex-col gap-[2px]">
+                  <span className="truncate text-[15px] font-medium">{t.businesses?.name ?? "Business"} · “{t.niche ?? t.keyword}” · {t.grid_size}×{t.grid_size}</span>
+                  <span className="text-[13px] text-dim">
+                    {t.schedule} · {t.funding === "byok" ? "on your keys" : "included scans"} · {t.active ? `next run ${t.next_run_at ? fmtDateTime(t.next_run_at) : "—"}` : "paused"}
+                  </span>
+                </span>
+                <span className="flex items-center gap-3">
+                  <StatusChip tone={t.active ? "good" : "idle"}>{t.active ? "active" : "paused"}</StatusChip>
+                  <ScheduleActions id={t.id} active={t.active} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
 
       <Panel title="History" className="mt-6">
         {scans.length === 0 ? (
@@ -114,6 +138,8 @@ export async function ScanDetailPage({ ctx, kind, scanId }: { ctx: SessionContex
   const { data: scan } = await supabase.from("scans").select("id, kind, business_id, tracked_query_id, businesses(id, name)").eq("id", scanId).eq("workspace_id", ctx.workspace.id).maybeSingle();
   if (!scan || scan.kind !== kind) notFound();
   const business = (Array.isArray(scan.businesses) ? scan.businesses[0] : scan.businesses) as { id: string; name: string } | null;
+  const { data: siblings } = await supabase.from("scans").select("id, grid_size, keyword, niche, status, created_at").eq("business_id", scan.business_id).eq("kind", kind).order("created_at", { ascending: false }).limit(12);
+  const history = (siblings ?? []) as { id: string; grid_size: number; keyword: string | null; niche: string | null; status: string; created_at: string }[];
   return (
     <>
       <PageHeader
@@ -122,11 +148,26 @@ export async function ScanDetailPage({ ctx, kind, scanId }: { ctx: SessionContex
         actions={
           <>
             {business ? <SecondaryLink href={`/app/businesses/${business.id}`}>Business page</SecondaryLink> : null}
-            <SecondaryLink href={`/app/compare?kind=${kind}&business=${scan.business_id}&b=${scan.id}`}>Compare with another scan</SecondaryLink>
+            {history.length > 1 ? <SecondaryLink href={`/app/compare?kind=${kind}&business=${scan.business_id}&b=${scan.id}`}>Compare with another scan</SecondaryLink> : null}
             <PrimaryLink href={`/app/${copy.path}?business=${scan.business_id}`}>Run again</PrimaryLink>
           </>
         }
       />
+      {history.length > 1 ? (
+        <nav aria-label="Scan history" className="mb-5 flex flex-wrap items-center gap-2 text-[13px]">
+          <span className="text-dim">History:</span>
+          {history.map((h) => (
+            <Link
+              key={h.id}
+              href={`/app/${copy.path}/${h.id}`}
+              aria-current={h.id === scan.id ? "page" : undefined}
+              className={`rounded-full border px-3 py-1 no-underline ${h.id === scan.id ? "border-fg bg-fg text-bg" : "border-border-strong text-muted-foreground hover:text-fg"}`}
+            >
+              {new Date(h.created_at).toLocaleDateString("en-US", { day: "numeric", month: "short" })} · {h.grid_size}×{h.grid_size}
+            </Link>
+          ))}
+        </nav>
+      ) : null}
       <ScanResult scanId={scan.id} businessName={business?.name ?? "the business"} />
     </>
   );

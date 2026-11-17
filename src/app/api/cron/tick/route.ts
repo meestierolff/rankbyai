@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { cronEnv } from "@/lib/env";
+import { runDueSchedules } from "@/lib/schedules";
 import { findStalledScans, processScan } from "@/lib/scans/engine";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -26,7 +27,10 @@ export async function GET(request: Request) {
   await Promise.all(stalled.map((id) => processScan(id, 200_000)));
   report.scans_continued = stalled.length;
 
-  // 3. Housekeeping: old rate-limit windows.
+  // 3. Scheduled re-checks that are due (weekly / monthly, opt-in).
+  report.schedules = await runDueSchedules(5);
+
+  // 4. Housekeeping: old rate-limit windows.
   await admin.from("rate_limits").delete().lt("window_start", new Date(Date.now() - 2 * 86_400_000).toISOString());
 
   return Response.json({ ok: true, ...report });

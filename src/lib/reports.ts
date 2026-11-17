@@ -41,6 +41,17 @@ export interface ReportView {
   updatedAt: string;
 }
 
+/** Only absolute http(s) URLs may become links on a public page (blocks javascript:, data: and friends). */
+export function safeHttpUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const u = new URL(value);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 interface ScanLite {
   id: string;
   kind: "ai" | "maps";
@@ -145,7 +156,9 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
 
   const lifetime = ws?.plan === "lifetime";
   let logoUrl: string | null = null;
-  if (lifetime && ws?.brand_logo_path) {
+  // Brand fields are owner-editable, so they are validated again here, at the point of use:
+  // the logo must live in the workspace's own folder and the website must be a plain http(s) link.
+  if (lifetime && ws?.brand_logo_path && String(ws.brand_logo_path).startsWith(`${report.workspace_id}/`)) {
     const { data: signed } = await admin.storage.from("brand").createSignedUrl(ws.brand_logo_path, 3600);
     logoUrl = signed?.signedUrl ?? null;
   }
@@ -158,7 +171,7 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
       name: lifetime ? (ws?.brand_name ?? null) : null,
       logoUrl,
       color: lifetime ? (ws?.brand_color_hex ?? null) : null,
-      website: lifetime ? (ws?.brand_website ?? null) : null,
+      website: lifetime ? safeHttpUrl(ws?.brand_website) : null,
       hideRankbyai: lifetime && report.kind !== "free_check" && !!ws?.hide_rankbyai_branding,
     },
     opener: report.opener ?? null,

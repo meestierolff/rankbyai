@@ -50,3 +50,6 @@ supabase/.branches
 # test + lighthouse output
 /.lighthouse
 /test-results
+
+# browser automation output
+/.playwright-mcp

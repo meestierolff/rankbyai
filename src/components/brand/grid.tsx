@@ -21,7 +21,7 @@ export function mapsCellColors(rank: number | null | undefined): { bg: string; f
 }
 
 /** Hex fallbacks for surfaces that cannot use CSS variables (PDF, OG images, map canvas). */
-export const DATA_HEX = { g1: "#3fbf6a", g2: "#2e8a4e", g3: "#2a5a38", none: "#232323", amber: "#e6b23a", orange: "#e57f35", red: "#d9473c" } as const;
+export const DATA_HEX = { g1: "#3fbf6a", g2: "#2e8a4e", g3: "#2a5a38", none: "#232323", amber: "#e6b23a", orange: "#e57f35", red: "#c93c33" } as const;
 
 export const pointName = (row: number, col: number) => `${String.fromCharCode(65 + row)}${col + 1}`;
 

@@ -28,7 +28,7 @@ describe("vendor price constants", () => {
     expect(g3.low).toBeCloseTo(0.16, 2);
     expect(g3.high).toBeCloseTo(0.28, 2);
     expect(Math.abs(g5.low - 0.44)).toBeLessThan(0.006); // 0.435: the brief rounds up
-    expect(g5.high).toBeCloseTo(0.79, 2);
+    expect(Math.abs(g5.high - 0.79)).toBeLessThan(0.006); // 0.785: the brief rounds up
   });
 
   it("matches the published Maps grid totals", () => {

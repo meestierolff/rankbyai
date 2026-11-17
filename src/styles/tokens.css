@@ -38,7 +38,7 @@
   --rb-none: #232323; /* not mentioned */
   --rb-amber: oklch(0.8 0.15 85); /* Maps 4–10, AI 4–5, P2, audit 50–69 */
   --rb-orange: oklch(0.7 0.17 50); /* Maps 11–20, P1, negative delta, audit <50 */
-  --rb-red: oklch(0.6 0.19 25); /* Maps 20+, P0 */
+  --rb-red: oklch(0.56 0.19 25); /* Maps 20+, P0. Handoff: 0.60; darkened so white text passes 4.5:1 */
   --rb-copied: oklch(0.62 0.15 150);
   --rb-you-tint: rgba(80, 200, 120, 0.12);
 

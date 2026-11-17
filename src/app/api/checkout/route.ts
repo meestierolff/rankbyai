@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         email: ctx.user.email,
         workspaceId: ctx.workspace.id,
         workspacePlan: ctx.workspace.plan,
-        stripeCustomerId: (ctx.workspace as { stripe_customer_id?: string | null }).stripe_customer_id ?? null,
+        stripeCustomerId: ctx.workspace.stripe_customer_id,
         productKey: parsed.data.product_key,
         expectedPriceCents: parsed.data.expected_price_cents,
       },

@@ -1,4 +1,6 @@
 import "server-only";
+import { cache } from "react";
+import { io } from "next/cache";
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createSupabaseServer } from "@/lib/supabase/server";
@@ -17,6 +19,7 @@ export interface Workspace {
   reply_to_email: string | null;
   hide_rankbyai_branding: boolean;
   share_scans_for_regional_pages: boolean;
+  stripe_customer_id: string | null;
   created_at: string;
 }
 
@@ -28,7 +31,9 @@ export interface SessionContext {
 }
 
 /** Current user + their workspace (RLS-scoped), or null when signed out / auth not configured. */
-export async function getSessionContext(): Promise<SessionContext | null> {
+export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
+  // Everything behind a session is request-time work (it may read the clock, generate ids, etc.).
+  await io();
   if (!supabasePublicEnv.isConfigured()) return null;
   const supabase = await createSupabaseServer();
   const { data, error } = await supabase.auth.getUser();
@@ -46,7 +51,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
   if (!row || !workspace) return null;
 
   return { user, workspace, role: row.role, isAdmin: miscEnv.adminUserIds().includes(user.id) };
-}
+});
 
 export async function requireSession(nextPath = "/app"): Promise<SessionContext> {
   const ctx = await getSessionContext();

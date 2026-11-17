@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RankbyAI
 
-## Getting Started
+**AI visibility software you pay for once.** RankbyAI shows whether ChatGPT, Perplexity and Gemini recommend a local business for "best {service} near me" prompts, point by point across a map grid, next to its Google Maps rank on the same grid. Scans run on the user's own API keys at cost, or on optional included-scan packs.
 
-First, run the development server:
+Live site: https://rankbyai.live · Built in public for the Ship or Die $100K Hackathon (16 Nov – 16 Dec 2026).
+
+> Not affiliated with or endorsed by OpenAI, Perplexity, Google or DataForSEO. RankbyAI is not the first or only AI visibility grid tool; Local Falcon and BrightLocal also offer one. The difference is how you pay.
+
+## Stack
+
+- Next.js 16 (App Router, Cache Components, TypeScript strict), Tailwind CSS v4, shadcn/ui
+- Supabase (Postgres, Auth magic links, Storage) with row level security on every table
+- Stripe Checkout (one-time payments, Stripe Tax)
+- Official APIs only: DataForSEO (Google Maps results), OpenAI, Perplexity, Gemini
+- Vitest for unit and database tests
+
+## Repository map
+
+| Path | What it holds |
+|---|---|
+| `design/` | Design handoff (source of truth for the look) |
+| `src/styles/tokens.css`, `src/app/globals.css` | Design tokens and the Tailwind theme |
+| `src/components/ui`, `src/components/brand` | shadcn/ui primitives and the brand component library |
+| `src/components/marketing`, `src/app/(marketing)` | Marketing site |
+| `src/app/app`, `src/components/app` | The dashboard |
+| `src/lib/pricing-constants.ts`, `src/lib/cost` | Vendor price constants and cost maths (one source for site and app) |
+| `src/lib/ladder.ts`, `src/lib/checkout.ts`, `src/lib/stripe-webhook.ts` | Lifetime price ladder, checkout, webhook |
+| `supabase/migrations` | Schema, RLS policies, functions |
+| `tests/unit`, `tests/db` | Unit tests and tests that run against a real local Postgres |
+| `docs/` | Setup, progress log, vendor API notes |
+
+## Run it locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm db:start            # local Supabase (Docker); ports are set in supabase/config.toml
+cp .env.example .env.local   # fill in the local Supabase URL and keys printed by the command above
+pnpm dev                 # http://localhost:3100
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```bash
+pnpm test                # unit + database tests (local database only)
+pnpm build && pnpm check:secrets   # production build, then scan client bundles for secrets
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+See [docs/SETUP.md](docs/SETUP.md) for every environment variable and the hosted setup, and [docs/PROGRESS.md](docs/PROGRESS.md) for what is built and verified.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Rules this codebase keeps
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Row level security on every table; an automated test proves it.
+- API keys are encrypted with AES-256-GCM, write-only, and used only on the server.
+- No scraping. Official APIs only. Every AI result carries the "AI answers vary" disclaimer.
+- No invented numbers: demo content is labelled "Sample data", estimates are labelled as estimates, competitor prices carry their source date.
+- No fake urgency: the price follows a public sales counter, never a timer.
+- Every sale is priced above its delivery cost (asserted in `tests/unit/pricing.test.ts`).

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
+import { AI_DISCLAIMER_TEXT } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { Logo } from "./logo";
 
@@ -96,8 +97,7 @@ export function SampleTag({ className }: { className?: string }) {
   );
 }
 
-export const AI_DISCLAIMER =
-  "AI answers vary between runs, places and time; API results can differ from what people see in the consumer apps.";
+export const AI_DISCLAIMER = AI_DISCLAIMER_TEXT;
 
 /** Required wherever AI results are shown. */
 export function AiDisclaimer({ className }: { className?: string }) {

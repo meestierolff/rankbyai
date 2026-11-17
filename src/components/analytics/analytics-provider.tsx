@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { publicEnv } from "@/lib/env";
+import { publicEnv } from "@/lib/env-public";
 import { setAnalyticsClient } from "@/lib/analytics";
 
 const CONSENT_KEY = "rb_consent"; // "granted" | "denied"
@@ -30,7 +30,7 @@ export function AnalyticsProvider() {
     const needsConsent = consentRequired();
     if (stored === "denied") return; // respected: no analytics at all
     const cookieless = needsConsent && stored !== "granted";
-    if (needsConsent && !stored) setAsk(true);
+    if (needsConsent && !stored) queueMicrotask(() => setAsk(true));
 
     const load = () =>
       import("posthog-js").then(({ default: posthog }) => {

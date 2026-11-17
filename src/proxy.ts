@@ -32,6 +32,13 @@ export async function proxy(request: NextRequest) {
     login.search = `?next=${encodeURIComponent(path + request.nextUrl.search)}`;
     return NextResponse.redirect(login);
   }
+  if ((path === "/login" || path === "/signup") && data.user) {
+    const next = request.nextUrl.searchParams.get("next");
+    const target = request.nextUrl.clone();
+    target.pathname = next && next.startsWith("/") && !next.startsWith("//") ? next.split("?")[0] : "/app";
+    target.search = "";
+    return NextResponse.redirect(target);
+  }
   return response;
 }
 

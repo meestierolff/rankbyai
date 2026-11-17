@@ -14,7 +14,7 @@ export function Header({ withOffer = true }: { withOffer?: boolean }) {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-[rgba(11,11,11,0.82)] backdrop-blur-[12px]">
       <div className="container-page flex flex-wrap items-center justify-between gap-x-5 gap-y-3 py-[14px]">
-        <Link href="/" className="no-underline" aria-label="RankbyAI home">
+        <Link href="/" className="no-underline">
           <LogoLockup priority />
         </Link>
         <nav aria-label="Main" className="order-3 flex w-full justify-between gap-[clamp(16px,3vw,36px)] text-[15px] md:order-none md:w-auto md:justify-start">

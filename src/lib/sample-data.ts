@@ -54,7 +54,7 @@ export function sampleAiPosition(i: number, j: number, engineSeed: number, thres
 /** Google Maps rank at one Maps grid point. */
 export function sampleMapsRank(i: number, j: number, strength = 1, n = MAPS_N): number {
   const { d, skew } = geometry(n, i, j);
-  return Math.max(1, Math.round(1 + Math.pow(d, 1.3) * 21 * (2 - strength) + (rnd(i, j, 42) - 0.5) * 7 - skew * 10));
+  return Math.max(1, Math.round(1 + Math.pow(d, 1.6) * 20 * (2 - strength) + (rnd(i, j, 42) - 0.5) * 4 - skew * 8));
 }
 
 export interface SampleAiCell {

@@ -53,3 +53,9 @@ supabase/.branches
 
 # browser automation output
 /.playwright-mcp
+
+# copied from node_modules at install
+/public/vendor
+
+# private research references: never commit (third-party screenshots, other-project material)
+/docs/references

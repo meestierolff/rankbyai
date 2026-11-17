@@ -4,6 +4,7 @@ import { MissingEnvError, publicEnv, stripeEnv } from "@/lib/env";
 import { dbAdmin } from "@/lib/db/clients";
 import { getStripe } from "@/lib/stripe";
 import { startCheckout } from "@/lib/checkout";
+import { stripeKeyAllowed } from "@/lib/stripe-webhook";
 import { captureServer } from "@/lib/analytics-server";
 
 const Body = z.object({
@@ -23,6 +24,10 @@ export async function POST(request: Request) {
 
   try {
     const env = stripeEnv.get();
+    // The live site sells with live keys only; a test key there would take "payments" that are never fulfilled.
+    if (!stripeKeyAllowed(env.STRIPE_SECRET_KEY, process.env.VERCEL_ENV)) {
+      return Response.json({ error: "payments_not_open", message: "Checkout is not open on this site yet." }, { status: 503 });
+    }
     const result = await startCheckout(
       {
         userId: ctx.user.id,

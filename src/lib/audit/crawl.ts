@@ -228,8 +228,11 @@ export interface SiteCrawl {
   fetched: number;
 }
 
-/** Homepage + up to `maxPages` internal pages (from the sitemap, else from homepage links). Sequential and gentle. */
-export async function crawlSite(website: string, maxPages = 20): Promise<SiteCrawl> {
+/**
+ * Homepage + up to `maxPages` internal pages (from the sitemap, else from homepage links). Sequential and gentle.
+ * `deadline` (epoch ms) is a wall-clock budget: a slow site ends the crawl early and the pages read so far are kept.
+ */
+export async function crawlSite(website: string, maxPages = 20, deadline = Date.now() + 75_000): Promise<SiteCrawl> {
   const start = website.startsWith("http") ? website : `https://${website}`;
   const homePage = await fetchPage(start);
   if (!homePage || !homePage.html) return { home: null, pages: [], hasLlmsTxt: null, fetched: 0 };
@@ -245,14 +248,15 @@ export async function crawlSite(website: string, maxPages = 20): Promise<SiteCra
   const seen = new Set([homePage.url.replace(/\/$/, ""), origin]);
   const pages: PageFacts[] = [];
   for (const u of candidates) {
-    if (pages.length >= maxPages) break;
+    if (pages.length >= maxPages || Date.now() > deadline) break;
     const key = u.replace(/\/$/, "");
     if (seen.has(key)) continue;
     seen.add(key);
     const p = await fetchPage(u);
     if (p?.status === 200 && p.html) pages.push(extractFacts(p.url, p.html));
   }
-  const llms = await fetchPage(`${origin}/llms.txt`, "text/plain");
+  // Past the deadline the llms.txt check is skipped and reported as "not checked", never as "missing".
+  const llms = Date.now() > deadline ? null : await fetchPage(`${origin}/llms.txt`, "text/plain");
   const hasLlmsTxt = llms ? llms.status === 200 && llms.html.trim().length > 0 && !/<html/i.test(llms.html.slice(0, 500)) : null;
   return { home, pages, hasLlmsTxt, fetched: 1 + pages.length };
 }

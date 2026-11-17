@@ -158,8 +158,10 @@ export async function generateFixKit(auditId: string, workspaceId: string, regen
 
   const { data: existing } = await admin.from("fix_kits").select("*").eq("audit_id", auditId).order("created_at", { ascending: false }).limit(1);
   const current = ((existing ?? []) as FixKit[])[0];
-  // Included-scan audits get one generation (the house pays for the model call); own-key audits can regenerate.
-  if (current && (!regenerate || audit.funding !== "byok")) return { ok: true, kit: current, note: null };
+  // Included-scan audits get one generation (the house pays for the model call); own-key audits can
+  // regenerate. A kit whose model call failed (no description) can always be built again.
+  const incomplete = !!current && !current.description && !isMockMode();
+  if (current && !incomplete && (!regenerate || audit.funding !== "byok")) return { ok: true, kit: current, note: null };
 
   const { data: business } = await admin.from("businesses").select("name, city, website, phone, address, primary_category").eq("id", audit.business_id).maybeSingle();
   if (!business) return { ok: false, status: 404, error: "not_found", message: "The business was deleted." };

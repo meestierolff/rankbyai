@@ -24,6 +24,9 @@ export const AUDIT_RADIUS_MILES = 10;
 const MAX_COMPETITORS = 3;
 const MAX_AREAS = 40;
 const SERVICE_LLM_EST_USD = LLM_PARSE_BUDGET_USD * 2;
+/** Wall-clock budget. The serverless function is stopped at 300 s; an audit must finish and save well before that. */
+const AUDIT_BUDGET_MS = 230_000;
+const CRAWL_BUDGET_MS = 75_000;
 
 export interface AuditEstimate {
   totalUsd: number;
@@ -295,6 +298,7 @@ export async function processAudit(auditId: string): Promise<void> {
   const admin = dbAdmin();
   const { data: audit } = await admin.from("audits").update({ status: "running" }).eq("id", auditId).eq("status", "queued").select("id, workspace_id, business_id, funding, status, inputs").maybeSingle<AuditRow>();
   if (!audit) return;
+  const startedAt = Date.now();
   const spend: Record<string, number> = {};
   const failWith = async (message: string) => {
     await admin.from("audits").update({ status: "failed", error: message, finished_at: new Date().toISOString(), cost_usd: Object.values(spend).reduce((s, v) => s + v, 0) }).eq("id", audit.id);
@@ -312,6 +316,10 @@ export async function processAudit(auditId: string): Promise<void> {
     const creds = await resolveCredentials(audit.workspace_id, audit.funding);
     if (!isMockMode() && !creds.dataforseo) return void (await failWith("No DataForSEO login is available for this audit."));
 
+    // AI answers (latest scan, or one check at the business location). Independent of the rest, so it
+    // runs alongside: the slowest parts of an audit never add up.
+    const aiPending = gatherAi(audit, business, service, (ws?.plan as "locked" | "lifetime") ?? "locked", creds, spend).catch(() => ({ ai: null, scanId: null }));
+
     // 1. Who holds the map pack here, and the Google profiles of the business and those competitors.
     const maps = await gatherMaps(business, service, creds, spend);
     const [profile, ...rivalProfiles] = await Promise.all([
@@ -321,28 +329,25 @@ export async function processAudit(auditId: string): Promise<void> {
     if (!profile && !business.website) return void (await failWith("Neither the Google profile nor a website could be read for this business. Check your DataForSEO balance, then run the audit again."));
     const competitors = maps.competitors.map((c, i) => ({ name: c.name, profile: rivalProfiles[i] ?? null }));
 
-    // 2. AI answers (latest scan, or one check at the business location).
-    const ai = await gatherAi(audit, business, service, (ws?.plan as "locked" | "lifetime") ?? "locked", creds, spend);
-
-    // 3. The website, and the competitors' homepages for the service comparison.
+    // 2. The website, and the competitors' homepages for the service comparison.
     const website = business.website ?? profile?.url ?? null;
     let crawl: SiteCrawl | null = null;
     if (website) {
       if (isMockMode()) {
         const home = extractFacts(website, mockSiteHtml(business.name, true));
         crawl = { home, pages: [], hasLlmsTxt: false, fetched: 1 };
-      } else crawl = await crawlSite(website).catch(() => null);
+      } else crawl = await crawlSite(website, 20, Math.min(Date.now() + CRAWL_BUDGET_MS, startedAt + AUDIT_BUDGET_MS - 90_000)).catch(() => null);
     }
     const rivalSites = await Promise.all(competitors.map(async (c) => ({ name: c.name, facts: await homepageFacts(c.profile?.url ?? null, c.name, false) })));
 
-    // 4. Services: a deterministic pass always; an LLM pass refines it when a key is available.
+    // 3. Services: a deterministic pass always; an LLM pass refines it when a key is available and time allows.
     let services: AuditInputs["services"] = null;
     let yourServices: ServicePage[] = [];
     if (crawl?.home && rivalSites.some((r) => r.facts)) {
       yourServices = heuristicServices(crawl.home);
       let rivalServices = rivalSites.map((r) => ({ name: r.name, services: heuristicServices(r.facts) }));
       let method: "llm" | "heuristic" = "heuristic";
-      if (!isMockMode() && creds.openai) {
+      if (!isMockMode() && creds.openai && Date.now() < startedAt + AUDIT_BUDGET_MS - 60_000) {
         const llm = await llmServices(creds.openai, [{ site: "YOU", facts: crawl.home }, ...rivalSites.map((r) => ({ site: r.name, facts: r.facts }))]);
         if (llm) {
           spend.openai = (spend.openai ?? 0) + llm.costUsd;
@@ -354,12 +359,14 @@ export async function processAudit(auditId: string): Promise<void> {
       services = { yours: yourServices.map((s) => s.service), missing: missingServices(yourServices, rivalServices), method };
     }
 
-    // 5. Named places around the business, for the page plan.
+    // 4. Named places around the business, for the page plan.
     let areas: AuditInputs["areas"] = null;
     if (business.lat != null && business.lng != null) {
       const names = isMockMode() ? mockAreas() : [...new Set((await fetchPlaces({ lat: business.lat, lng: business.lng }, AUDIT_RADIUS_MILES, "city|town|suburb|neighbourhood")).map((p) => p.name))].slice(0, MAX_AREAS);
       if (names.length) areas = { names, radiusMiles: AUDIT_RADIUS_MILES };
     }
+
+    const ai = await aiPending;
 
     const inputs: AuditInputs = {
       business: { name: business.name, website, phone: business.phone, address: business.address ?? null, city: business.city, category: business.primary_category },

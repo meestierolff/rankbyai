@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { revalidateTag } from "next/cache";
 import { dbAdmin } from "@/lib/db/clients";
-import { claimEvent, handleStripeEvent, markEventProcessed } from "@/lib/stripe-webhook";
+import { claimEvent, handleStripeEvent, markEventProcessed, stripeModeAllowed } from "@/lib/stripe-webhook";
 import { sendEmail } from "@/lib/email";
 import { captureServer } from "@/lib/analytics-server";
 import { legalEnv, publicEnv } from "@/lib/env";
@@ -24,6 +24,12 @@ export async function POST(request: Request) {
     event = await verifier.webhooks.constructEventAsync(raw, signature, secret);
   } catch {
     return Response.json({ error: "invalid_signature" }, { status: 400 });
+  }
+
+  // Test payments are never fulfilled on production, and live payments never anywhere else.
+  // Acknowledged with 200 so Stripe does not retry; nothing is recorded.
+  if (!stripeModeAllowed(event.livemode, process.env.VERCEL_ENV)) {
+    return Response.json({ received: true, ignored: event.livemode ? "live_event_outside_production" : "test_event_on_production" });
   }
 
   const admin = dbAdmin();

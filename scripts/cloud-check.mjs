@@ -12,6 +12,7 @@
  */
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { PostgrestClient } from "@supabase/postgrest-js";
 import { generateKeyPair, importJWK, SignJWT } from "jose";
 import pg from "pg";
 
@@ -69,7 +70,25 @@ const db = new pg.Client({ connectionString: env.DATABASE_URL });
 await db.connect();
 const q = async (text, params = []) => (await db.query(text, params)).rows;
 
+/** The app's own database client with the app's retry rule (src/lib/db/clients.ts), pointed at this gateway. */
+function appClient(role, sub) {
+  return new PostgrestClient(API, {
+    fetch: async (input, init) => {
+      for (let attempt = 0; ; attempt++) {
+        const headers = new Headers(init?.headers);
+        headers.set("Authorization", `Bearer ${await token(role, sub)}`);
+        const res = await fetch(input, { ...init, headers });
+        if (role !== "authenticated" || attempt >= 4 || res.ok) return res;
+        const body = await res.clone().json().catch(() => null);
+        if (body?.code !== "RB001") return res;
+        await new Promise((r) => setTimeout(r, 40 * (attempt + 1)));
+      }
+    },
+  });
+}
+
 async function cleanup() {
+  await q(`delete from public.geo_cache where key like 'cloud-check:%'`);
   await q(`delete from public.free_checks where ip_hash = 'cloud-check'`);
   await q(`delete from public.workspaces where owner_id in (select id from public.profiles where email like $1)`, [`%@${EMAIL_DOMAIN}`]);
   await q(`delete from public.profiles where email like $1`, [`%@${EMAIL_DOMAIN}`]);
@@ -224,7 +243,54 @@ try {
   r = await api(`/tracked_queries?id=eq.${tqId}&next_run_at=eq.${encodeURIComponent(due)}&select=id`, { tok: service, method: "PATCH", body: { next_run_at: next } });
   check("schedule: a second claim gets nothing", r.status === 200 && r.data.length === 0, brief(r));
 
-  check("exact count header works", (await fetch(`${API}/businesses?select=id&workspace_id=eq.${wsA}`, { method: "HEAD", headers: { Authorization: `Bearer ${service}`, Prefer: "count=exact" } })).headers.get("content-range")?.endsWith("/1") === true);
+  // ── the app's client library against this gateway (the shapes the app code depends on) ──
+  const svc = appClient("service_role");
+  const asA = appClient("authenticated", a);
+  const show = (x) => JSON.stringify(x).slice(0, 220);
+
+  let c = await svc.from("businesses").insert({ workspace_id: wsA, name: "Client check", lat: 52.37, lng: 4.9 }).select("id, name").single();
+  check("client: insert().select().single() returns one object", !c.error && typeof c.data?.id === "string" && !Array.isArray(c.data), show(c));
+  const clientBiz = c.data?.id;
+  c = await svc.from("businesses").update({ name: "Client check 2" }).eq("id", clientBiz).select("id, name").maybeSingle();
+  check("client: update().select().maybeSingle() returns the changed row", !c.error && c.data?.name === "Client check 2", show(c));
+  c = await svc.from("businesses").update({ name: "never" }).eq("id", randomUUID()).select("id").maybeSingle();
+  check("client: maybeSingle() with no match gives null without an error", c.error === null && c.data === null, show(c));
+  c = await asA.from("businesses").select("id").eq("id", bizB).maybeSingle();
+  check("client: a row behind RLS reads as null, not as an error", c.error === null && c.data === null, show(c));
+
+  c = await asA.from("workspace_members").select("role, workspaces(*)").eq("user_id", a).order("created_at", { ascending: true }).limit(1);
+  const embedded = Array.isArray(c.data?.[0]?.workspaces) ? c.data[0].workspaces[0] : c.data?.[0]?.workspaces;
+  check("client: the session query (membership with its workspace embedded) works", !c.error && c.data?.[0]?.role === "owner" && embedded?.id === wsA && embedded?.plan === "locked", show(c));
+
+  c = await svc.rpc("credit_balance", { p_workspace_id: wsA });
+  check("client: a function returning a number gives a bare number", c.error === null && c.data === 0, show(c));
+  await q("insert into public.credit_ledger (workspace_id, delta, reason, ref) values ($1, 2, 'pack', 'cloud-check')", [wsA]);
+  c = await svc.rpc("use_credits", { p_workspace_id: wsA, p_n: 1, p_reason: "cloud_check", p_ref: "cloud-check" });
+  check("client: use_credits returns the bare value true when the balance covers it", c.error === null && c.data === true, show(c));
+  c = await svc.rpc("use_credits", { p_workspace_id: wsA, p_n: 5, p_reason: "cloud_check", p_ref: "cloud-check" });
+  check("client: use_credits returns the bare value false when it does not", c.error === null && c.data === false, show(c));
+  c = await svc.rpc("credit_balance", { p_workspace_id: wsA });
+  check("client: the balance is 1 after spending 1 of 2", c.data === 1, show(c));
+  c = await svc.rpc("ensure_user", { p_id: a, p_email: `a-${a.slice(0, 8)}@${EMAIL_DOMAIN}` });
+  check("client: ensure_user returns the existing workspace id for a known user", c.error === null && c.data === wsA, show(c));
+  c = await svc.rpc("claim_scan", { p_scan_id: randomUUID(), p_lease_seconds: 60 });
+  check("client: a set-returning function with no rows gives an empty list", c.error === null && Array.isArray(c.data) && c.data.length === 0, show(c));
+
+  const cacheKey = `cloud-check:${randomUUID()}`;
+  c = await svc.from("geo_cache").upsert({ key: cacheKey, kind: "places", value: [{ name: "one" }] });
+  const again = await svc.from("geo_cache").upsert({ key: cacheKey, kind: "places", value: [{ name: "two" }] });
+  const cached = await svc.from("geo_cache").select("value").eq("key", cacheKey).maybeSingle();
+  check("client: upsert inserts, then overwrites the same key", c.error === null && again.error === null && cached.data?.value?.[0]?.name === "two", show({ c, again, cached }));
+
+  c = await svc.from("businesses").select("id", { count: "exact", head: true }).eq("workspace_id", wsA);
+  check("client: an exact count without rows works", c.error === null && c.count === 2 && c.data === null, show(c));
+  c = await svc.from("businesses").select("id, name").in("id", [clientBiz, bizA]).not("lat", "is", null).like("name", "Client%").order("created_at", { ascending: false }).limit(5);
+  check("client: in / not-is-null / like / order / limit filters work together", c.error === null && c.data?.length === 1 && c.data[0].id === clientBiz, show(c));
+  c = await appClient("anonymous").from("ladder_state").select("sold_total, current_price_cents").single();
+  check("client: a visitor reads the price ladder as one object", c.error === null && typeof c.data?.current_price_cents === "number", show(c));
+  c = await asA.from("orders").insert({ workspace_id: wsA, product_key: "lifetime", amount_cents: 0, status: "paid" });
+  check("client: a refused write reports a permission error", c.error?.code === "42501", show(c));
+
 } finally {
   await cleanup().catch((e) => console.error("cleanup failed:", e.message));
   const left = await q("select count(*)::int as n from public.profiles where email like $1", [`%@${EMAIL_DOMAIN}`]);

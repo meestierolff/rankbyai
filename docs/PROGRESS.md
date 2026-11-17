@@ -45,6 +45,8 @@ Where the design handoff and the build brief disagree, the brief wins on content
 - Without an OpenAI key the audit still runs: services are read from page addresses and navigation, and the Fix Kit gives schema, llms.txt and checklist with a note that the description and FAQs need a key.
 - The website fetcher only connects to public addresses (no internal hosts), follows redirects by hand and stops at 2 MB per page.
 - The share link already shows the audit score and top findings (built in M3, now fed by real audits).
+- An audit has a time budget: the AI check runs alongside the rest, the website crawl stops after 75 seconds and keeps the pages it has, and a check that ran out of time is "not checked", never "missing". This keeps a slow site from running into the 300-second function limit.
+- A Fix Kit whose model call failed can be built again, also on included scans.
 
 ### Needs the operator
 
@@ -63,7 +65,7 @@ M1–M3 were built on Supabase. The operator asked for Neon and Google sign-in, 
 |---|---|---|
 | Whole test suite on the new local stack (Postgres 17 + PostgREST in Docker) | **Pass** | `pnpm test`: 201 tests. This re-runs every M1–M3 database criterion (RLS, ladder, concurrent checkout, webhook replay, scan engine, free-check limits, schedules, share links) |
 | RLS on every table | **Pass** | `tests/db/rls.test.ts` (77 checks) locally. On Neon: 31 of 31 tables have RLS on, 53 policies |
-| RLS through the real Neon gateway | **Pass** | `node scripts/cloud-check.mjs`: 42 checks, run three times. Forged, expired and wrong-audience tokens rejected; a request with no token rejected; visitors read the price ladder only; two users cannot read or change each other's rows; a user cannot upgrade their plan, grant credits, create orders or read key ciphertext; the sign-in schema is not reachable. The script removes everything it creates |
+| RLS through the real Neon gateway | **Pass** | `node scripts/cloud-check.mjs`: 57 checks, on both branches. Forged, expired and wrong-audience tokens rejected; a request with no token rejected; visitors read the price ladder only; two users cannot read or change each other's rows; a user cannot upgrade their plan, grant credits, create orders or read key ciphertext; the sign-in schema is not reachable. The script removes everything it creates |
 | Sign-in end to end | **Pass, up to the Google consent screen** | Locally: the Google button reaches `accounts.google.com`. With a throwaway account: session → first-visit workspace → dashboard → sign-out, and a non-admin is sent away from `/admin`. The throwaway account was deleted and email-and-password sign-in is now off. **Not done:** a sign-in with a real Google account (needs a person) |
 | No secrets in client bundles | **Pass** | `pnpm check:secrets` after `pnpm build` |
 
@@ -87,6 +89,13 @@ M1–M3 were built on Supabase. The operator asked for Neon and Google sign-in, 
 2. **Storage credential** (Neon console → Connect → Storage): the five `STORAGE_*` variables. The private bucket `rankbyai-files` exists. Until then logo upload is off and raw AI answers are not archived.
 3. **Your own Google OAuth client** before real users sign in. Neon's shared test credentials show Neon's name on the consent screen.
 4. **Trusted domain**: add the deployed origin in Neon Auth before testing sign-in on a deployment.
+5. **Two Neon branches.** `main` = production (values in `.env.neon.local`), `preview` = preview deployments and Stripe test mode (values in `.env.neon.preview.local`). Put the preview values in Vercel's Preview environment and the production values in Production. Test purchases only ever go to `preview`: on production the webhook ignores test-mode events and checkout refuses a test key (`tests/unit/stripe-mode.test.ts`).
+6. **Public key address.** The Data API reads the public key from the GitHub address of `public/.well-known/jwks.json`. Do not rename the repository, make it private or move that file without first pointing the Data API at another address (see docs/SETUP.md). After go-live, switch it to the site's own domain.
+7. **An empty bucket to remove or keep.** I created a public-read bucket `rankbyai-public` in Neon Object Storage while looking for a home for the public key, and ended up not using it. It is empty. Delete it in the Neon console, or keep it for public assets.
+
+### Also checked after the review
+
+- The cloud check now uses the app's own database client against Neon (57 checks, both branches): single-row inserts and updates, the session query with its embedded workspace, scalar function results (`use_credits` returns a bare true/false), upsert, counts and combined filters.
 
 ## M3 — history, compare, schedules, share links, white-label (17 Nov 2026)
 

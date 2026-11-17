@@ -250,7 +250,7 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
         ) : null}
 
         <Panel title="Fix Kit">
-          <FixKitPanel auditId={audit.id} initial={kit} locked={locked} canRegenerate={audit.funding === "byok"} />
+          <FixKitPanel auditId={audit.id} initial={kit} locked={locked} canRegenerate={audit.funding === "byok" || (!!kit && !kit.description)} />
         </Panel>
 
         <Panel title={`Checks that passed (${passed.length})`}>

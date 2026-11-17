@@ -67,6 +67,17 @@ async function fulfil(session: Stripe.Checkout.Session, deps: WebhookDeps): Prom
   return { handled: false, note: `unknown product_key ${productKey}` };
 }
 
+/**
+ * A test-mode payment must never become a real sale: it would raise the public sold counter and
+ * freeze the price ladder. The production deployment fulfils live payments only; every other
+ * environment (preview, local) fulfils test payments only.
+ */
+export const stripeModeAllowed = (livemode: boolean, vercelEnv: string | undefined): boolean => livemode === (vercelEnv === "production");
+
+/** Can this deployment open a checkout with this key? Production needs a live key, everything else a test key. */
+export const stripeKeyAllowed = (secretKey: string, vercelEnv: string | undefined): boolean =>
+  vercelEnv === "production" ? !/^(sk|rk)_test_/.test(secretKey) : /^(sk|rk)_test_/.test(secretKey);
+
 export async function handleStripeEvent(event: Stripe.Event, deps: WebhookDeps): Promise<WebhookOutcome> {
   switch (event.type) {
     case "checkout.session.completed":

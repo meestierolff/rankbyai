@@ -16,6 +16,50 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | Tokens | CSS values | `tailwind.config` + CSS variables | Tailwind v4 is CSS-first: tokens in `src/styles/tokens.css`, mapped in the `@theme` block of `globals.css` |
 | P0 / Maps 20+ red | `oklch(0.60 0.19 25)` | 4.5:1 contrast | `oklch(0.56 0.19 25)` so white text passes contrast |
 
+## M2 — BYOK vault, AI grid, Maps grid, free check, cost guard (17 Nov 2026)
+
+**Honest status: built and tested end to end with simulated vendors; not yet run against real vendor APIs.** No real API keys exist in this environment (adding them is the operator's step), so every vendor call below was exercised through a development-only mock (`RANKBYAI_MOCK_PROVIDERS=1`, impossible to enable on Vercel) and through response fixtures taken from the vendors' docs. The first run with real keys may surface differences; treat (a) and (b) as open until then.
+
+### Acceptance criteria
+
+| | Criterion | Result | Evidence |
+|---|---|---|---|
+| a | 3×3 AI grid on 3 engines stores 27 samples with mentioned/position/names/sources; actual cost within ±50% of the estimate | **Pass with simulated vendors; needs real keys** | `tests/db/scan-engine.test.ts`: 27 samples, all fields set, cost within range. Response parsing is unit-tested against the documented OpenAI, Perplexity and Gemini response shapes |
+| b | 7×7 Maps scan stores 49 ranks and renders | **Pass with simulated vendors; needs real keys** | Same test file: 49 points, top 20 at each, rank matched by cid. Rendered in the browser as a grid and on a MapLibre map |
+| c | One engine forced to fail → scan `partial`, UI shows "engine unavailable" | **Pass** | Test forces Perplexity to fail: scan ends `partial`, 9 samples marked "Engine unavailable", the other engines complete. The result screen shows "unavailable" for that engine and offers "Retry failed parts" |
+| d | Keys never appear in logs, responses or client bundles | **Pass** | `tests/unit/provider-http.test.ts` (a key echoed back by a vendor is scrubbed from errors and console output; the key travels only in the Authorization header), `tests/db/scan-engine.test.ts` (database holds ciphertext only; no client path returns it), `pnpm check:secrets` on the build |
+| e | Free check: second attempt with the same email refused, 4th from the same IP/day refused, daily cap queues | **Pass** | `tests/db/free-check.test.ts` |
+| f | Switch Stripe to live keys only after the operator approves, with the early-access banner | **Not done, by design** | Stop item. Checkout stays unconfigured until the operator adds test keys, then live keys |
+
+### Built
+
+- Key vault: AES-256-GCM with the workspace and provider bound into the ciphertext, validation per vendor, write-only API, four key cards with status, hint and balance.
+- Adapters for DataForSEO (Maps queue, priority, live, pingback, business profile), OpenAI Responses + web search, Perplexity Agent API + web search, Gemini with Google Maps grounding and a Search fallback.
+- Scan engine: estimate → confirm → run. Resumable (a status poll, a DataForSEO pingback or the cron tick continue a scan after a timeout), partial results, per-engine failure handling, retry of failed parts only.
+- AI Visibility and Maps Grid screens: setup with live estimate, results that fill in while the scan runs, grid and real-map views, point drill-down (full answers, named businesses, sources, top 20), competitor overlay, share-of-voice lists with the tracked business pinned.
+- Business page with the combined Maps + AI view and a data-only insight sentence.
+- Free check on the home page → emailed link → watermarked report at `/r/{slug}`.
+- Cost guard: per-credit cap (worst-case cost reserved before each call), daily house caps, concurrency limit; `/admin` spend view.
+
+### Changes from the brief (and why)
+
+| Brief | Built | Reason |
+|---|---|---|
+| OpenAI default `gpt-5-mini` | `gpt-6-luna` | OpenAI retires `gpt-5-mini` on 11 Dec 2026. Estimates follow: about $0.011 per OpenAI sample, about $0.14–0.26 per 3×3 AI grid, about $60 a year for the comparison scenario (the brief said $67). The site renders these from the constants |
+| Reverse-geocode every grid point with Nominatim | One cached OpenStreetMap Overpass request per area; each point takes the nearest named neighbourhood; otherwise the prompt uses coordinates | Nominatim's usage policy forbids systematic grid reverse lookups. Nothing is invented when no name is found |
+| Pingback URL with a shared secret | Per-task HMAC signature | The URL is visible in the customer's DataForSEO account on BYOK scans |
+| Jaro-Winkler ≥ 0.9 name match | Same, plus a per-word check when both names have the same number of words | Plain Jaro-Winkler merged different businesses that share a prefix ("Smile Dental North" / "Smile Dental South") |
+
+### Dashboard patterns taken from the Semrush Local reference (structure only)
+
+Business cards with the latest numbers per business, share-of-voice lists with your own business pinned, competitor overlay that reuses the scan (no new spend), definitions and denominators next to every metric, retry that targets failed work only.
+
+### Needs the operator
+
+1. Real keys: the four `HOUSE_*` keys (free checks, included scans) in the deployment, and your own keys in Settings → API keys. Then one 3×3 AI grid and one 7×7 Maps grid on a real business to close (a) and (b). Estimated spend about $0.20.
+2. Confirm with a real Perplexity key that `perplexity/sonar` accepts the web search tool (the docs do not show that pairing). If it does not, set `PERPLEXITY_MODEL`.
+3. A Gemini key on a billing-enabled project (Maps grounding is not on the free tier).
+
 ## M1 — foundation, marketing site, ladder, test checkout (17 Nov 2026)
 
 ### Acceptance criteria

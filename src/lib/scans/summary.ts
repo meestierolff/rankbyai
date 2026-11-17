@@ -1,5 +1,5 @@
 import type { Engine } from "@/lib/pricing-constants";
-import { namesMatch } from "./match";
+import { namesMatch, normalizeName } from "./match";
 import { domainOf } from "./parse";
 
 /** Scan metrics (brief 7.2, 7.3). Pure functions over stored rows, so every number can be traced back. */
@@ -27,6 +27,8 @@ export interface AiSummary {
   ai_avg_position: number | null;
   /** The business's mentions ÷ all business mentions across samples. */
   share_of_ai_voice: number | null;
+  mentions_yours: number;
+  mentions_total: number;
   top_competitors: { name: string; mentions: number }[];
   top_sources: { domain: string; count: number; engines: Engine[] }[];
 }
@@ -63,7 +65,9 @@ export function summarizeAi(samples: AiSampleRow[], points: number): AiSummary {
         yours++;
         continue;
       }
-      const hit = competitors.find((c) => namesMatch(c.name, nb.name));
+      // Competitors are grouped by exact normalised name: fuzzy grouping would merge different businesses.
+      const key = normalizeName(nb.name);
+      const hit = competitors.find((c) => normalizeName(c.name) === key);
       if (hit) hit.mentions++;
       else competitors.push({ name: nb.name, mentions: 1 });
     }
@@ -93,6 +97,8 @@ export function summarizeAi(samples: AiSampleRow[], points: number): AiSummary {
     ai_mention_rate: done.length ? round(done.filter((s) => s.mentioned).length / done.length) : null,
     ai_avg_position: round(avg(done.filter((s) => s.mention_position != null).map((s) => s.mention_position as number)), 2),
     share_of_ai_voice: all ? round(yours / all) : null,
+    mentions_yours: yours,
+    mentions_total: all,
     top_competitors: competitors.sort((a, b) => b.mentions - a.mentions).slice(0, 10),
     top_sources: [...sources.entries()]
       .map(([domain, v]) => ({ domain, count: v.count, engines: [...v.engines] }))
@@ -105,7 +111,7 @@ export interface MapsPointRow {
   idx: number;
   status: "pending" | "posted" | "done" | "failed";
   rank: number | null;
-  top: { rank: number; name: string; cid?: string | null }[] | null;
+  top: { rank: number; name: string; cid?: string | null; rating?: number | null; reviews?: number | null }[] | null;
 }
 
 export interface MapsSummary {
@@ -120,7 +126,8 @@ export interface MapsSummary {
   found_points: number;
   /** Share of Local Voice: the business's top-3 placements ÷ all top-3 slots across the grid. */
   solv: number | null;
-  top_competitors: { name: string; cid: string | null; top3_points: number; avg_rank: number }[];
+  /** `share` = that business's top-3 placements ÷ all top-3 slots (same definition as `solv`). */
+  top_competitors: { name: string; cid: string | null; top3_points: number; avg_rank: number; share: number | null; rating: number | null; reviews: number | null }[];
 }
 
 export const NOT_RANKED = 21;
@@ -130,13 +137,15 @@ export function summarizeMaps(pointRows: MapsPointRow[], businessName: string): 
   const ranks = done.map((p) => p.rank ?? NOT_RANKED);
   const top3 = done.filter((p) => p.rank != null && p.rank <= 3).length;
   let slots = 0;
-  const rivals = new Map<string, { name: string; cid: string | null; top3: number; ranks: number[] }>();
+  const rivals = new Map<string, { name: string; cid: string | null; top3: number; ranks: number[]; rating: number | null; reviews: number | null }>();
   for (const p of done) {
     for (const it of p.top ?? []) {
       if (it.rank <= 3) slots++;
       if (namesMatch(it.name, businessName)) continue;
       const key = it.cid ?? it.name.toLowerCase();
-      const cur = rivals.get(key) ?? { name: it.name, cid: it.cid ?? null, top3: 0, ranks: [] };
+      const cur = rivals.get(key) ?? { name: it.name, cid: it.cid ?? null, top3: 0, ranks: [], rating: null, reviews: null };
+      if (it.rating != null) cur.rating = it.rating;
+      if (it.reviews != null) cur.reviews = it.reviews;
       if (it.rank <= 3) cur.top3++;
       cur.ranks.push(it.rank);
       rivals.set(key, cur);
@@ -152,7 +161,11 @@ export function summarizeMaps(pointRows: MapsPointRow[], businessName: string): 
     found_points: done.filter((p) => p.rank != null).length,
     solv: slots ? round(top3 / slots) : null,
     top_competitors: [...rivals.values()]
-      .map((r) => ({ name: r.name, cid: r.cid, top3_points: r.top3, avg_rank: Math.round((r.ranks.reduce((a, b) => a + b, 0) / r.ranks.length) * 10) / 10 }))
+      .map((r) => ({
+        name: r.name, cid: r.cid, top3_points: r.top3, share: slots ? round(r.top3 / slots) : null, rating: r.rating, reviews: r.reviews,
+        // Points where the business is outside the top 20 count as 21, as for the tracked business.
+        avg_rank: Math.round(((r.ranks.reduce((a, b) => a + b, 0) + (done.length - r.ranks.length) * NOT_RANKED) / Math.max(1, done.length)) * 10) / 10,
+      }))
       .sort((a, b) => b.top3_points - a.top3_points || a.avg_rank - b.avg_rank)
       .slice(0, 10),
   };

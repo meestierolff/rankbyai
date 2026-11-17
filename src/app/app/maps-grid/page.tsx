@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import { ModulePreview } from "@/components/app/module-preview";
+import { ScanIndexPage } from "@/components/app/scan-pages";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Maps Grid" };
 
-export default function Page() {
-  return <ModulePreview title="Maps Grid" description="Google Maps rank on a grid, from 3×3 to 9×9." ships="Ships in the next milestone." />;
+export default async function Page({ searchParams }: { searchParams: Promise<{ business?: string }> }) {
+  const ctx = await requireSession("/app/maps-grid");
+  const { business } = await searchParams;
+  return <ScanIndexPage ctx={ctx} kind="maps" businessId={business} />;
 }

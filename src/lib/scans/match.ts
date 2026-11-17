@@ -71,15 +71,20 @@ export interface BusinessIdentity {
   placeId?: string | null;
 }
 
-/** Same business by name: Jaro-Winkler ≥ 0.9 on normalised names, or one name's words all inside the other. */
+/**
+ * Same business by name: Jaro-Winkler ≥ 0.9 on normalised names, or one name's words all inside the other.
+ * Guard: when both names have the same number of words, every word pair must itself be similar. Without it,
+ * names that share a long prefix ("Smile Dental North" / "Smile Dental South") score above 0.9 and merge.
+ */
 export function namesMatch(a: string, b: string): boolean {
   const na = normalizeName(a);
   const nb = normalizeName(b);
   if (!na || !nb) return false;
   if (na === nb) return true;
-  if (jaroWinkler(na, nb) >= 0.9) return true;
   const ta = na.split(" ");
   const tb = nb.split(" ");
+  if (ta.length === tb.length) return ta.every((t, i) => t === tb[i] || jaroWinkler(t, tb[i]) >= 0.88);
+  if (jaroWinkler(na, nb) >= 0.9) return true;
   const [short, long] = ta.length <= tb.length ? [ta, new Set(tb)] : [tb, new Set(ta)];
   return short.length >= 2 && short.every((t) => long.has(t));
 }

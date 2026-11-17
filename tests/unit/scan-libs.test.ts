@@ -102,6 +102,10 @@ describe("business matching", () => {
     expect(namesMatch("Northgate Family Dental", "Northgate Family Dental Care")).toBe(true);
     expect(namesMatch("Northgate Family Dental", "Southgate Family Dentistry")).toBe(false);
     expect(namesMatch("Smile Dental", "Northgate Family Dental")).toBe(false);
+    // Shared prefixes must not merge different businesses
+    expect(namesMatch("Smile Dental North", "Smile Dental South")).toBe(false);
+    expect(namesMatch("Mock Rival One", "Mock Rival Two")).toBe(false);
+    expect(namesMatch("Northgate Family Dental", "Northgate Familly Dental")).toBe(true); // typo
   });
   it("position in a list and mention in text", () => {
     expect(positionInNames(["Smile Dental", "Northgate Family Dental LLC"], biz)).toBe(2);
@@ -168,7 +172,7 @@ describe("vendor response parsing (shapes from the vendors' docs)", () => {
   it("DataForSEO Maps items: organic only, in rank order", () => {
     const items = parseMapsItems({ items: [
       { type: "maps_paid_item", rank_group: 1, title: "Ad" },
-      { type: "maps_search", rank_group: 2, title: "B", cid: 12368344280360434538n.toString(), place_id: "ChIJ", rating: { value: 4.5, votes_count: 12 }, address_info: { city: "Austin", region: "Texas", country_code: "US" } },
+      { type: "maps_search", rank_group: 2, title: "B", cid: "12368344280360434538", place_id: "ChIJ", rating: { value: 4.5, votes_count: 12 }, address_info: { city: "Austin", region: "Texas", country_code: "US" } },
       { type: "maps_search", rank_group: 1, title: "A", cid: null, domain: null },
     ] });
     expect(items.map((i) => [i.rank, i.name])).toEqual([[1, "A"], [2, "B"]]);

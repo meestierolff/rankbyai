@@ -73,9 +73,14 @@ export function Hero({ scenarioYearUsd }: { scenarioYearUsd: number }) {
       <span className="text-[14px] text-dim">
         One payment. No monthly fee. No expiring credits. {REFUND_DAYS}-day refund, no questions.
       </span>
-      <Link href="#tour" className="font-medium text-muted-foreground no-underline transition-colors hover:text-fg">
-        See how it works ↓
-      </Link>
+      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+        <Link href="#tour" className="font-medium text-muted-foreground no-underline transition-colors hover:text-fg">
+          See how it works ↓
+        </Link>
+        <Link href="#free-check" className="font-medium text-muted-foreground no-underline transition-colors hover:text-fg">
+          Or run a free check ↓
+        </Link>
+      </div>
     </section>
   );
 }

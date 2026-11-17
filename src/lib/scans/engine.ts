@@ -1,9 +1,10 @@
 import "server-only";
+import { createHmac } from "node:crypto";
 import { creditsFor, estimateScan, houseBudgetCheck, houseCapUsd, logHouseSpend, runningScanCount, validateSpec, BYOK_MAX_RUNNING_SCANS, type Estimate, type HouseFunding, type ScanSpec } from "@/lib/cost-guard";
 import { dataforseoPingbackEnv, publicEnv } from "@/lib/env";
 import { resolveCredentials, type Funding } from "@/lib/keys";
 import { isMockMode } from "@/lib/mock";
-import { DATAFORSEO_MAPS_PER_POINT, ENGINE_LABEL, GEMINI, LLM_PARSE_BUDGET_USD, type Engine, type MapsMode } from "@/lib/pricing-constants";
+import { AI_SAMPLE_EST_USD, DATAFORSEO_MAPS_PER_POINT, ENGINE_LABEL, GEMINI, LLM_PARSE_BUDGET_USD, type Engine, type MapsMode } from "@/lib/pricing-constants";
 import { getMapsTask, LOCATION_CODES, mapsLive, postMapsTasks, type MapsItem } from "@/lib/providers/dataforseo";
 import { askGemini } from "@/lib/providers/gemini";
 import { mockAiAnswer, mockMapsItems, type MockCtx } from "@/lib/providers/mock-data";
@@ -65,6 +66,13 @@ export type CreateScanResult =
 const fail = (status: number, error: string, message: string, estimate?: Estimate): CreateScanResult => ({ ok: false, status, error, message, estimate });
 
 const ENGINE_KEY: Record<Engine, keyof ProviderCredentials> = { openai: "openai", perplexity: "perplexity", gemini: "gemini" };
+
+/** Upper bound for one house-funded sample: twice the published estimate (Gemini: beyond its free allowance) plus a parse call. */
+const WORST_CASE_SAMPLE_USD: Record<Engine, number> = {
+  openai: AI_SAMPLE_EST_USD.openai * 2 + LLM_PARSE_BUDGET_USD,
+  perplexity: AI_SAMPLE_EST_USD.perplexity * 2 + LLM_PARSE_BUDGET_USD,
+  gemini: AI_SAMPLE_EST_USD.geminiPaid * 2 + LLM_PARSE_BUDGET_USD,
+};
 
 export async function createScan(input: CreateScanInput): Promise<CreateScanResult> {
   const admin = supabaseAdmin();
@@ -294,10 +302,13 @@ async function runAi(scan: ScanRow, business: BusinessRow, creds: ProviderCreden
         await admin.from("ai_samples").update({ status: "failed", error: dead }).eq("id", s.id);
         return;
       }
-      if (spent >= cap) {
+      // Reserve this sample's worst-case cost before the call, so parallel workers cannot overshoot the cap.
+      const reserve = house ? WORST_CASE_SAMPLE_USD[engine] : 0;
+      if (spent + reserve > cap) {
         await admin.from("ai_samples").update({ status: "skipped", error: "Skipped: the cost cap for this included scan was reached." }).eq("id", s.id);
         return;
       }
+      spent += reserve;
       const pt = pointAt.get(s.point_idx) ?? { lat: scan.center_lat, lng: scan.center_lng };
       const geo: GeoContext = { lat: pt.lat, lng: pt.lng, city: business.city, region: business.region, country: business.country };
       try {
@@ -333,9 +344,10 @@ async function runAi(scan: ScanRow, business: BusinessRow, creds: ProviderCreden
           named_businesses: named.map((n) => ({ ...n, you: namesMatch(n.name, who.name) })),
           sources: answer.sources.slice(0, 25), cost_usd: cost, raw_path: rawPath, error: null,
         }).eq("id", s.id);
-        spent += cost;
+        spent += cost - reserve;
         perProvider[engine] = (perProvider[engine] ?? 0) + cost;
       } catch (err) {
+        spent -= reserve;
         const pe = err instanceof ProviderError ? err : null;
         const message = `Engine unavailable: ${pe ? pe.message : "unexpected error"}`.slice(0, 300);
         if (pe && (pe.kind === "auth" || pe.kind === "quota")) dead = message;
@@ -369,9 +381,18 @@ async function storeMapsPoint(scanId: string, idx: number, items: MapsItem[], wh
   await supabaseAdmin().from("scan_points").update({ status: "done", rank: hit ? hit.rank : null, top: compactTop(items), error: null, ...(costUsd !== undefined ? { cost_usd: costUsd } : {}) }).eq("scan_id", scanId).eq("idx", idx);
 }
 
-function pingbackUrl(): string | undefined {
+/**
+ * Per-task pingback signature. The URL is visible in the DataForSEO account that ran the task (a
+ * customer's account for BYOK scans), so it must never carry the global secret: each URL carries
+ * HMAC(secret, tag), which is valid for that one task only.
+ */
+export function pingbackSignature(tag: string): string {
+  return createHmac("sha256", dataforseoPingbackEnv.get().DATAFORSEO_PINGBACK_SECRET).update(tag).digest("hex");
+}
+
+function pingbackUrl(tag: string): string | undefined {
   if (!dataforseoPingbackEnv.isConfigured() || !publicEnv.siteUrl.startsWith("https://")) return undefined;
-  return `${publicEnv.siteUrl}/api/webhooks/dataforseo?id=$id&tag=$tag&s=${dataforseoPingbackEnv.get().DATAFORSEO_PINGBACK_SECRET}`;
+  return `${publicEnv.siteUrl}/api/webhooks/dataforseo?id=$id&tag=$tag&s=${pingbackSignature(tag)}`;
 }
 
 async function runMaps(scan: ScanRow, business: BusinessRow, creds: ProviderCredentials, deadline: number) {
@@ -383,6 +404,16 @@ async function runMaps(scan: ScanRow, business: BusinessRow, creds: ProviderCred
   if (!open.length) return;
   const perProvider: Record<string, number> = {};
   const house = scan.funding !== "byok";
+  // House-funded Maps scans: the whole grid's cost is known up front, so check the cap before spending anything.
+  if (house) {
+    const pending = open.filter((p) => p.status === "pending").length;
+    const { data: paidRows } = await admin.from("scan_points").select("cost_usd").eq("scan_id", scan.id).not("cost_usd", "is", null);
+    const already = ((paidRows ?? []) as { cost_usd: number }[]).reduce((s, r) => s + Number(r.cost_usd), 0);
+    if (already + pending * DATAFORSEO_MAPS_PER_POINT[scan.mode] > houseCapUsd(scan.funding as HouseFunding, scan.credits_used)) {
+      await admin.from("scan_points").update({ status: "failed", error: "Skipped: the cost cap for this included scan was reached." }).eq("scan_id", scan.id).eq("status", "pending");
+      return;
+    }
+  }
 
   if (isMockMode()) {
     for (const p of open) await storeMapsPoint(scan.id, p.idx, mockMapsItems(p.lat, p.lng, mockCtx(scan, business, p.lat, p.lng)), who, DATAFORSEO_MAPS_PER_POINT[scan.mode]);
@@ -409,7 +440,10 @@ async function runMaps(scan: ScanRow, business: BusinessRow, creds: ProviderCred
     const toPost = open.filter((p) => p.status === "pending");
     if (toPost.length) {
       try {
-        const posted = await postMapsTasks(dfs, toPost.map((p) => ({ keyword, lat: p.lat, lng: p.lng, tag: `${scan.id}:${p.idx}`, pingbackUrl: pingbackUrl() })), scan.mode);
+        const posted = await postMapsTasks(dfs, toPost.map((p) => {
+          const tag = `${scan.id}:${p.idx}`;
+          return { keyword, lat: p.lat, lng: p.lng, tag, pingbackUrl: pingbackUrl(tag) };
+        }), scan.mode);
         for (const t of posted) {
           const idx = Number(t.tag.split(":")[1]);
           await admin.from("scan_points").update(t.taskId ? { status: "posted", dfs_task_id: t.taskId, cost_usd: t.costUsd } : { status: "failed", error: (t.error ?? "Task was not created").slice(0, 300) }).eq("scan_id", scan.id).eq("idx", idx);
@@ -443,10 +477,11 @@ async function runMaps(scan: ScanRow, business: BusinessRow, creds: ProviderCred
 }
 
 /** A DataForSEO pingback for one task: store that point, then finalise if it was the last. */
-export async function ingestMapsTask(taskId: string): Promise<boolean> {
+export async function ingestMapsTask(taskId: string, tag: string): Promise<boolean> {
   const admin = supabaseAdmin();
-  const { data: point } = await admin.from("scan_points").select("scan_id, idx, status").eq("dfs_task_id", taskId).maybeSingle<{ scan_id: string; idx: number; status: string }>();
-  if (!point || point.status !== "posted") return false;
+  const [scanId, idx] = tag.split(":");
+  const { data: point } = await admin.from("scan_points").select("scan_id, idx, status, dfs_task_id").eq("scan_id", scanId).eq("idx", Number(idx)).maybeSingle<{ scan_id: string; idx: number; status: string; dfs_task_id: string | null }>();
+  if (!point || point.status !== "posted" || point.dfs_task_id !== taskId) return false;
   const { data: scan } = await admin.from("scans").select("*").eq("id", point.scan_id).maybeSingle<ScanRow>();
   if (!scan) return false;
   const { data: business } = await admin.from("businesses").select("*").eq("id", scan.business_id).maybeSingle<BusinessRow>();

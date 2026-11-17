@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import { ModulePreview } from "@/components/app/module-preview";
+import { ScanIndexPage } from "@/components/app/scan-pages";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "AI Visibility" };
 
-export default function Page() {
-  return <ModulePreview title="AI Visibility" description="Which businesses AI assistants name at each point of a map grid." ships="Ships in the next milestone." />;
+export default async function Page({ searchParams }: { searchParams: Promise<{ business?: string }> }) {
+  const ctx = await requireSession("/app/ai-visibility");
+  const { business } = await searchParams;
+  return <ScanIndexPage ctx={ctx} kind="ai" businessId={business} />;
 }

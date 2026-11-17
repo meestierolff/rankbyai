@@ -7,6 +7,7 @@ import { Faq } from "@/components/marketing/faq";
 import { Features } from "@/components/marketing/features";
 import { FinalCta, StickyBar } from "@/components/marketing/final-cta";
 import { Footer } from "@/components/marketing/footer";
+import { FreeCheck } from "@/components/marketing/free-check";
 import { Header } from "@/components/marketing/header";
 import { Hero } from "@/components/marketing/hero";
 import { OfferProvider } from "@/components/marketing/offer-context";
@@ -14,6 +15,7 @@ import { Pricing } from "@/components/marketing/pricing";
 import { ApiMcp, CostBand, Fix, HowItWorks, KeySecurity, Problem } from "@/components/marketing/sections";
 import { Tour } from "@/components/marketing/tour";
 import { calculateYearlyDataCost } from "@/lib/cost/estimate";
+import { miscEnv } from "@/lib/env";
 import { buildFaq } from "@/lib/faq";
 import { getOfferCached } from "@/lib/offer";
 import { ENGINES, SCENARIO } from "@/lib/pricing-constants";
@@ -65,6 +67,7 @@ export default async function HomePage() {
         <Compare scenarioYearUsd={scenarioYearUsd} />
         <Calculator />
         <Faq items={faq} />
+        <FreeCheck turnstileSiteKey={miscEnv.turnstileSiteKey()} />
         <FinalCta />
       </main>
       <Footer padForStickyBar />

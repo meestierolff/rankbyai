@@ -20,8 +20,16 @@ begin
   if not exists (select from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
   if not exists (select from pg_roles where rolname = 'service_role') then create role service_role nologin; end if;
   -- The API gateway connects as "authenticator" and switches to the role named in the JWT.
+  -- On Neon the first two are created and granted by the platform; only grant what is missing.
   if exists (select from pg_roles where rolname = 'authenticator') then
-    grant anonymous, authenticated, service_role to authenticator;
+    declare r text;
+    begin
+      foreach r in array array['anonymous', 'authenticated', 'service_role'] loop
+        if not pg_has_role('authenticator', r, 'MEMBER') then
+          execute format('grant %I to authenticator', r);
+        end if;
+      end loop;
+    end;
   end if;
 end $$;
 

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { admin, anon, closePool, createTestUser, deleteTestUsers, resetData, sql, type TestUser } from "./helpers";
+import { admin, anon, closePool, createTestUser, deleteTestUsers, rawClient, resetData, signToken, sql, type TestUser } from "./helpers";
 
 /**
  * Automated RLS test (M1 acceptance a). Runs against the real local Postgres:
@@ -252,6 +252,27 @@ describe("members can use what they own", () => {
     expect(v2.data).toBe(1);
     const leak = await b.client.from("feature_requests").select("workspace_id");
     expect(leak.error).not.toBeNull();
+  });
+});
+
+describe("a signed-in request without an identity", () => {
+  // The Neon gateway can run a request as "authenticated" without the token's claims. That must be
+  // an error the server can retry, never a quiet empty result that looks like "no data yet".
+  it("is refused with RB001 instead of returning nothing", async () => {
+    const nobody = rawClient(await signToken({ role: "authenticated" })); // no "sub"
+    for (const table of ["workspaces", "profiles", "businesses", "scans", "workspace_members"]) {
+      const { data, error } = await nobody.from(table).select("*").limit(1);
+      expect(data, table).toBeNull();
+      expect(error?.code, table).toBe("RB001");
+    }
+    const insert = await nobody.from("businesses").insert({ workspace_id: a.workspaceId, name: "ghost" });
+    expect(insert.error?.code).toBe("RB001");
+    expect(await sql("select 1 from public.businesses where name = 'ghost'")).toEqual([]);
+  });
+
+  it("visitors and the server are not affected: they have no user id by design", async () => {
+    expect((await anon().from("ladder_state").select("sold_total").single()).error).toBeNull();
+    expect((await admin.from("workspaces").select("id").limit(1)).error).toBeNull();
   });
 });
 

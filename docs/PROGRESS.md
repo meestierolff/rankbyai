@@ -15,6 +15,44 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | Sample business | "Lone Star Plumbing" | Fictional "Northgate Family Dental", no real names | Northgate Family Dental + invented competitors, labelled "Sample data" |
 | Tokens | CSS values | `tailwind.config` + CSS variables | Tailwind v4 is CSS-first: tokens in `src/styles/tokens.css`, mapped in the `@theme` block of `globals.css` |
 | P0 / Maps 20+ red | `oklch(0.60 0.19 25)` | 4.5:1 contrast | `oklch(0.56 0.19 25)` so white text passes contrast |
+| Database, sign-in, files | n/a | Supabase (Postgres, magic-link sign-in, Storage) | Neon (Postgres, Neon Auth with Google sign-in, Data API, Object Storage), on the operator's instruction of 17 Nov 2026. The brief's rules are unchanged: RLS on every table, an automated RLS test, secrets on the server only |
+
+## Platform switch — Neon and Google sign-in (17 Nov 2026)
+
+**Status: done and verified locally and against the Neon gateway. Storage credentials and a Google OAuth client of your own are left for the operator.**
+
+M1–M3 were built on Supabase. The operator asked for Neon and Google sign-in, so the database layer, sign-in and file storage were replaced. Nothing else changed: same schema, same policies, same functions.
+
+### What was re-verified after the switch
+
+| Check | Result | Evidence |
+|---|---|---|
+| Whole test suite on the new local stack (Postgres 17 + PostgREST in Docker) | **Pass** | `pnpm test`: 201 tests. This re-runs every M1–M3 database criterion (RLS, ladder, concurrent checkout, webhook replay, scan engine, free-check limits, schedules, share links) |
+| RLS on every table | **Pass** | `tests/db/rls.test.ts` (77 checks) locally. On Neon: 31 of 31 tables have RLS on, 53 policies |
+| RLS through the real Neon gateway | **Pass** | `node scripts/cloud-check.mjs`: 42 checks, run three times. Forged, expired and wrong-audience tokens rejected; a request with no token rejected; visitors read the price ladder only; two users cannot read or change each other's rows; a user cannot upgrade their plan, grant credits, create orders or read key ciphertext; the sign-in schema is not reachable. The script removes everything it creates |
+| Sign-in end to end | **Pass, up to the Google consent screen** | Locally: the Google button reaches `accounts.google.com`. With a throwaway account: session → first-visit workspace → dashboard → sign-out, and a non-admin is sent away from `/admin`. The throwaway account was deleted and email-and-password sign-in is now off. **Not done:** a sign-in with a real Google account (needs a person) |
+| No secrets in client bundles | **Pass** | `pnpm check:secrets` after `pnpm build` |
+
+### How it works now
+
+- The running app never opens a Postgres connection. The server signs a five-minute token naming a role (`anonymous`, `authenticated` + user id, `service_role`) and calls the Data API; the database switches to that role and RLS decides. The gateway only holds the public key (`public/.well-known/jwks.json`).
+- `service_role` has no "bypass RLS" attribute. It gets its access from one explicit policy per table, so RLS stays on for every role.
+- First sign-in creates the profile and a personal workspace in one database function (`ensure_user`).
+- Free check: the emailed link is gone. The visitor enters business and city, signs in with Google, and the check runs. One check per Google account, three per network per day, daily budget as before.
+- Claiming a scan for processing is one SQL function (`claim_scan`) that uses the database clock.
+
+### Three things found by testing against Neon (all fixed)
+
+1. **A signed-in request could arrive without its identity.** The first request on a newly opened gateway connection runs as `authenticated` but without the token's claims. RLS then matches nothing and the request "succeeds" with an empty result, which looks exactly like "no data yet". It never returned another user's data. Fix: the database now refuses such a request with error `RB001` before touching any row, and the server sends it again (up to four times). On a cold start 22 of 60 parallel requests needed the retry; all then returned the right data. Tests: `tests/db/rls.test.ts`, `tests/unit/db-retry.test.ts`, and the 60-request check in `scripts/cloud-check.mjs`.
+2. **The API roles cannot use Neon's `auth` schema**, so policies that asked for the user id directly failed with "permission denied". The user-id function now runs with its owner's rights.
+3. **The gateway keeps its own copy of the schema.** After a migration it must be refreshed (Neon console, CLI or API); `notify pgrst` alone is not enough. This is in `docs/SETUP.md`.
+
+### Needs the operator
+
+1. **Vercel environment variables for the database and sign-in.** The values are in `.env.neon.local` on the build machine (gitignored): `DATA_API_URL`, `DATA_API_JWT_PRIVATE_JWK`, `NEON_AUTH_BASE_URL`, plus a new `NEON_AUTH_COOKIE_SECRET`.
+2. **Storage credential** (Neon console → Connect → Storage): the five `STORAGE_*` variables. The private bucket `rankbyai-files` exists. Until then logo upload is off and raw AI answers are not archived.
+3. **Your own Google OAuth client** before real users sign in. Neon's shared test credentials show Neon's name on the consent screen.
+4. **Trusted domain**: add the deployed origin in Neon Auth before testing sign-in on a deployment.
 
 ## M3 — history, compare, schedules, share links, white-label (17 Nov 2026)
 
@@ -53,7 +91,7 @@ Tested with simulated vendors (see the M2 note) against the real local database,
 | b | 7×7 Maps scan stores 49 ranks and renders | **Pass with simulated vendors; needs real keys** | Same test file: 49 points, top 20 at each, rank matched by cid. Rendered in the browser as a grid and on a MapLibre map |
 | c | One engine forced to fail → scan `partial`, UI shows "engine unavailable" | **Pass** | Test forces Perplexity to fail: scan ends `partial`, 9 samples marked "Engine unavailable", the other engines complete. The result screen shows "unavailable" for that engine and offers "Retry failed parts" |
 | d | Keys never appear in logs, responses or client bundles | **Pass** | `tests/unit/provider-http.test.ts` (a key echoed back by a vendor is scrubbed from errors and console output; the key travels only in the Authorization header), `tests/db/scan-engine.test.ts` (database holds ciphertext only; no client path returns it), `pnpm check:secrets` on the build |
-| e | Free check: second attempt with the same email refused, 4th from the same IP/day refused, daily cap queues | **Pass** | `tests/db/free-check.test.ts` |
+| e | Free check: second attempt with the same email refused, 4th from the same IP/day refused, daily cap queues | **Pass** | `tests/db/free-check.test.ts` (since the platform switch the email is the verified Google account; a second request by the same account shows the first report and runs nothing) |
 | f | Switch Stripe to live keys only after the operator approves, with the early-access banner | **Not done, by design** | Stop item. Checkout stays unconfigured until the operator adds test keys, then live keys |
 
 ### Built
@@ -105,7 +143,7 @@ Business cards with the latest numbers per business, share-of-voice lists with y
 - Scaffold from `create-next-app` and `shadcn/ui` only. Next.js 16.4 with Cache Components; marketing pages are prerendered, the app streams behind a shell.
 - Design tokens and a brand component library extracted from the handoff; used by the site and the app.
 - Schema for every table in the brief, RLS on all of them, explicit grants, money and plan changes only through server-only functions.
-- Magic-link sign-in (`/login`, `/signup`), app shell with the sidebar, dashboard, billing page.
+- Sign-in (`/login`, `/signup`; magic link at the time, Google since the platform switch), app shell with the sidebar, dashboard, billing page.
 - Home page with every section of the brief, sample-data demos, calculator on the shared price constants.
 - `/terms`, `/privacy`, `/refunds`, `/disclaimer`, `/removal` (form + rate limit + optional Turnstile).
 - `/api/offer`, `/api/checkout`, `/api/webhooks/stripe`, refund endpoint, thanks page that waits for the webhook.
@@ -121,7 +159,7 @@ Business cards with the latest numbers per business, share-of-voice lists with y
 ### Needs the operator
 
 1. **Stripe test keys** for the dedicated RankbyAI account: run `scripts/stripe-setup.mjs`, set the `STRIPE_*` variables, then do one 4242 purchase to close criterion (d).
-2. **A hosted Supabase project** (a spend and account decision). Apply the migration and paste the email template (docs/SETUP.md).
+2. ~~A hosted Supabase project.~~ Replaced by Neon; see "Platform switch" above.
 3. **`SOD_TRACKER_SNIPPET_SRC`**: the exact script URL from the hackathon dashboard. If the snippet needs extra attributes, say so and the layout gets them.
 4. **`LEGAL_*`** values: until set, legal pages show a visible "not set" marker instead of invented details.
 5. A read of the legal pages by the operator (and ideally a lawyer). They follow the brief; clauses added beyond it: account suspension for abuse, changes to the terms, exclusion of indirect loss, GDPR legal bases, an 18+ line.

@@ -44,12 +44,14 @@ export interface SessionContext {
 type MembershipRow = { role: "owner" | "member"; workspaces: Workspace | Workspace[] };
 
 async function loadMembership(userId: string): Promise<{ role: "owner" | "member"; workspace: Workspace } | null> {
-  const { data } = await dbUser(userId)
+  const { data, error } = await dbUser(userId)
     .from("workspace_members")
     .select("role, workspaces(*)")
     .eq("user_id", userId)
     .order("created_at", { ascending: true })
     .limit(1);
+  // A failed lookup is not "this user has no workspace yet": never fall through to first-sign-in setup.
+  if (error) throw new Error(`workspace lookup failed (${error.code ?? "unknown"})`);
   const row = (data as MembershipRow[] | null)?.[0];
   const workspace = row ? (Array.isArray(row.workspaces) ? row.workspaces[0] : row.workspaces) : undefined;
   return row && workspace ? { role: row.role, workspace } : null;

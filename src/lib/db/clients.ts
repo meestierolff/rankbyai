@@ -20,12 +20,29 @@ function baseUrl(): string {
   return url.replace(/\/$/, "");
 }
 
+/** Raised by private.uid() when a signed-in request reached the database without its identity. */
+export const IDENTITY_MISSING = "RB001";
+const IDENTITY_RETRIES = 4;
+
+async function identityMissing(res: Response): Promise<boolean> {
+  if (res.ok) return false;
+  const body = (await res.clone().json().catch(() => null)) as { code?: string } | null;
+  return body?.code === IDENTITY_MISSING;
+}
+
 function client(role: DbRole, userId?: string): Db {
   // The token is resolved per request so it is always fresh; the builder API stays synchronous.
   const authedFetch: typeof fetch = async (input, init) => {
-    const headers = new Headers(init?.headers);
-    headers.set("Authorization", `Bearer ${await mintDbToken(role, userId)}`);
-    return fetch(input, { ...init, headers, cache: "no-store" });
+    for (let attempt = 0; ; attempt++) {
+      const headers = new Headers(init?.headers);
+      headers.set("Authorization", `Bearer ${await mintDbToken(role, userId)}`);
+      const res = await fetch(input, { ...init, headers, cache: "no-store" });
+      // The Neon gateway can run the first request on a new connection without the token's claims.
+      // The database refuses such a request (RB001) before touching any row, so sending it again is
+      // safe, also for writes. See db/migrations/0004_identity_guard.sql.
+      if (role !== "authenticated" || attempt >= IDENTITY_RETRIES || !(await identityMissing(res))) return res;
+      await new Promise((r) => setTimeout(r, 25 * (attempt + 1) + Math.random() * 25));
+    }
   };
   return new PostgrestClient(baseUrl(), { fetch: authedFetch });
 }

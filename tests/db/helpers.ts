@@ -1,4 +1,5 @@
 import { PostgrestClient } from "@supabase/postgrest-js";
+import { importJWK, SignJWT, type JWK } from "jose";
 import pg from "pg";
 import { randomUUID } from "node:crypto";
 import { dbAdmin, dbAnon, dbUser, type Db } from "@/lib/db/clients";
@@ -13,6 +14,16 @@ export const anon = (): Db => dbAnon();
 /** A request with no token at all (or a forged one): must get nothing. */
 export const rawClient = (token?: string): Db =>
   new PostgrestClient(DATA_API_URL, token ? { headers: { Authorization: `Bearer ${token}` } } : {});
+
+/** A correctly signed token with arbitrary claims, for cases the app itself never produces. */
+export async function signToken(claims: Record<string, unknown>): Promise<string> {
+  const jwk = JSON.parse(process.env.DATA_API_JWT_PRIVATE_JWK!) as JWK;
+  const now = Math.floor(Date.now() / 1000);
+  return new SignJWT(claims)
+    .setProtectedHeader({ alg: jwk.alg ?? "ES256", ...(jwk.kid ? { kid: jwk.kid } : {}) })
+    .setIssuedAt(now).setExpirationTime(now + 60).setIssuer("rankbyai").setAudience("rankbyai-data-api")
+    .sign(await importJWK(jwk, jwk.alg ?? "ES256"));
+}
 
 let pool: pg.Pool | undefined;
 export const sql = async <T extends pg.QueryResultRow = pg.QueryResultRow>(text: string, params: unknown[] = []) => {

@@ -683,6 +683,8 @@ Related notes:
 
 ## 7. Next.js and Supabase SSR
 
+> **Superseded for Supabase (17 Nov 2026):** the project moved to Neon (Postgres, Neon Auth, Data API). The Supabase notes below are kept as a record of what was checked; the Next.js notes still apply. Neon specifics are in [SETUP.md](SETUP.md) and the "Platform switch" entry in [PROGRESS.md](PROGRESS.md).
+
 Sources:
 - npm registry for `next`, `@supabase/ssr`, `@supabase/supabase-js`
 - https://nextjs.org/docs/llms.txt

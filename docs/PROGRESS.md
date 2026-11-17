@@ -17,6 +17,43 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | P0 / Maps 20+ red | `oklch(0.60 0.19 25)` | 4.5:1 contrast | `oklch(0.56 0.19 25)` so white text passes contrast |
 | Database, sign-in, files | n/a | Supabase (Postgres, magic-link sign-in, Storage) | Neon (Postgres, Neon Auth with Google sign-in, Data API, Object Storage), on the operator's instruction of 17 Nov 2026. The brief's rules are unchanged: RLS on every table, an automated RLS test, secrets on the server only |
 
+## M6 — REST API and MCP server (17 Nov 2026)
+
+**Status: built and tested, including with the official MCP client library. Connecting from the Claude Desktop or Cursor apps themselves is left for the operator (it needs a key on a reachable deployment).**
+
+### Acceptance criteria
+
+| Criterion | Result | Evidence |
+|---|---|---|
+| OpenAPI validates | **Pass** | `tests/db/api-v1.test.ts`: `/api/v1/openapi.json` is valid OpenAPI 3.1 (schema validator), and every documented endpoint is served by the router and nothing undocumented is |
+| API key create and revoke work; the key is shown once | **Pass** | Format `rbai_live_` + 32 characters; only sha256(key + pepper) and an 18-character prefix are stored; the owner can read names and prefixes but not the hash; a revoked key stops working at once; five active keys per workspace |
+| Rate limit returns 429 | **Pass** | Requests 61 and 62 inside a minute answer 429 with `Retry-After`; another key is unaffected |
+| MCP: tools list loads; `estimate_scan` → `run_ai_scan {confirm: true}` → `get_scan` works end to end | **Pass with the official MCP client library; not yet from the desktop apps** | The test connects `@modelcontextprotocol/client` over Streamable HTTP to the real route: 13 tools with descriptions and schemas, then estimate → run → result with 9 points and 27 answers |
+| Paid tools without `confirm` refuse | **Pass** | `run_ai_scan`, `run_maps_scan`, `run_audit`, `create_prospect_batch` and `add_business` (by name) return `confirm_required` with an estimate; no scan, audit, batch or business is created and nothing is scheduled |
+
+### Built
+
+- **API keys** (`/app/developers`): create (shown once), list with prefix and last use, revoke. Owner only.
+- **REST** under `/api/v1`: businesses (list, add, get), scans (estimate/run, get, points, compare), audits (estimate/run, get, Fix Kit), prospect batches (estimate/start, get), usage. Bearer key, 60 requests a minute per key, JSON errors with stable codes.
+- **MCP** at `/api/mcp` (Streamable HTTP, stateless, SDK v2): `list_businesses`, `add_business`, `estimate_scan`, `run_ai_scan`, `run_maps_scan`, `get_scan`, `compare_scans`, `run_audit`, `get_audit`, `get_fix_kit`, `create_prospect_batch`, `get_prospect_batch`, `get_usage`. Tool descriptions carry short guidance on what the numbers mean and what to do next.
+- **One implementation**: REST routes and MCP tools call the same functions (`src/lib/api-v1/core.ts`), so they cannot drift apart.
+- **Docs**: OpenAPI at `/api/v1/openapi.json`, a reference in the app (`/app/api/reference`) and the public `/docs/api` page, both rendered from the OpenAPI document; copy-paste setup for Claude Code, Cursor and Claude Desktop.
+
+### Worth knowing
+
+- An API key acts as the workspace owner. Reads go through row-level security with the owner's identity; a key from one workspace gets 404 for another workspace's ids (tested for every resource).
+- The estimate step never calls a vendor. For a prospect batch the search itself is paid, so the estimate is given for the requested number of reports before any search runs.
+- `get_prospect_batch` was added to the brief's tool list: without it an agent could start a batch but not read it.
+
+### [CONFIRM] items closed here
+
+- MCP SDK: built on `@modelcontextprotocol/server` 2.4 (the current line), not the v1 package the brief named.
+- Client config formats: Claude Code (`--transport http` + `--header`), Cursor (`url` + `headers`), Claude Desktop (`mcp-remote`; the app's own "custom connector" screen also accepts the URL and a fixed header, which I read in the support article but did not see in the app).
+
+### Needs the operator
+
+1. Create a key on the preview, paste a snippet into Claude Desktop or Cursor, and confirm the tools appear. The preview's login wall has to be off for this (Vercel → Deployment Protection), or use the live site.
+
 ## Deployments (17 Nov 2026)
 
 | What | Address | State |

@@ -24,6 +24,16 @@ One behaviour to know about: the Neon gateway can run the first request on a new
 
 How requests reach the database: the app never opens a Postgres connection at runtime. The server signs a token that lives five minutes and names a role (`anonymous`, `authenticated` plus the user id, or `service_role`), and sends it to the Data API. The Data API switches to that role, and row-level security decides what the request can see. The browser never receives one of these tokens.
 
+## Background timer (cron)
+
+`/api/cron/tick` continues scans and prospect batches that have no open browser tab, runs weekly and monthly schedules, and closes audits whose worker died. It is safe to call at any frequency.
+
+- `vercel.json` schedules it **once a day**, because Vercel's Hobby plan allows nothing more frequent and refuses the deployment otherwise. With a daily timer, work still continues whenever its page is open, and schedules still run (a day is precise enough for weekly and monthly). What you lose is background progress on a closed tab: a prospect batch waits until someone opens it or until the daily run.
+- On Vercel Pro, change the schedule to `* * * * *` (every minute). This is the intended setting.
+- Without Pro, any scheduler can call it every minute instead: `GET <origin>/api/cron/tick` with the header `Authorization: Bearer <CRON_SECRET>`.
+
+Prices and checkout do not depend on the timer: an expired checkout hold stops counting by itself.
+
 ## 2. App secrets
 
 ```bash

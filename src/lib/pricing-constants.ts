@@ -21,11 +21,12 @@ export type MapsMode = keyof typeof DATAFORSEO_MAPS_PER_POINT;
  *  Source: https://dataforseo.com/pricing/business-data/google-my-business-info (see docs/CONFIRM.md) */
 export const DATAFORSEO_BUSINESS_INFO_PER_CALL = 0.0054;
 
-/** OpenAI Responses API. Source: https://platform.openai.com/docs/pricing (read 17 Nov 2026) */
+/** OpenAI Responses API. Source: https://platform.openai.com/docs/pricing (read 17 Nov 2026).
+ *  Default model gpt-6-luna: the brief assumed gpt-5-mini, which OpenAI retires on 11 Dec 2026. */
 export const OPENAI = {
   webSearchPerCall: 0.01, // $10.00 per 1,000 web search tool calls
-  inputPer1M: 0.25, // gpt-5-mini input
-  outputPer1M: 2.0, // gpt-5-mini output
+  inputPer1M: 0.1, // gpt-6-luna input
+  outputPer1M: 0.5, // gpt-6-luna output
   // [estimate] token assumptions per AI sample until 50 real samples replace them
   estInputTokens: 10_000,
   estOutputTokens: 400,
@@ -50,7 +51,7 @@ export const GEMINI = {
   estOutputTokens: 400, // [estimate]
 } as const;
 
-/** LLM helper budgets [estimate], on gpt-5-mini rates. */
+/** LLM helper budgets [estimate]: deliberately generous ceilings on gpt-6-luna rates. */
 export const LLM_PARSE_BUDGET_USD = 0.003;
 export const LLM_FIX_KIT_BUDGET_USD = 0.02;
 
@@ -69,7 +70,7 @@ const tokens = (inTok: number, outTok: number, inPer1M: number, outPer1M: number
 
 /** [estimate] USD per AI sample (one prompt, one engine, one grid point). */
 export const AI_SAMPLE_EST_USD = {
-  openai: OPENAI.webSearchPerCall + tokens(OPENAI.estInputTokens, OPENAI.estOutputTokens, OPENAI.inputPer1M, OPENAI.outputPer1M), // ≈ 0.0133
+  openai: OPENAI.webSearchPerCall + tokens(OPENAI.estInputTokens, OPENAI.estOutputTokens, OPENAI.inputPer1M, OPENAI.outputPer1M), // ≈ 0.0112
   perplexity:
     PERPLEXITY.webSearchFastPerCall +
     tokens(PERPLEXITY.estInputTokens, PERPLEXITY.estOutputTokens, PERPLEXITY.inputPer1M, PERPLEXITY.outputPer1M), // ≈ 0.0025

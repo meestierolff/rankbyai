@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { clientIp } from "@/lib/request";
 import { verifyTurnstile } from "@/lib/turnstile";
 
 const Body = z.object({
@@ -15,14 +16,15 @@ export async function POST(request: Request) {
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid_body", message: "Please fill in the business name and a valid email." }, { status: 400 });
 
-  const ip = (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const ip = clientIp(request.headers);
   const check = await verifyTurnstile(parsed.data.turnstile_token, ip);
   if (!check.ok) return Response.json({ error: "turnstile_failed", message: "Please complete the anti-bot check." }, { status: 400 });
 
   try {
     const admin = supabaseAdmin();
-    const { data: allowed } = await admin.rpc("rate_limit_hit", { p_key: `removal:${ip}`, p_window_seconds: 3600, p_limit: 5 });
-    if (allowed === false) return Response.json({ error: "rate_limited", message: "Too many requests. Try again later." }, { status: 429 });
+    // Fail closed: anything other than an explicit "allowed" stops the write.
+    const { data: allowed, error: rlError } = await admin.rpc("rate_limit_hit", { p_key: `removal:${ip}`, p_window_seconds: 3600, p_limit: 5 });
+    if (rlError || allowed !== true) return Response.json({ error: "rate_limited", message: "Too many requests. Try again later." }, { status: 429 });
     const { error } = await admin.from("removal_requests").insert({
       business_name: parsed.data.business_name,
       url: parsed.data.url || null,

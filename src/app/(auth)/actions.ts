@@ -6,6 +6,7 @@ import { safeNextPath } from "@/lib/auth";
 import { publicEnv, supabasePublicEnv } from "@/lib/env";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { clientIp } from "@/lib/request";
 import { verifyTurnstile } from "@/lib/turnstile";
 
 export interface MagicLinkState {
@@ -28,23 +29,23 @@ export async function sendMagicLink(_prev: MagicLinkState, form: FormData): Prom
   }
 
   const h = await headers();
-  const ip = (h.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
+  const ip = clientIp(h);
 
   const turnstile = await verifyTurnstile(String(form.get("cf-turnstile-response") ?? "") || null, ip);
   if (!turnstile.ok) return { status: "error", message: "Please complete the anti-bot check and try again." };
 
-  // 5 links per email per 15 minutes, 20 per IP per hour.
+  // 5 links per email per 15 minutes, 20 per IP per hour. Fails closed.
   try {
     const admin = supabaseAdmin();
     const [byEmail, byIp] = await Promise.all([
       admin.rpc("rate_limit_hit", { p_key: `magic:email:${email}`, p_window_seconds: 900, p_limit: 5 }),
-      ip ? admin.rpc("rate_limit_hit", { p_key: `magic:ip:${ip}`, p_window_seconds: 3600, p_limit: 20 }) : Promise.resolve({ data: true }),
+      admin.rpc("rate_limit_hit", { p_key: `magic:ip:${ip}`, p_window_seconds: 3600, p_limit: 20 }),
     ]);
-    if (byEmail.data === false || byIp.data === false) {
+    if (byEmail.error || byIp.error || byEmail.data !== true || byIp.data !== true) {
       return { status: "error", message: "Too many sign-in emails. Wait a few minutes and try again." };
     }
   } catch {
-    // Rate limiting is best-effort here; Supabase Auth also rate-limits email sending.
+    return { status: "error", message: "Sign-in is temporarily unavailable. Try again in a minute." };
   }
 
   const supabase = await createSupabaseServer();

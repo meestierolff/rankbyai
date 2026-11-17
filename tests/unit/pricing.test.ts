@@ -12,23 +12,25 @@ import {
 } from "@/lib/pricing-constants";
 
 describe("vendor price constants", () => {
-  it("derives the per-sample estimates stated in the brief", () => {
-    expect(AI_SAMPLE_EST_USD.openai).toBeCloseTo(0.0133, 4);
+  // The brief's figures assumed gpt-5-mini ($0.25/$2.00). OpenAI retires it on 11 Dec 2026, so the
+  // default is gpt-6-luna ($0.10/$0.50) and every figure below follows from the constants.
+  it("derives the per-sample estimates from the vendor prices", () => {
+    expect(AI_SAMPLE_EST_USD.openai).toBeCloseTo(0.01 + (10_000 * 0.1 + 400 * 0.5) / 1e6, 6); // 0.0112
     expect(AI_SAMPLE_EST_USD.perplexity).toBeCloseTo(0.0025, 4);
     expect(AI_SAMPLE_EST_USD.geminiFree).toBeCloseTo(0.0016, 4);
     expect(AI_SAMPLE_EST_USD.geminiPaid).toBeCloseTo(0.0156, 4);
   });
 
-  it("matches the published AI grid ranges", () => {
-    const g1 = estimateAiGrid(1, ENGINES).rangeUsd;
-    const g3 = estimateAiGrid(3, ENGINES).rangeUsd;
-    const g5 = estimateAiGrid(5, ENGINES).rangeUsd;
-    expect(g1.low).toBeCloseTo(0.017, 3);
-    expect(g1.high).toBeCloseTo(0.031, 3);
-    expect(g3.low).toBeCloseTo(0.16, 2);
-    expect(g3.high).toBeCloseTo(0.28, 2);
-    expect(Math.abs(g5.low - 0.44)).toBeLessThan(0.006); // 0.435: the brief rounds up
-    expect(Math.abs(g5.high - 0.79)).toBeLessThan(0.006); // 0.785: the brief rounds up
+  it("AI grid ranges are points × the per-sample sums", () => {
+    const low = AI_SAMPLE_EST_USD.openai + AI_SAMPLE_EST_USD.perplexity + AI_SAMPLE_EST_USD.geminiFree; // ≈ 0.0153
+    const high = AI_SAMPLE_EST_USD.openai + AI_SAMPLE_EST_USD.perplexity + AI_SAMPLE_EST_USD.geminiPaid; // ≈ 0.0293
+    for (const n of [1, 3, 5] as const) {
+      const r = estimateAiGrid(n, ENGINES).rangeUsd;
+      expect(r.low).toBeCloseTo(n * n * low, 6);
+      expect(r.high).toBeCloseTo(n * n * high, 6);
+    }
+    expect(estimateAiGrid(3, ENGINES).rangeUsd.low).toBeCloseTo(0.14, 2);
+    expect(estimateAiGrid(3, ENGINES).rangeUsd.high).toBeCloseTo(0.26, 2);
   });
 
   it("matches the published Maps grid totals", () => {
@@ -40,7 +42,7 @@ describe("vendor price constants", () => {
     expect(estimateMapsGrid(9, "live").totalUsd).toBeCloseTo(0.162, 3);
   });
 
-  it("prices the comparison scenario at about $67 a year", () => {
+  it("prices the comparison scenario at about $60 a year", () => {
     const r = calculateYearlyDataCost({
       prompts: SCENARIO.clients * SCENARIO.promptsPerClient,
       aiGrid: SCENARIO.aiGrid,
@@ -50,7 +52,7 @@ describe("vendor price constants", () => {
       mapsGrid: SCENARIO.mapsGrid,
     });
     expect(r.checksPerYear).toBe(360);
-    expect(Math.round(r.totalUsdPerYear)).toBe(67);
+    expect(Math.round(r.totalUsdPerYear)).toBe(60); // 360 × 9 × 0.0153 + 360 × 49 × 0.0006
     expect(r.geminiBillablePerMonth).toBe(0);
   });
 

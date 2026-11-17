@@ -18,7 +18,9 @@ export async function GET(request: NextRequest) {
     if (!error && data.user) {
       const createdMsAgo = Date.now() - new Date(data.user.created_at).getTime();
       if (createdMsAgo < 10 * 60_000) await captureServer("signup_completed", data.user.id);
-      return NextResponse.redirect(new URL(next, origin));
+      const target = new URL(next, origin);
+      // Defence in depth: the resolved target must stay on this origin.
+      return NextResponse.redirect(target.origin === origin ? target : new URL("/app", origin));
     }
   }
   return NextResponse.redirect(new URL("/login?error=link", origin));

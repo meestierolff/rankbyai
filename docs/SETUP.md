@@ -47,7 +47,7 @@ openssl rand -hex 32      # DATAFORSEO_PINGBACK_SECRET
 
 Use the dedicated RankbyAI Stripe account. One script does the whole setup and is safe to run again: it looks up the products, prices and webhook endpoint before creating anything.
 
-**The key.** Use a restricted key (Developers → API keys → Create restricted key), not the full secret key. The site and the script need exactly these permissions, everything else stays on None:
+**The key.** Use a restricted key (Developers → API keys → Create restricted key), not the full secret key. Start with these permissions and leave everything else on None. The list comes from the calls the code makes; the dashboard's names for them can differ slightly:
 
 | Permission | Level | Used for |
 |---|---|---|
@@ -57,7 +57,9 @@ Use the dedicated RankbyAI Stripe account. One script does the whole setup and i
 | Prices | Write | Setup only: the two pack prices |
 | Webhook Endpoints | Write | Setup only: creating the endpoint and capturing its signing secret |
 
-After setup the last three can be set back to None. If a permission is missing, Stripe's refusal names it and the script prints that message.
+After setup the last three can be set back to None. If a permission is missing, Stripe's refusal names it and the script prints that message, so add that one and run the script again.
+
+**Proving the payment path.** `tests/live/stripe-live.test.ts` makes a real test-mode payment, has Stripe deliver the signed events to the running app, delivers one of them twice, and refunds it. Run it after any change to checkout or the webhook (instructions at the top of the file).
 
 Keep the key in a gitignored file, never in chat or in a command line:
 

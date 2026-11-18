@@ -122,24 +122,6 @@ console.log(`  Lifetime product   ${lifetime.product.id}  (${note(lifetime.creat
 console.log(`  Pack 25 price      ${pack25.price.id}  (${note(pack25.created)})`);
 console.log(`  Pack 100 price     ${pack100.price.id}  (${note(pack100.created)})`);
 
-/** The signing secret exists only in the response that creates the endpoint. */
-let webhookSecret = null;
-if (webhookUrl) {
-  const existing = await step("Listing webhook endpoints", async () => (await stripe.webhookEndpoints.list({ limit: 100 })).data.find((e) => e.url === webhookUrl));
-  if (existing) {
-    const missing = WEBHOOK_EVENTS.filter((e) => !existing.enabled_events.includes(e) && !existing.enabled_events.includes("*"));
-    console.log(`  Webhook endpoint   ${existing.id}  (already there, status ${existing.status})`);
-    if (missing.length) console.log(`    It does not listen for: ${missing.join(", ")}. Add them in the dashboard.`);
-    console.log("    Its signing secret cannot be read again. If STRIPE_WEBHOOK_SECRET is not stored yet, delete this endpoint in the dashboard and run this command again.");
-  } else {
-    const created = await step("Creating the webhook endpoint", () =>
-      stripe.webhookEndpoints.create({ url: webhookUrl, enabled_events: WEBHOOK_EVENTS, api_version: stripe.getApiField("version"), description: "RankbyAI purchases and refunds" }),
-    );
-    webhookSecret = created.secret ?? null;
-    console.log(`  Webhook endpoint   ${created.id}  (created, signing secret captured, not shown)`);
-  }
-}
-
 /**
  * Preflight: open a checkout page exactly as the site does, then close it at once. Nobody is
  * charged and no customer is created. It proves the key may create sessions, Stripe Tax is
@@ -167,27 +149,65 @@ if (!flag("--no-preflight")) {
   console.log("  Preflight          a checkout page opened and was closed again. Nobody was charged.");
 }
 
+const SECRET_NAMES = new Set(["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
 const values = {
   STRIPE_SECRET_KEY: key,
-  ...(webhookSecret ? { STRIPE_WEBHOOK_SECRET: webhookSecret } : {}),
   STRIPE_PRODUCT_LIFETIME: lifetime.product.id,
   STRIPE_PRICE_PACK_25: pack25.price.id,
   STRIPE_PRICE_PACK_100: pack100.price.id,
   STRIPE_TAX_CODE_SAAS: TAX_CODE,
 };
-const SECRET_NAMES = new Set(["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
+const writeEnvFile = (file, entries) => writeFileSync(file, Object.entries(entries).map(([k, v]) => `${k}=${v}`).join("\n") + "\n", { mode: 0o600 });
+/** The value goes in on stdin, so it never appears in the process list or in this output. */
+function storeInVercel(name, v) {
+  const r = spawnSync("vercel", ["env", "add", name, "--environment", vercelEnv, "--force", "--yes", SECRET_NAMES.has(name) ? "--sensitive" : "--no-sensitive"], { input: v, encoding: "utf8" });
+  return r.status === 0 ? null : (r.stderr || "").trim().split("\n").pop() || "unknown error";
+}
+
+/**
+ * The webhook endpoint comes last, after everything that can fail, and its signing secret is
+ * stored the moment it exists: Stripe shows it only in the response that creates the endpoint.
+ */
+const stored = new Set();
+if (webhookUrl) {
+  const existing = await step("Listing webhook endpoints", async () => (await stripe.webhookEndpoints.list({ limit: 100 })).data.find((e) => e.url === webhookUrl));
+  if (existing) {
+    const missing = WEBHOOK_EVENTS.filter((e) => !existing.enabled_events.includes(e) && !existing.enabled_events.includes("*"));
+    console.log(`  Webhook endpoint   ${existing.id}  (already there, status ${existing.status})`);
+    if (missing.length) console.log(`    It does not listen for: ${missing.join(", ")}. Add them in the dashboard.`);
+    console.log("    Its signing secret cannot be read again. If STRIPE_WEBHOOK_SECRET is not stored yet, delete this endpoint in the dashboard and run this command again.");
+  } else {
+    const created = await step("Creating the webhook endpoint", () =>
+      stripe.webhookEndpoints.create({ url: webhookUrl, enabled_events: WEBHOOK_EVENTS, api_version: stripe.getApiField("version"), description: "RankbyAI purchases and refunds" }),
+    );
+    if (!created.secret) stop(`Stripe created ${created.id} but returned no signing secret. Delete that endpoint in the dashboard and run this command again.`);
+    values.STRIPE_WEBHOOK_SECRET = created.secret;
+    console.log(`  Webhook endpoint   ${created.id}  (created, signing secret captured, not shown)`);
+    if (saveFile) writeEnvFile(saveFile, values);
+    if (vercelEnv) {
+      const problem = storeInVercel("STRIPE_WEBHOOK_SECRET", created.secret);
+      if (!problem) stored.add("STRIPE_WEBHOOK_SECRET");
+      else if (!saveFile) {
+        const rescue = `.env.stripe.webhook.${mode}.local`;
+        writeEnvFile(rescue, { STRIPE_WEBHOOK_SECRET: created.secret });
+        stop(`Vercel refused STRIPE_WEBHOOK_SECRET (${problem}).\n  The signing secret is safe in ${rescue} (git ignores it). Fix the Vercel problem, then add it with:\n  vercel env add STRIPE_WEBHOOK_SECRET --environment ${vercelEnv} --sensitive`);
+      }
+    }
+  }
+}
 
 if (saveFile) {
-  writeFileSync(saveFile, Object.entries(values).map(([k, v]) => `${k}=${v}`).join("\n") + "\n", { mode: 0o600 });
+  writeEnvFile(saveFile, values);
   console.log(`\nSaved ${Object.keys(values).length} values to ${saveFile} (git ignores it).`);
 }
 
 if (vercelEnv) {
   console.log(`\nStoring values in Vercel (${vercelEnv}):`);
   for (const [name, v] of Object.entries(values)) {
-    // The value goes in on stdin, so it never appears in the process list or in this output.
-    const r = spawnSync("vercel", ["env", "add", name, "--environment", vercelEnv, "--force", "--yes", SECRET_NAMES.has(name) ? "--sensitive" : "--no-sensitive"], { input: v, encoding: "utf8" });
-    if (r.status !== 0) stop(`Vercel refused ${name}. Run "vercel link" in this folder first, then run this command again.\n  ${(r.stderr || "").trim().split("\n").pop() ?? ""}`);
+    if (!stored.has(name)) {
+      const problem = storeInVercel(name, v);
+      if (problem) stop(`Vercel refused ${name}. Run "vercel link" in this folder first, then run this command again.\n  ${problem}`);
+    }
     console.log(`  ${name}`);
   }
   console.log(`\nDone. The site picks these up on the next deploy:${vercelEnv === "production" ? "  vercel deploy --prod" : "  vercel deploy"}`);

@@ -1,4 +1,6 @@
 /** Copy that must read identically everywhere it appears. */
+/** The same note where space is one short line (link-preview images). */
+export const AI_DISCLAIMER_SHORT = "AI answers vary between runs, places and time. Results come from official APIs on the date shown.";
 export const AI_DISCLAIMER_TEXT =
   "AI answers vary between runs, places and time; API results can differ from what people see in the consumer apps.";
 

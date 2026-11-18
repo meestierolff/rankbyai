@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { io } from "next/cache";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { verdict } from "@/components/report/derive";
 import { ReportBody } from "@/components/report/report-body";
 import { isDatabaseConfigured } from "@/lib/db/clients";
+import { isFirstPartyHost, normalizeHost, primaryHostOf } from "@/lib/domains";
 import { publicEnv } from "@/lib/env-public";
 import { getReportView } from "@/lib/reports";
 import { ReportViewed } from "./viewed";
@@ -28,7 +30,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const description = verdict(view);
   // White-label: no RankbyAI in the title or the link preview's site name.
   const siteName = view.brand.name ?? (view.brand.hideRankbyai ? undefined : "RankbyAI");
+  // On an agency's own report domain the preview image URLs use that domain, not the main site's.
+  // Only active domains reach this page (the proxy checks the host against the workspace first).
+  const host = normalizeHost((await headers()).get("host"));
+  const ownDomain = !isFirstPartyHost(host, primaryHostOf()) ? new URL(`https://${host}`) : null;
   return {
+    ...(ownDomain ? { metadataBase: ownDomain } : {}),
     title: view.brand.name || view.brand.hideRankbyai ? { absolute: view.brand.name ? `${title} | ${view.brand.name}` : title } : title,
     description,
     robots: ROBOTS,

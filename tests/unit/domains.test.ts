@@ -100,7 +100,7 @@ describe("paths on a custom domain (allow-list)", () => {
     expect(customDomainRoute(`/r/${SLUG_A}.rsc`)).toEqual({ kind: "report", slug: SLUG_A });
     expect(customDomainRoute(`/r/${SLUG_A}.segments/_tree.segment.rsc`)).toEqual({ kind: "report", slug: SLUG_A });
     expect(customDomainRoute(`/r/${SLUG_A}.segments/$d$slug/__PAGE__.segment`)).toEqual({ kind: "report", slug: SLUG_A });
-    for (const p of ["/_next/static/chunks/app.js", "/_next/static/media/font.woff2", "/_next/image", "/_next/something-new", "/favicon.ico", "/icon.png", "/apple-icon.png", "/icon"]) {
+    for (const p of ["/_next/static/chunks/app.js", "/_next/static/media/font.woff2", "/_next/image", "/_next/something-new", "/favicon.ico", "/icon.png", "/apple-icon.png", "/icon", "/vendor/maplibre-gl-worker.mjs"]) {
       expect(customDomainRoute(p), p).toEqual({ kind: "asset" });
     }
     expect(customDomainRoute("/robots.txt")).toEqual({ kind: "robots" });
@@ -113,7 +113,7 @@ describe("paths on a custom domain (allow-list)", () => {
       "/api/scans", "/api/v1/businesses", "/api/mcp", "/api/domains", "/api/reports/x/pdf", `/api/reports/${SLUG_A}/zip`, "/api/auth/session",
       "/r", "/r/short", `/r/${SLUG_A}/extra`, `/r/${SLUG_A}/opengraph-image/x`, "/ai/dentist/austin", "/_next/data/build/app.json",
       `/r/%2e%2e/app`, `/_next/static/%2e%2e/%2e%2e/app`, `/_next/static/..%2fapp`, "/opengraph-image", "/.well-known/jwks.json",
-      `/r/${SLUG_A}.json`, `/r/${SLUG_A}.segments`, "/r/short.rsc",
+      `/r/${SLUG_A}.json`, `/r/${SLUG_A}.segments`, "/r/short.rsc", "/vendor", "/vendor/", "/vendor/other.mjs", "/vendor/maplibre-gl-worker.mjs.map",
     ]) {
       expect(customDomainRoute(p).kind, p).toBe("blocked");
     }

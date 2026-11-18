@@ -68,6 +68,35 @@ export function verdict(view: ReportView): string {
   return parts.join(" ") || `This report has no completed checks for ${name} yet.`;
 }
 
+const cutAtWord = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max - 1).replace(/\s+\S*$/, "")}…`);
+/** Where sentences end: a full stop before a capital or digit, not after an abbreviation in a name ("Dr. Alexandra"). */
+export function sentenceEnds(s: string): number[] {
+  const out: number[] = [];
+  for (const m of s.matchAll(/\.\s+(?=[A-Z0-9“"])/g)) {
+    const word = s.slice(0, m.index).split(/\s/).pop() ?? "";
+    if (/^(dr|st|mt|mr|mrs|ms|jr|sr|co|inc|ltd|ave|no|dds|dmd)$/i.test(word) || /^[A-Z]$/.test(word)) continue;
+    out.push((m.index ?? 0) + 1);
+  }
+  return out;
+}
+
+/**
+ * The finding as it fits the image. The font steps down before anything is cut; past the smallest
+ * size it keeps whole sentences, else the part before a "; " (each part of an opener is a complete
+ * claim), else cuts at a word. Character budgets are per text width (measured 18 Nov 2026).
+ */
+export function fitVerdict(text: string, wide: boolean): { text: string; size: number } {
+  const steps: [number, number][] = wide ? [[27, 220], [24, 290]] : [[27, 150], [24, 205], [22, 250]];
+  const max = steps[steps.length - 1][1];
+  let t = text;
+  if (t.length > max) {
+    const end = sentenceEnds(t).filter((i) => i <= max).pop();
+    const clause = t.lastIndexOf("; ", max);
+    t = end && end > max * 0.4 ? t.slice(0, end) : clause > max * 0.4 ? `${t.slice(0, clause)}.` : cutAtWord(t, max);
+  }
+  return { text: t, size: (steps.find(([, m]) => t.length <= m) ?? steps[steps.length - 1])[0] };
+}
+
 export interface HeadlineStat {
   key: "ai" | "maps" | "audit";
   /** Big figure, e.g. "2" (with `of` = "9"), "#4" or "54". */

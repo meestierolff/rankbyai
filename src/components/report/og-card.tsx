@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { DATA_HEX } from "@/components/brand/grid";
-import { brandTextOnDark, fmtDay, headlineStats, placeOf, verdict } from "./derive";
+import { AI_DISCLAIMER_SHORT } from "@/lib/copy";
+import { brandTextOnDark, fitVerdict, fmtDay, headlineStats, placeOf, verdict } from "./derive";
 import { aiPointLook, mapsPointLook } from "./model";
 import type { ReportView } from "./types";
 
@@ -13,12 +14,6 @@ const HEX: Record<string, string> = {
 };
 const hex = (c: string) => HEX[c] ?? (/^#[0-9a-f]{3,8}$/i.test(c) ? c : "transparent");
 const cut = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max - 1).replace(/\s+\S*$/, "")}…`);
-/** Whole sentences when they fit, else a cut at a word. */
-const cutSentences = (s: string, max: number) => {
-  if (s.length <= max) return s;
-  const end = s.slice(0, max).lastIndexOf(". ");
-  return end > max * 0.45 ? s.slice(0, end + 1) : cut(s, max);
-};
 
 function MiniGrid({ view }: { view: ReportView }) {
   const ai = view.ai && view.ai.n > 1 ? view.ai : null;
@@ -86,10 +81,13 @@ export function reportOgImage(view: ReportView): ImageResponse {
   const name = view.business.name;
   const nameSize = name.length <= 26 ? 66 : name.length <= 44 ? 54 : 44;
   const meta = [view.business.category, placeOf(view)].filter(Boolean).join(" · ");
-  const hasGrid = (view.ai && view.ai.n > 1) || (view.maps && !view.maps.single && view.maps.n > 1);
+  const hasGrid = !!((view.ai && view.ai.n > 1) || (view.maps && !view.maps.single && view.maps.n > 1));
+  const finding = fitVerdict(verdict(view), !hasGrid);
+  // AI results are shown, so the "AI answers vary" note is shown with them.
+  const aiShown = stats.some((s) => s.key === "ai");
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#000000", color: "#f4f2ee", padding: "48px 60px" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#000000", color: "#f4f2ee", padding: aiShown ? "42px 60px 30px" : "48px 60px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <BrandMark view={view} />
           <div style={{ display: "flex", fontSize: 20, color: "#8f8f8f", letterSpacing: 1.5, textTransform: "uppercase" }}>
@@ -101,7 +99,7 @@ export function reportOgImage(view: ReportView): ImageResponse {
           <div style={{ display: "flex", flexDirection: "column", gap: 16, width: hasGrid ? 720 : 1080 }}>
             <div style={{ display: "flex", fontSize: nameSize, lineHeight: 1.04, letterSpacing: -2 }}>{cut(name, 70)}</div>
             {meta ? <div style={{ display: "flex", fontSize: 24, color: "#8f8f8f" }}>{cut(meta, 60)}</div> : null}
-            <div style={{ display: "flex", fontSize: 27, lineHeight: 1.35, color: "#d6d3ce", marginTop: 6 }}>{cutSentences(verdict(view), hasGrid ? 165 : 220)}</div>
+            <div style={{ display: "flex", fontSize: finding.size, lineHeight: 1.35, color: "#d6d3ce", marginTop: 6 }}>{finding.text}</div>
           </div>
           {hasGrid ? <MiniGrid view={view} /> : null}
         </div>
@@ -118,6 +116,7 @@ export function reportOgImage(view: ReportView): ImageResponse {
             </div>
           ))}
         </div>
+        {aiShown ? <div style={{ display: "flex", fontSize: 16, color: "#6b6b6b", marginTop: -8 }}>{AI_DISCLAIMER_SHORT}</div> : null}
       </div>
     ),
     { ...OG_SIZE, headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" } },

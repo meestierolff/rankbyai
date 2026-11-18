@@ -209,6 +209,20 @@ function whiteLabel(): ReportView {
   };
 }
 
+/** An outreach report for a long name that starts with an abbreviation: the opener is long and has "Dr. " in it. */
+function prospectLong(): ReportView {
+  const name = "Dr. Alexandra Papadopoulos Family & Cosmetic Dentistry of North Austin";
+  const ai = aiPart({ n: 5, engines: ENGINES, radiusMiles: 3, you: (r, c, e) => (r === 2 && c === 2 && e === "gemini" ? 3 : null) }, name);
+  const maps = mapsPart({ n: 9, radiusMiles: 3, strength: 0.4 }, name);
+  const opener = pitchOpener({
+    business: name, city: "Austin",
+    ai: { points: ai.pointsChecked, pointsMentioned: ai.pointsMentioned, topCompetitor: ai.namedInstead[0]?.name ?? null },
+    maps: { points: maps.pointsDone, top3Points: maps.top3Points, avgRank: maps.avgRank },
+    reviews: { you: 21, median: 140 },
+  });
+  return { kind: "prospect", watermark: false, business: { ...business, name }, brand: brandNone, opener, ai, maps, audit: quickAudit, updatedAt: day };
+}
+
 function big(): ReportView {
   // A lake on the east side: those points were skipped by the user. Three points returned no result.
   const lake = (r: number, c: number) => c >= 11 && r >= 4 && r <= 10 && c - r > 2;
@@ -231,6 +245,7 @@ export const VARIANTS = {
   "maps-only": { title: "Maps only (no AI keys), no audit", build: mapsOnly },
   free: { title: "Free check (1×1, one engine unavailable)", build: freeCheck },
   "white-label": { title: "White-labelled (logo, colour, website, hide RankbyAI), AI 5×5 + Maps 9×9, long name", build: whiteLabel },
+  "prospect-long": { title: "Outreach report, long name starting with \"Dr.\", long opener", build: prospectLong },
   big: { title: "15×15 Maps grid with skipped and failed points; AI 3×3 with a skipped point", build: big },
   "no-coords": { title: "AI only, business without coordinates or city, never named", build: noCoords },
 } as const;

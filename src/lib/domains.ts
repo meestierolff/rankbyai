@@ -157,7 +157,8 @@ export type CustomDomainRoute =
 /**
  * What a path on a custom domain is. An allow-list: anything not named here is blocked.
  * Allowed: /r/{slug} (with its opengraph/twitter image, its PDF at /r/{slug}/pdf, and Next's
- * .rsc/.segments transport forms), the older PDF route /api/reports/{slug}/pdf, everything under /_next/ except /_next/data/, the icons, robots.txt, and /
+ * .rsc/.segments transport forms), the older PDF route /api/reports/{slug}/pdf, everything under /_next/ except /_next/data/, the icons,
+ * the report map's web worker, robots.txt, and /
  * (which may redirect to the agency's website).
  */
 export function customDomainRoute(path: string): CustomDomainRoute {
@@ -168,6 +169,8 @@ export function customDomainRoute(path: string): CustomDomainRoute {
   // /_next/data/ is the pages router's data route (this app has none); Next can map it onto a page path.
   if (path.startsWith("/_next/")) return path.startsWith("/_next/data/") ? { kind: "blocked" } : { kind: "asset" };
   if (/^\/(favicon\.ico|(apple-)?icon([\w-]*\.(png|ico|svg|jpe?g))?)$/.test(path)) return { kind: "asset" };
+  // The report map's web worker, a static file copied to public/vendor at install (scripts/copy-map-worker.mjs).
+  if (path === "/vendor/maplibre-gl-worker.mjs") return { kind: "asset" };
   const report =
     path.match(/^\/r\/([^/.]+)(?:\/(?:opengraph-image|twitter-image)(?:-[\w-]+)?(?:\.\w+)?|\/pdf|\.rsc|\.segments\/.+\.segment(?:\.rsc)?)?\/?$/) ??
     path.match(/^\/api\/reports\/([^/]+)\/pdf\/?$/);

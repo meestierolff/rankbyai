@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { VARIANTS, type VariantKey } from "@/app/dev/report-preview/fixtures";
-import { contrastRatio, headlineStats, quoteBlocks, splitBlocks, textOn, verdict } from "@/components/report/derive";
+import { contrastRatio, fitVerdict, headlineStats, quoteBlocks, sentenceEnds, splitBlocks, textOn, verdict } from "@/components/report/derive";
 import {
   aiCounts, buildAiPoints, buildMapsPoints, buildQuote, mapsCounts, nearestPoint, recommendedFrom, safeHttpUrl, type QuoteRow, type RawPoint, type RawSample,
 } from "@/components/report/model";
@@ -142,5 +142,33 @@ describe("report page", () => {
     const out = html(VARIANTS.full.build());
     expect(out).toContain(`href="${SITE}"`);
     expect(out).toContain(NOT_AFFILIATED);
+  });
+});
+
+describe("link-preview finding", () => {
+  const long = "At 24 of 25 spots around Austin, AI assistants named Smile Dental and not Dr. Alexandra Papadopoulos Family & Cosmetic Dentistry of North Austin; it is outside the Google Maps top 3 at 74 of 81 spots. It has 21 reviews against a map-pack median of 112.";
+  it("does not end a sentence at an abbreviation in a name", () => {
+    expect(sentenceEnds("Named Dr. Alexandra Smith at 3. It has 21 reviews.")).toEqual([31]);
+    expect(sentenceEnds("Named J. Smith Dental. Then more.")).toEqual([22]);
+  });
+  it("keeps short findings whole at the largest size", () => {
+    expect(fitVerdict("AI assistants named the business at 2 of 9 points.", false)).toEqual({ text: "AI assistants named the business at 2 of 9 points.", size: 27 });
+  });
+  it("steps the font down, then keeps whole sentences, never cutting at Dr.", () => {
+    const f = fitVerdict(long, false);
+    expect(f.text.endsWith("74 of 81 spots.")).toBe(true);
+    expect(f.size).toBeLessThan(27);
+    expect(f.text).not.toMatch(/Dr\.$/);
+  });
+  it("falls back to the claim before a semicolon", () => {
+    const one = long.split(" It has")[0].replace("74 of 81", "74 of 81 spots and on every one of the nine nearest streets to the practice, a long clause that keeps going past the budget for");
+    const f = fitVerdict(one, false);
+    expect(f.text).toBe("At 24 of 25 spots around Austin, AI assistants named Smile Dental and not Dr. Alexandra Papadopoulos Family & Cosmetic Dentistry of North Austin.");
+  });
+  it("every preview variant's finding fits the budget", () => {
+    for (const key of Object.keys(VARIANTS) as VariantKey[]) {
+      const f = fitVerdict(verdict(VARIANTS[key].build()), false);
+      expect(f.text.length, key).toBeLessThanOrEqual(250);
+    }
   });
 });

@@ -140,8 +140,10 @@ if (!flag("--no-preflight")) {
       customer_email: "preflight@example.com",
       customer_creation: "always",
       metadata: { rankbyai_preflight: "1" },
+      payment_intent_data: { metadata: { rankbyai_preflight: "1" } },
       success_url: "https://example.com/ok",
       cancel_url: "https://example.com/cancel",
+      expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
       line_items: [{ quantity: 1, price_data: { currency: "usd", product: lifetime.product.id, unit_amount: 2900, tax_behavior: "exclusive" } }],
     }),
   );

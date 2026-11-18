@@ -10,7 +10,7 @@ import { CREDIT_COST, DATAFORSEO_BUSINESS_INFO_PER_CALL, DATAFORSEO_MAPS_PER_POI
 import { mapsLive, type MapsItem } from "@/lib/providers/dataforseo";
 import { mockMapsItems } from "@/lib/providers/mock-data";
 import { createScan, processScan } from "@/lib/scans/engine";
-import { namesMatch } from "@/lib/scans/match";
+import { namesMatch, normalizeDomain } from "@/lib/scans/match";
 import type { AiSummary, MapsSummary } from "@/lib/scans/summary";
 import type { CsvRow } from "./csv";
 import { pitchOpener } from "./opener";
@@ -115,7 +115,12 @@ export async function resolveRows(input: { workspaceId: string; funding: BatchFu
           items = r.items;
           costUsd += r.costUsd;
         }
-        const hit = (row.place_id ? items.find((i) => i.placeId === row.place_id) : null) ?? items.find((i) => namesMatch(i.name, row.name));
+        // The listing named like the row, else the listing whose website is the row's website (Maps names are
+        // often stuffed with keywords; a business's own site rarely matches another business).
+        const site = normalizeDomain(row.website || null);
+        const hit = (row.place_id ? items.find((i) => i.placeId === row.place_id) : null)
+          ?? items.find((i) => namesMatch(i.name, row.name))
+          ?? (site ? items.find((i) => normalizeDomain(i.url) === site || normalizeDomain(i.domain) === site) : undefined);
         if (hit && hit.lat != null && hit.lng != null) resolved.push({ ...toCandidate(hit), country: hit.country ?? country, website: hit.url ?? (row.website || null) ?? (hit.domain ? `https://${hit.domain}` : null), phone: hit.phone ?? (row.phone || null), rank: null });
         else unresolved.push({ name: row.name, city: row.city, reason: "No Google Maps listing with this name was found in this city." });
       } catch {

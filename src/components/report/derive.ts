@@ -125,6 +125,15 @@ export function fixPrompt(view: ReportView): string | null {
   const category = oneLine(business.category, 60).toLowerCase();
   const keyword = maps?.keyword ? oneLine(maps.keyword, 80) : null;
   const near = city ? `around ${city}` : "around the business";
+  // The listing's website often carries tracking parameters (?utm_source=gbp...): origin and path only.
+  const website = (() => {
+    try {
+      const u = new URL(business.website ?? "");
+      return oneLine(`${u.origin}${u.pathname === "/" ? "" : u.pathname}`, 200);
+    } catch {
+      return "";
+    }
+  })();
   const findings = (audit?.findings ?? []).filter((f) => f.fix.trim());
   const aiShort = ai && ai.pointsChecked > 0 && ai.pointsMentioned < ai.pointsChecked;
   const mapsShort = maps && !maps.single && maps.pointsDone > 0 && maps.top3Points < maps.pointsDone;
@@ -132,7 +141,7 @@ export function fixPrompt(view: ReportView): string | null {
 
   const what = [category, place && `in ${place}`].filter(Boolean).join(" ");
   const lines: string[] = [];
-  lines.push(`This is about ${name}${what ? `, a ${what}` : ""}.${business.website ? ` Website: ${oneLine(business.website, 200)}` : ""}`);
+  lines.push(`This is about ${name}${what ? `, a ${what}` : ""}.${website ? ` Website: ${website}` : ""}`);
   lines.push(`An AI visibility report from ${dataDates(view)} found this:`);
   lines.push("");
   if (ai && ai.pointsChecked > 0) {

@@ -82,7 +82,7 @@ export interface AiQuote {
 export interface ReportView {
   kind: "share" | "prospect" | "free_check";
   watermark: boolean;
-  business: { name: string; city: string | null; region: string | null; category: string | null; lat: number | null; lng: number | null };
+  business: { name: string; city: string | null; region: string | null; category: string | null; lat: number | null; lng: number | null; website?: string | null };
   brand: { name: string | null; logoUrl: string | null; color: string | null; website: string | null; hideRankbyai: boolean };
   opener: string | null;
   ai: {

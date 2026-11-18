@@ -42,7 +42,7 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
   if (!report || !report.business_id) return null;
 
   const [{ data: business }, { data: ws }] = await Promise.all([
-    admin.from("businesses").select("id, name, city, region, primary_category, lat, lng").eq("id", report.business_id).maybeSingle(),
+    admin.from("businesses").select("id, name, city, region, primary_category, lat, lng, website").eq("id", report.business_id).maybeSingle(),
     report.workspace_id
       ? admin.from("workspaces").select("brand_name, brand_logo_path, brand_color_hex, brand_website, hide_rankbyai_branding, plan").eq("id", report.workspace_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -122,7 +122,7 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
   return {
     kind: report.kind,
     watermark: report.watermark,
-    business: { name: business.name, city: business.city, region: business.region, category: business.primary_category, lat: businessAt?.lat ?? null, lng: businessAt?.lng ?? null },
+    business: { name: business.name, city: business.city, region: business.region, category: business.primary_category, lat: businessAt?.lat ?? null, lng: businessAt?.lng ?? null, website: safeHttpUrl(business.website) },
     // White-label applies to paid workspaces only; a free check always carries RankbyAI branding.
     brand: {
       name: lifetime ? (ws?.brand_name ?? null) : null,

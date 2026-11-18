@@ -82,7 +82,10 @@ export default function ApiDocsPage() {
         <section className="flex flex-col gap-4" aria-labelledby="reports">
           <h2 id="reports" className={h2}>Share links and PDFs of prospect reports</h2>
           <p className={p}>
-            <code className={code}>GET /api/v1/prospects/{"{id}"}</code> (MCP: <code className={code}>get_prospect_batch</code>) lists the reports of a batch. Each finished report has <code className={code}>report_url</code>: its live share link, which anyone with the link can open and which shows your white-label branding. The PDF of a report is downloaded in the app, on the batch page under Prospects; the API does not serve PDF files.
+            <code className={code}>GET /api/v1/prospects/{"{id}"}</code> (MCP: <code className={code}>get_prospect_batch</code>) lists the reports of a batch. Each finished report has <code className={code}>report_url</code>: its live share link, which anyone with the link can open and which shows your white-label branding. Its PDF is at the same address plus <code className={code}>/pdf</code>.
+          </p>
+          <p className={p}>
+            <code className={code}>POST /api/v1/prospects</code> (MCP: <code className={code}>create_prospect_batch</code>) works two ways. With <code className={code}>niche</code> and <code className={code}>city</code> it searches Google Maps and reports on the first <code className={code}>max_reports</code> businesses outside the top 3. With <code className={code}>niche</code> and <code className={code}>businesses</code> (a list of name and city) it looks each one up and reports on those it finds, wherever they rank; names it cannot find come back in <code className={code}>unresolved</code> and are not charged. <code className={code}>niche</code> is the service the AI assistants are asked about.
           </p>
           <p className={p}>
             Deleting a business (<code className={code}>DELETE /api/v1/businesses/{"{id}"}</code>, MCP: <code className={code}>delete_business</code>) is free and needs no confirm. It also deletes the scans, audits, Fix Kits, schedules and reports of that business, its share links stop working, and it cannot be undone.

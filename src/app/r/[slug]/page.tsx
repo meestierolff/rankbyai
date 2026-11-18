@@ -11,6 +11,9 @@ import { publicEnv } from "@/lib/env-public";
 import { getReportView } from "@/lib/reports";
 import { ReportViewed } from "./viewed";
 
+/** Tab icon of a white-label report without a logo: a plain dark tile, no RankbyAI mark. */
+const NEUTRAL_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1a1a1a"/></svg>')}`;
+
 // Share links are unguessable and never indexed.
 const ROBOTS: Metadata["robots"] = { index: false, follow: false, nocache: true };
 
@@ -36,6 +39,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const ownDomain = !isFirstPartyHost(host, primaryHostOf()) ? new URL(`https://${host}`) : null;
   return {
     ...(ownDomain ? { metadataBase: ownDomain } : {}),
+    // White-label: the agency's logo as the tab icon, never the RankbyAI mark.
+    ...(view.brand.name || view.brand.hideRankbyai
+      ? { icons: view.brand.logoUrl ? { icon: [{ url: view.brand.logoUrl }], apple: [{ url: view.brand.logoUrl }] } : { icon: [{ url: NEUTRAL_ICON }] } }
+      : {}),
     title: view.brand.name || view.brand.hideRankbyai ? { absolute: view.brand.name ? `${title} | ${view.brand.name}` : title } : title,
     description,
     robots: ROBOTS,

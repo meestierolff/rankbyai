@@ -11,7 +11,7 @@ export type AnalyticsEvent =
   | "checkout_started" | "price_changed_shown" | "purchase_completed" | "refund_processed"
   | "scan_estimated" | "scan_completed" | "compare_viewed" | "audit_completed" | "fixkit_copied"
   | "share_link_viewed" | "pdf_downloaded" | "prospect_batch_started" | "csv_exported"
-  | "api_key_created" | "mcp_tool_called";
+  | "api_key_created" | "mcp_tool_called" | "fix_prompt_copied";
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 type PH = { capture: (e: string, p?: Props) => void };

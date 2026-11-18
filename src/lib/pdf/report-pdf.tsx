@@ -2,7 +2,7 @@ import "server-only";
 import { Circle, Document, Font, Image, Link, Page, Rect, StyleSheet, Svg, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import QRCode from "qrcode";
 import { DATA_HEX } from "@/components/brand/grid";
-import { dataDates, fmtDay, headlineStats, isHex6, orList, placeOf, quoteBlocks, verdict, type HeadlineStat, type QuoteBlock } from "@/components/report/derive";
+import { dataDates, fixPrompt, fmtDay, headlineStats, isHex6, orList, placeOf, quoteBlocks, verdict, type HeadlineStat, type QuoteBlock } from "@/components/report/derive";
 import { aiPointLook, mapsPointLook } from "@/components/report/model";
 import type { QuotedAnswer, ReportView } from "@/components/report/types";
 import { AI_DISCLAIMER_TEXT, NOT_AFFILIATED } from "@/lib/copy";
@@ -445,6 +445,9 @@ export function ReportDocument({ view, liveUrl, logo }: { view: ReportView; live
             <>
               <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold" }}>Want these fixed?</Text>
               <Text style={{ fontSize: 9.5, color: BODY, marginTop: 3 }}>Share this report with your marketing agency or web developer. Everything they need is in it, and the live link below always opens the report.</Text>
+              {!view.brand.name && fixPrompt(view) ? (
+                <Text style={{ fontSize: 9.5, color: BODY, marginTop: 4 }}>Doing it yourself? The live report has every fix written as one prompt to paste into ChatGPT, Claude or Gemini.</Text>
+              ) : null}
               {showRankbyai ? (
                 <Text style={{ fontSize: 9, color: MUTED, marginTop: 6 }}>
                   {view.kind === "free_check" ? "This was one point. A full report checks a grid of points around the business and audits it: " : "Agencies make reports like this for every prospect with RankbyAI: "}

@@ -256,6 +256,24 @@ describe("REST: businesses, scans, audits, prospects, usage", () => {
     expect((await rest("GET", `/prospects/${run.body.batch_id}`, { key: keyB })).status).toBe(404);
   });
 
+  it("reports on named businesses (named mode) and returns the names it could not find", async () => {
+    const body = { niche: "seo agency", businesses: [{ name: "Brightline Local", city: "Austin, TX" }, { name: "Closed Agency", city: "Austin, TX" }] };
+    const estimate = await rest("POST", "/prospects", { body });
+    expect(estimate.body.confirm_required).toBe(true);
+    expect(estimate.body.estimate).toMatchObject({ reports: 2, credits: 4 });
+    expect(await sql("select 1 from public.prospect_batches")).toEqual([]);
+    const run = await rest("POST", "/prospects", { body: { ...body, confirm: true } });
+    expect(run.status).toBe(202);
+    expect(run.body.reports).toBe(1);
+    expect(run.body.unresolved).toEqual([expect.objectContaining({ name: "Closed Agency" })]);
+    await drain();
+    const batch = await rest("GET", `/prospects/${run.body.batch_id}`);
+    expect(batch.body.batch).toMatchObject({ status: "done", total: 1, done: 1, mode: "csv" });
+    expect(batch.body.reports[0]).toMatchObject({ business: "Brightline Local", status: "done" });
+    expect(batch.body.reports[0].report_url).toMatch(/\/r\/[A-Za-z0-9_-]{12,}$/);
+    expect((await rest("POST", "/prospects", { body: { niche: "seo agency" } })).status).toBe(400);
+  });
+
   it("reports this month's own-key spend per provider and the credits left", async () => {
     const id = await seedBusiness(a, keyA);
     await sql("insert into public.credit_ledger (workspace_id, delta, reason) values ($1, 7, 'pack')", [a.workspaceId]);

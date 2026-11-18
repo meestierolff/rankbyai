@@ -15,7 +15,7 @@ export default function PrivacyPage() {
     <ProsePage
       eyebrow="Legal"
       title="Privacy Policy"
-      updated="17 November 2026"
+      updated="18 November 2026"
       intro="This page says what personal data RankbyAI collects, why we collect it, who handles it for us and what your rights are under the EU General Data Protection Regulation (GDPR)."
     >
       <h2>1. Who is responsible</h2>
@@ -151,7 +151,7 @@ export default function PrivacyPage() {
           </tr>
           <tr>
             <td>Vercel</td>
-            <td>Hosting of the site and the app.</td>
+            <td>Hosting of the site and the app, and Web Analytics (counts of page views, without cookies). See section 6.</td>
           </tr>
           <tr>
             <td>Stripe</td>
@@ -222,6 +222,12 @@ export default function PrivacyPage() {
         <li>We do not record sessions, and we do not capture clicks or typing automatically.</li>
         <li>Your choice is saved in your browser&rsquo;s local storage. To change it, clear the site data for rankbyai.live and you will be asked again.</li>
       </ul>
+      <h3>Vercel Web Analytics</h3>
+      <p>
+        Vercel Web Analytics counts page views, which pages are visited and where visits come from (the referring site, country and device type). It sets no cookies and stores nothing on
+        your device. According to Vercel, a visit is told apart by a hash of the request that is discarded after 24 hours. It runs on every page, including report links, and is not
+        controlled by the analytics choice above.
+      </p>
       <h3>Ship or Die hackathon tracker</h3>
       <p>
         RankbyAI takes part in the Ship or Die hackathon. The hackathon requires its tracker script on every page, to measure traffic to the site. The script is run by the hackathon, not by us.

@@ -202,8 +202,17 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("create_prospect_batch", {
     title: "Create prospect reports",
-    description: "For agencies looking for clients: find businesses for a niche and a city and build a report for each of the first max_reports that are outside the Google Maps top 3 (Maps 5×5 grid, AI 3×3 grid, quick audit and a factual one-sentence opener). 2 credits per report or the user's own keys. Costs money: without confirm it returns the estimate only. RankbyAI does not contact the businesses; outreach is the user's own responsibility.",
-    inputSchema: z.object({ niche: z.string().min(2).max(80), city: z.string().min(2).max(120), country, max_reports: z.number().int().min(1).max(50).default(10), funding, confirm }),
+    description: "For agencies looking for clients: build a report (Maps 5×5 grid, AI 3×3 grid, quick audit and a factual one-sentence opener) for businesses. Either search: give niche and city, and reports are built for the first max_reports businesses outside the Google Maps top 3. Or name them: give niche and businesses [{name, city}], and each one found on Google Maps gets a report (for example a business a lead asked about, or the lead's own business, with niche set to what it sells). 2 credits per report or the user's own keys. Costs money: without confirm it returns the estimate only. RankbyAI does not contact the businesses; outreach is the user's own responsibility.",
+    inputSchema: z.object({
+      niche: z.string().min(2).max(80).describe("The service the AI assistants are asked about and the Google Maps keyword, e.g. dentist or seo agency"),
+      city: z.string().min(2).max(120).optional().describe("Search mode: the city to search. Not needed with businesses."),
+      country,
+      max_reports: z.number().int().min(1).max(50).default(10).describe("Search mode only"),
+      businesses: z.array(z.object({ name: z.string().min(2).max(160), city: z.string().min(2).max(120), country: country.optional(), website: z.string().max(300).optional() })).min(1).max(20).optional()
+        .describe("Named mode: the businesses to report on, each looked up on Google Maps by name and city"),
+      funding,
+      confirm,
+    }),
   }, (a) => reply("create_prospect_batch", () => core.createProspectsOp(caller, a, defer)));
 
   server.registerTool("list_prospect_batches", {

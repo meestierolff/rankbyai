@@ -4,9 +4,9 @@ import { Bezel, DotMark, LpWordmark, creamClass, outlineClass } from "@/componen
 import { NOT_AFFILIATED } from "@/lib/copy";
 import { ENGINE_LABEL } from "@/lib/pricing-constants";
 import { cn } from "@/lib/utils";
-import { CopyLinkButton, PdfLink } from "./actions";
+import { CopyLinkButton, FixPromptBlock, PdfLink } from "./actions";
 import {
-  brandTextOnDark, dataDates, fmtDay, headlineStats, isHex6, orList, placeOf, quoteBlocks, splitBlocks, textOn, verdict, wordCount,
+  brandTextOnDark, dataDates, fixPrompt, fmtDay, headlineStats, isHex6, orList, placeOf, quoteBlocks, splitBlocks, textOn, verdict, wordCount,
   type HeadlineStat, type QuoteBlock,
 } from "./derive";
 import { MapSection } from "./map-section";
@@ -34,7 +34,9 @@ export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHr
   const instead = insteadRows(view);
   const said = !!ai?.quote && ai.quote.answers.some((a) => a.state !== "no_answer");
   // Sections are numbered in the order they appear; absent sections take no number.
-  const shown = { map: !!(aiGrid || mapsGrid), instead: !!instead, said, maps1: !!maps?.single, sources: !!ai?.sources.length, fix: !!audit };
+  // White-label reports leave the prompt out: the agency's own call to action is to do the fixes for the client.
+  const prompt = whiteLabel ? null : fixPrompt(view);
+  const shown = { map: !!(aiGrid || mapsGrid), instead: !!instead, said, maps1: !!maps?.single, sources: !!ai?.sources.length, fix: !!audit, fixai: !!prompt };
   const order = (Object.keys(shown) as (keyof typeof shown)[]).filter((k) => shown[k]);
   const num = (k: keyof typeof shown) => String(order.indexOf(k) + 1).padStart(2, "0");
 
@@ -210,6 +212,15 @@ export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHr
                 <p className="m-0 self-center text-[16px] text-lp-muted">No high-priority issues were found.</p>
               )}
             </div>
+          </section>
+        ) : null}
+
+        {/* ── Fix it with an AI assistant ── */}
+        {prompt ? (
+          <section aria-labelledby="fixai-h" className="flex flex-col gap-6">
+            <SectionHead id="fixai-h" n={num("fixai")} eyebrow="Fix it with AI" style={eyebrowStyle} title="Hand this to your AI assistant"
+              lead="Everything this report found, written as instructions. The assistant gives each change ready to paste and waits for your OK before the next one." />
+            <FixPromptBlock text={prompt} kind={view.kind} />
           </section>
         ) : null}
 

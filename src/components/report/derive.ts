@@ -103,6 +103,49 @@ export function fitVerdict(text: string, wide: boolean): { text: string; size: n
   return { text: t, size: (steps.find(([, m]) => t.length <= m) ?? steps[steps.length - 1])[0] };
 }
 
+/**
+ * A prompt the business (or whoever does its marketing) can paste into an AI assistant to get the
+ * fixes done. Built only from this report's own numbers, names and audit findings, so it states
+ * nothing the report does not. The live report's address is added by the copy button (the page
+ * knows the address it is served on, custom domains included). Null when there is nothing to fix.
+ */
+export function fixPrompt(view: ReportView): string | null {
+  const { business, ai, maps, audit } = view;
+  const findings = (audit?.findings ?? []).filter((f) => f.fix.trim());
+  const aiShort = ai && ai.pointsChecked > 0 && ai.pointsMentioned < ai.pointsChecked;
+  const mapsShort = maps && !maps.single && maps.pointsDone > 0 && maps.top3Points < maps.pointsDone;
+  if (!findings.length && !aiShort && !mapsShort) return null;
+
+  const what = [business.category?.toLowerCase(), placeOf(view) && `in ${placeOf(view)}`].filter(Boolean).join(" ");
+  const lines: string[] = [];
+  lines.push(`This is about ${business.name}${what ? `, a ${what}` : ""}.${business.website ? ` Website: ${business.website}` : ""}`);
+  lines.push(`An AI visibility report from ${dataDates(view)} found this:`);
+  lines.push("");
+  if (ai && ai.pointsChecked > 0) {
+    const engines = orList(ai.engines.filter((e) => e.available).map((e) => e.label), "and") || "AI assistants";
+    const rival = topRival(view);
+    lines.push(`- Asked to recommend ${ai.service ? `a ${ai.service}` : "a business like it"} from ${ai.pointsChecked} points ${around(view)}, ${engines} named ${business.name} at ${ai.pointsMentioned} of them.${rival ? ` ${rival.name} was named at ${rival.points}.` : ""}`);
+  }
+  if (maps && !maps.single && maps.pointsDone > 0) lines.push(`- On Google Maps it is in the top 3 for ${quoteMark(maps.keyword)} at ${maps.top3Points} of ${maps.pointsDone} points.`);
+  if (maps?.single) lines.push(maps.single.rank != null && maps.single.rank <= 20 ? `- On Google Maps it ranks #${maps.single.rank} for ${quoteMark(maps.keyword)} at the business location.` : `- On Google Maps it is not in the top 20 for ${quoteMark(maps.keyword)} at the business location.`);
+  if (ai?.sources.length) lines.push(`- The sites the AI assistants cited most: ${ai.sources.slice(0, 6).map((s) => s.domain).join(", ")}.`);
+  if (audit) lines.push(`- Audit score of the Google profile and website: ${audit.score} out of 100.`);
+  if (findings.length) {
+    lines.push("");
+    lines.push("Fixes from the audit, highest priority first:");
+    findings.forEach((f, i) => lines.push(`${i + 1}. [${f.priority}] ${f.title}. ${f.fix}`));
+  }
+  lines.push("");
+  lines.push("Help me make these changes so AI assistants and Google Maps can recommend this business. Work through them in order. For each one:");
+  lines.push("1. Say where the change goes (the Google Business Profile, a page on the website, the website code, or a listing on another site).");
+  lines.push("2. Give me the exact text, code or setting, ready to paste.");
+  lines.push("3. Wait for me to confirm before moving on.");
+  if (ai?.sources.length) lines.push("Then check that the business is listed, with the same name, address and phone number, on the cited sites above.");
+  lines.push("");
+  lines.push("Use only facts I give you or that are already on the website. Do not invent reviews, ratings, prices, awards or claims. When you need a fact (opening hours, services, prices, address), ask me.");
+  return lines.join("\n");
+}
+
 export interface HeadlineStat {
   key: "ai" | "maps" | "audit";
   /** Big figure, e.g. "2" (with `of` = "9"), "#4" or "54". */

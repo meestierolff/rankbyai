@@ -171,9 +171,13 @@ export function openApiSpec(siteUrl: string) {
         },
         post: {
           operationId: "createProspectBatch", tags: ["Prospects"], summary: "Estimate or start a prospect batch",
-          description: "Finds businesses for a niche and a city and builds a report for the first `max_reports` that are outside the Google Maps top 3. 2 credits per report, or your own keys.",
-          requestBody: { required: true, content: json(obj({ niche: { type: "string" }, city: { type: "string" }, country: { type: "string", enum: [...COUNTRY_CODES], default: "US" }, max_reports: { type: "integer", minimum: 1, maximum: 50, default: 10 }, funding, confirm }, ["niche", "city"])) },
-          responses: estimateOr("202", "The batch was started.", obj({ batch_id: uuid, status: { type: "string" }, reports: { type: "integer" }, businesses_found: { type: "integer" }, estimate: ref("Estimate") })),
+          description: "Search mode: finds businesses for `niche` in `city` and builds a report for the first `max_reports` that are outside the Google Maps top 3. Named mode: give `businesses` instead of `city`; each is looked up on Google Maps by name and city and gets a report wherever it ranks, and names that are not found come back in `unresolved`. `niche` is the service the AI assistants are asked about. 2 credits per report, or your own keys.",
+          requestBody: { required: true, content: json(obj({
+            niche: { type: "string" }, city: { type: "string" }, country: { type: "string", enum: [...COUNTRY_CODES], default: "US" }, max_reports: { type: "integer", minimum: 1, maximum: 50, default: 10 },
+            businesses: { type: "array", minItems: 1, maxItems: 20, items: obj({ name: { type: "string" }, city: { type: "string" }, country: { type: "string", enum: [...COUNTRY_CODES] }, website: { type: "string" } }, ["name", "city"]) },
+            funding, confirm,
+          }, ["niche"])) },
+          responses: estimateOr("202", "The batch was started.", obj({ batch_id: uuid, status: { type: "string" }, reports: { type: "integer" }, businesses_found: { type: "integer" }, unresolved: { type: "array", items: obj({ name: { type: "string" }, city: { type: "string" }, reason: { type: "string" } }) }, estimate: ref("Estimate") })),
         },
       },
       "/prospects/{id}": {

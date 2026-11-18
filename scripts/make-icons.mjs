@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Draws the brand mark (the 3×3 dot grid: eight off-white dots around an orange centre) into the
-// PNG files that cannot be an inline SVG: the favicon, the Apple touch icon and the logo used by
-// the social card and the Organization structured data.
+// files browsers and crawlers ask for: the SVG favicon, favicon.ico (16, 32 and 48 px), the PNG icon,
+// the Apple touch icon, and the logo used by the social card and the Organization structured data.
+// The icons live in public/ and are declared in src/app/layout.tsx, so a white-label report can
+// replace them (src/app/r/[slug]/page.tsx).
 //
 // No dependencies on purpose: `sharp` is not installed in this project (Next only uses it when it
 // is present), and the mark is nine circles, so this file rasterises them itself and writes the
@@ -89,12 +91,51 @@ function png(width, height, rgba) {
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", head), chunk("IDAT", deflateSync(raw, { level: 9 })), chunk("IEND", Buffer.alloc(0))]);
 }
 
+/** The favicon tile as SVG: the same geometry as the 256 px PNG (black rounded tile, dots scaled 1.12). */
+export function tileSvg() {
+  const size = 256, mark = 176, radius = 56, dotScale = 1.12;
+  const unit = mark / BOX, o = (size - mark) / 2;
+  const circles = AT.flatMap((cy, r) => AT.map((cx, c) => {
+    const d = r === 1 && c === 1 ? CENTRE : DOT;
+    const fill = `#${d.rgb.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+    return `<circle cx="${o + cx * unit}" cy="${o + cy * unit}" r="${+(d.r * dotScale * unit).toFixed(2)}" fill="${fill}"/>`;
+  })).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" rx="${radius}" fill="#000"/>${circles}</svg>\n`;
+}
+
+/** favicon.ico holding PNG images (every current browser reads PNG inside ICO). */
+function ico(images) {
+  const head = Buffer.alloc(6);
+  head.writeUInt16LE(0, 0);
+  head.writeUInt16LE(1, 2);
+  head.writeUInt16LE(images.length, 4);
+  let offset = 6 + 16 * images.length;
+  const dir = images.map(({ size, data }) => {
+    const e = Buffer.alloc(16);
+    e[0] = size >= 256 ? 0 : size;
+    e[1] = size >= 256 ? 0 : size;
+    e.writeUInt16LE(1, 4); // colour planes
+    e.writeUInt16LE(32, 6); // bits per pixel
+    e.writeUInt32LE(data.length, 8);
+    e.writeUInt32LE(offset, 12);
+    offset += data.length;
+    return e;
+  });
+  return Buffer.concat([head, ...dir, ...images.map((i) => i.data)]);
+}
+
 const BLACK = [0, 0, 0];
+// Small sizes get a fuller mark and bigger dots, so the grid still reads at 16 px.
+const icoSizes = [
+  { size: 16, mark: 13, radius: 3, dotScale: 1.15 },
+  { size: 32, mark: 24, radius: 7, dotScale: 1.2 },
+  { size: 48, mark: 34, radius: 10.5, dotScale: 1.15 },
+];
 const files = [
   // Favicon: a black rounded tile, so the off-white dots also read on a light browser tab.
-  { path: "src/app/icon.png", width: 256, height: 256, mark: 176, bg: BLACK, radius: 56, dotScale: 1.12 },
+  { path: "public/icon.png", width: 256, height: 256, mark: 176, bg: BLACK, radius: 56, dotScale: 1.12 },
   // Apple touch icon: full-bleed and opaque; iOS applies its own corner mask.
-  { path: "src/app/apple-icon.png", width: 180, height: 180, mark: 108, bg: BLACK, dotScale: 1.08 },
+  { path: "public/apple-icon.png", width: 180, height: 180, mark: 108, bg: BLACK, dotScale: 1.08 },
   // Logo for the social card (src/lib/og.tsx draws it at 118×64 on a #0b0b0b card) and for the
   // Organization structured data (src/lib/seo.ts). Same 148:80 canvas as the file it replaces.
   { path: "public/brand/logo.png", width: 1184, height: 640, mark: 520, bg: [0x0b, 0x0b, 0x0b] },
@@ -107,4 +148,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     writeFileSync(out, draw(f));
     console.log(`${f.path}  ${f.width}×${f.height}`);
   }
+  writeFileSync(join(process.cwd(), "public/icon.svg"), tileSvg());
+  console.log("public/icon.svg");
+  writeFileSync(join(process.cwd(), "public/favicon.ico"), ico(icoSizes.map((o) => ({ size: o.size, data: draw({ width: o.size, height: o.size, mark: o.mark, bg: BLACK, radius: o.radius, dotScale: o.dotScale }) }))));
+  console.log(`public/favicon.ico  ${icoSizes.map((o) => o.size).join(", ")}`);
 }

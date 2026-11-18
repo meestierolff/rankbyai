@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { VARIANTS, type VariantKey } from "@/app/dev/report-preview/fixtures";
-import { contrastRatio, fitVerdict, headlineStats, placeOf, quoteBlocks, sentenceEnds, splitBlocks, textOn, verdict } from "@/components/report/derive";
+import { contrastRatio, fitVerdict, fixPrompt, headlineStats, placeOf, quoteBlocks, sentenceEnds, splitBlocks, textOn, verdict } from "@/components/report/derive";
 import {
   aiCounts, buildAiPoints, buildMapsPoints, buildQuote, mapsCounts, nearestPoint, recommendedFrom, safeHttpUrl, type QuoteRow, type RawPoint, type RawSample,
 } from "@/components/report/model";
@@ -182,5 +182,27 @@ describe("place line", () => {
     expect(at("Texarkana", "TX")).toBe("Texarkana, TX");
     expect(at(null, "TX")).toBe("TX");
     expect(at("Austin", null)).toBe("Austin");
+  });
+});
+
+describe("fix prompt for an AI assistant", () => {
+  const html = (view: ReportView) => renderToStaticMarkup(<ReportBody view={view} pdfHref="/r/abcdefghijkl/pdf" siteUrl={SITE} />);
+  it("restates the report's findings and every audit fix, and forbids invented facts", () => {
+    const view = VARIANTS.full.build();
+    const p = fixPrompt(view)!;
+    expect(p).toContain(`This is about ${view.business.name}, a dentist in Austin, TX.`);
+    expect(p).toContain(`named ${view.business.name} at ${view.ai!.pointsMentioned} of them`);
+    for (const f of view.audit!.findings) expect(p).toContain(f.fix);
+    expect(p).toContain("Do not invent reviews, ratings, prices, awards or claims.");
+    expect(p).not.toMatch(/RankbyAI/);
+  });
+  it("is shown on RankbyAI reports and left out of white-label ones (the agency sells the fix)", () => {
+    expect(html(VARIANTS.full.build())).toContain("Hand this to your AI assistant");
+    expect(html(VARIANTS["white-label"].build())).not.toContain("Hand this to your AI assistant");
+  });
+  it("is null when there is nothing to fix", () => {
+    const view = VARIANTS.full.build();
+    const ai = { ...view.ai!, pointsMentioned: view.ai!.pointsChecked };
+    expect(fixPrompt({ ...view, ai, maps: null, audit: { ...view.audit!, findings: [] } })).toBeNull();
   });
 });

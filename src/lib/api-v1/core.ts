@@ -346,22 +346,39 @@ export async function getFixKit(c: ApiCaller, id: string, q: { confirm?: unknown
 
 // ───────────────────────── prospects ─────────────────────────
 
-export const CreateProspects = z.object({
-  niche: z.string().trim().min(2).max(80),
+export const NamedBusiness = z.object({
+  name: z.string().trim().min(2).max(160),
   city: z.string().trim().min(2).max(120),
-  country: z.enum(COUNTRY_CODES).default(DEFAULT_COUNTRY),
-  /** How many reports to build, taken from the businesses outside the top 3. */
-  max_reports: z.number().int().min(1).max(50).default(10),
-  funding: z.enum(["byok", "credits"]).default("byok"),
-  confirm: z.boolean().default(false),
+  country: z.enum(COUNTRY_CODES).optional(),
+  website: z.string().trim().max(300).optional(),
 });
 
-/** Search mode over the API: find businesses for a niche and a city, and report on the first N outside the top 3. */
+export const CreateProspects = z.object({
+  /** The service the AI assistants are asked about and the Google Maps keyword, e.g. "dentist" or "seo agency". */
+  niche: z.string().trim().min(2).max(80),
+  /** Search mode: the city to search. Not needed with `businesses`. */
+  city: z.string().trim().min(2).max(120).optional(),
+  country: z.enum(COUNTRY_CODES).default(DEFAULT_COUNTRY),
+  /** Search mode: how many reports to build, taken from the businesses outside the top 3. */
+  max_reports: z.number().int().min(1).max(50).default(10),
+  /** Named mode: report on these businesses instead of searching. Each is looked up on Google Maps by name and city. */
+  businesses: z.array(NamedBusiness).min(1).max(20).optional(),
+  funding: z.enum(["byok", "credits"]).default("byok"),
+  confirm: z.boolean().default(false),
+}).refine((b) => !!b.businesses?.length || !!b.city, { message: "Give a city to search, or a businesses list.", path: ["city"] });
+
+/**
+ * Prospect reports over the API. Search mode: find businesses for a niche and a city, and report on the
+ * first N outside the top 3. Named mode (`businesses`): look each business up by name and city and report
+ * on the ones found, wherever they rank.
+ */
 export async function createProspectsOp(c: ApiCaller, input: unknown, defer: Defer): Promise<ApiResult> {
   const p = CreateProspects.safeParse(input);
   if (!p.success) return invalid(p.error);
   const b = p.data;
   if (c.plan !== "lifetime") return fail(403, "lifetime_required", "Prospect reports need lifetime access.");
+  if (b.businesses?.length) return createNamedProspects(c, { ...b, businesses: b.businesses }, defer);
+  const city = b.city!;
   if (!b.confirm) {
     const creds = await resolveCredentials(c.workspaceId, b.funding);
     const est = await estimateBatch(b.max_reports, ENGINES.filter((e) => !!creds[e]));
@@ -370,17 +387,45 @@ export async function createProspectsOp(c: ApiCaller, input: unknown, defer: Def
   }
   let candidates;
   try {
-    candidates = (await discover({ workspaceId: c.workspaceId, funding: b.funding, niche: b.niche, city: b.city, country: b.country })).candidates;
+    candidates = (await discover({ workspaceId: c.workspaceId, funding: b.funding, niche: b.niche, city, country: b.country })).candidates;
   } catch (e) {
     if (e instanceof Error && e.message === "missing_key") return fail(400, "missing_key", "Prospect mode needs your DataForSEO login (Settings → API keys), or \"funding\": \"credits\".");
     return fail(502, "lookup_failed", "The Google Maps search did not complete.");
   }
   const picked = candidates.filter((x) => (x.rank ?? 99) > 3).slice(0, b.max_reports);
   if (!picked.length) return fail(404, "no_businesses", "The search found no businesses outside the top 3.");
-  const r = await createBatch({ workspaceId: c.workspaceId, plan: c.plan, mode: "search", niche: b.niche, city: b.city, country: b.country, candidates: picked, funding: b.funding, confirm: true });
+  const r = await createBatch({ workspaceId: c.workspaceId, plan: c.plan, mode: "search", niche: b.niche, city, country: b.country, candidates: picked, funding: b.funding, confirm: true });
   if (!r.ok) return fail(r.status, r.error, r.message, r.estimate ? { estimate: r.estimate } : {});
   defer(() => processBatch(r.batchId));
   return ok({ batch_id: r.batchId, status: "queued", reports: picked.length, businesses_found: candidates.length, estimate: r.estimate }, 202);
+}
+
+/** Named mode: one Google Maps lookup per business, then a report for each one found. A name that is not found is reported back, never guessed. */
+async function createNamedProspects(
+  c: ApiCaller,
+  b: { niche: string; city?: string; country: string; businesses: z.infer<typeof NamedBusiness>[]; funding: "byok" | "credits"; confirm: boolean },
+  defer: Defer,
+): Promise<ApiResult> {
+  const lookup = DATAFORSEO_MAPS_PER_POINT.live;
+  if (!b.confirm) {
+    const creds = await resolveCredentials(c.workspaceId, b.funding);
+    const est = await estimateBatch(b.businesses.length, ENGINES.filter((e) => !!creds[e]));
+    const lookups = lookup * b.businesses.length;
+    return needsConfirm({ ...est, totalUsd: est.totalUsd + lookups, lines: [{ provider: "dataforseo", label: "One Google Maps lookup per named business", usd: lookups }, ...est.lines], note: "One report per business found on Google Maps; a business that is not found is not charged." }, "prospect batch");
+  }
+  let resolved, unresolved;
+  try {
+    const rows = b.businesses.map((x) => ({ name: x.name, address: "", city: x.city, region: "", country: x.country ?? "", website: x.website ?? "", phone: "", place_id: "" }));
+    ({ resolved, unresolved } = await resolveRows({ workspaceId: c.workspaceId, funding: b.funding, rows, country: b.country }));
+  } catch (e) {
+    if (e instanceof Error && e.message === "missing_key") return fail(400, "missing_key", "Prospect mode needs your DataForSEO login (Settings → API keys), or \"funding\": \"credits\".");
+    return fail(502, "lookup_failed", "The Google Maps lookup did not complete.");
+  }
+  if (!resolved.length) return fail(404, "no_businesses", "None of the businesses was found on Google Maps.", { unresolved });
+  const r = await createBatch({ workspaceId: c.workspaceId, plan: c.plan, mode: "csv", niche: b.niche, city: b.city ?? b.businesses[0].city, country: b.country, candidates: resolved, funding: b.funding, confirm: true });
+  if (!r.ok) return fail(r.status, r.error, r.message, r.estimate ? { estimate: r.estimate } : {});
+  defer(() => processBatch(r.batchId));
+  return ok({ batch_id: r.batchId, status: "queued", reports: resolved.length, unresolved, estimate: r.estimate }, 202);
 }
 
 /** Every prospect batch of the workspace, newest first. The reports of a batch are on GET /prospects/{id}. */

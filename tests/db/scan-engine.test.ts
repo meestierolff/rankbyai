@@ -54,7 +54,7 @@ describe("estimate before, actual after", () => {
     if (r.ok) return;
     expect(r.error).toBe("confirmation_required");
     expect(r.estimate?.lines).toHaveLength(3);
-    expect(r.estimate?.totalUsd).toBeCloseTo(9 * (0.0112 + 0.0025 + 0.0016), 4);
+    expect(r.estimate?.totalUsd).toBeCloseTo(9 * (0.011725 + 0.0025 + 0.0016), 4);
     expect(await sql("select 1 from public.scans")).toEqual([]);
   });
 

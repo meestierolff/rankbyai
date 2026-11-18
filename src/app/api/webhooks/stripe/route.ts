@@ -65,6 +65,8 @@ export async function POST(request: Request) {
           to: p.email,
           subject: p.productKey === "lifetime" ? `RankbyAI lifetime access: seat #${p.seat}` : "Your RankbyAI scan pack",
           text: [...lines, "", `Questions: ${contact}`].join("\n"),
+          // The sender is a no-reply address; "reply to this email" must reach a person.
+          replyTo: legalEnv.email() || undefined,
         });
       },
       onRefund: async (p) => {

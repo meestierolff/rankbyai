@@ -22,6 +22,27 @@ const engines: { name: string; key?: string; validate: (k: string) => Promise<Va
   { name: "perplexity", key: process.env.PERPLEXITY_API_KEY, validate: validatePerplexity, ask: askPerplexity },
 ];
 
+/**
+ * Nine real ChatGPT answers at nine points, the size of a 3×3 grid: what one grid really costs.
+ * Runs only with LIVE_AI_GRID=1 as well. Expected spend: about $0.10.
+ */
+describe.skipIf(!live || process.env.LIVE_AI_GRID !== "1" || !process.env.OPENAI_API_KEY)("ChatGPT, a real 3×3 grid", () => {
+  it("costs what the estimate says, with one search per answer", async () => {
+    const points = [-0.02, 0, 0.02].flatMap((dLat) => [-0.02, 0, 0.02].map((dLng) => ({ lat: geo.lat + dLat, lng: geo.lng + dLng })));
+    const answers = await Promise.all(
+      points.map((pt) => askOpenAi(process.env.OPENAI_API_KEY!, buildPrompt(DEFAULT_PROMPT_TEMPLATE, { city: "Austin, TX", service: "dentist", lat: pt.lat, lng: pt.lng }), { ...geo, ...pt })),
+    );
+    const sum = (f: (a: AiAnswer) => number) => answers.reduce((n, a) => n + f(a), 0);
+    const searches = answers.map((a) => a.usage.searches);
+    const inputs = answers.map((a) => a.usage.inputTokens);
+    const costs = answers.map((a) => a.costUsd);
+    console.log(`[live] 9 answers: searches per answer ${searches.join(",")}; input tokens avg ${Math.round(sum((a) => a.usage.inputTokens) / 9)}, max ${Math.max(...inputs)}; output tokens avg ${Math.round(sum((a) => a.usage.outputTokens) / 9)}`);
+    console.log(`[live] 9 answers: cost total $${sum((a) => a.costUsd).toFixed(4)}, avg $${(sum((a) => a.costUsd) / 9).toFixed(4)}, max $${Math.max(...costs).toFixed(4)}; shortest answer ${Math.min(...answers.map((a) => a.text.length))} chars; sources avg ${(sum((a) => a.sources.length) / 9).toFixed(1)}`);
+    expect(Math.max(...searches)).toBeLessThanOrEqual(1);
+    expect(Math.min(...answers.map((a) => a.text.length))).toBeGreaterThan(40);
+  }, 240_000);
+});
+
 describe.skipIf(!live)("AI engines, one real answer each", () => {
   for (const e of engines) {
     it.skipIf(!e.key)(`${e.name}: the key is valid and one answer comes back parsed, with its cost`, async () => {

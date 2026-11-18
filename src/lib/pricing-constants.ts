@@ -27,9 +27,11 @@ export const OPENAI = {
   webSearchPerCall: 0.01, // $10.00 per 1,000 web search tool calls
   inputPer1M: 0.1, // gpt-6-luna input
   outputPer1M: 0.5, // gpt-6-luna output
-  // [estimate] token assumptions per AI sample until 50 real samples replace them
-  estInputTokens: 10_000,
-  estOutputTokens: 400,
+  // Measured: the average of 9 real answers on 18 Nov 2026 (13,026 in, 842 out), each with exactly
+  // one web search, which the request enforces (max_tool_calls in src/lib/providers/openai.ts).
+  // Measure again with tests/live/ai-engines-live.test.ts when the model or the prompt changes.
+  estInputTokens: 13_000,
+  estOutputTokens: 850,
 } as const;
 
 /** Perplexity Agent API. Source: https://docs.perplexity.ai/docs/getting-started/pricing (read 17 Nov 2026) */
@@ -70,7 +72,7 @@ const tokens = (inTok: number, outTok: number, inPer1M: number, outPer1M: number
 
 /** [estimate] USD per AI sample (one prompt, one engine, one grid point). */
 export const AI_SAMPLE_EST_USD = {
-  openai: OPENAI.webSearchPerCall + tokens(OPENAI.estInputTokens, OPENAI.estOutputTokens, OPENAI.inputPer1M, OPENAI.outputPer1M), // ≈ 0.0112
+  openai: OPENAI.webSearchPerCall + tokens(OPENAI.estInputTokens, OPENAI.estOutputTokens, OPENAI.inputPer1M, OPENAI.outputPer1M), // ≈ 0.0117
   perplexity:
     PERPLEXITY.webSearchFastPerCall +
     tokens(PERPLEXITY.estInputTokens, PERPLEXITY.estOutputTokens, PERPLEXITY.inputPer1M, PERPLEXITY.outputPer1M), // ≈ 0.0025

@@ -47,6 +47,8 @@ export function parseOpenAiResponse(json: ResponsesOutput): { text: string; sour
 export const openAiCostUsd = (u: { inputTokens: number; outputTokens: number; searches: number }) =>
   u.searches * OPENAI.webSearchPerCall + (u.inputTokens * OPENAI.inputPer1M + u.outputTokens * OPENAI.outputPer1M) / 1_000_000;
 
+export const OPENAI_SEARCHES_PER_ANSWER = 1;
+
 export async function askOpenAi(key: string, prompt: string, geo: GeoContext, timeoutMs = 60_000): Promise<AiAnswer> {
   const model = MODELS.openai();
   const user_location: Record<string, string> = { type: "approximate" };
@@ -56,7 +58,10 @@ export async function askOpenAi(key: string, prompt: string, geo: GeoContext, ti
   const json = await providerFetch<ResponsesOutput>("https://api.openai.com/v1/responses", {
     provider: "openai",
     headers: auth(key),
-    body: { model, input: prompt, tools: [{ type: "web_search", user_location }], tool_choice: "required" },
+    // One search per answer. Left free, the model ran three searches for one answer (measured
+    // 18 Nov 2026), and the search fee is most of what an answer costs. max_tool_calls is OpenAI's
+    // documented cap on built-in tool calls in one response.
+    body: { model, input: prompt, tools: [{ type: "web_search", user_location }], tool_choice: "required", max_tool_calls: OPENAI_SEARCHES_PER_ANSWER },
     timeoutMs,
     retries: 1,
   });

@@ -150,11 +150,6 @@ export const costEnv = group(
   }),
 );
 
-export const emailEnv = group("email", { RESEND_API_KEY: str, EMAIL_FROM: str }, () => ({
-  RESEND_API_KEY: process.env.RESEND_API_KEY,
-  EMAIL_FROM: process.env.EMAIL_FROM,
-}));
-
 export const turnstileEnv = group("turnstile", { TURNSTILE_SECRET_KEY: str }, () => ({
   TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
 }));

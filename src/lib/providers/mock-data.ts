@@ -34,7 +34,7 @@ export function mockAiAnswer(engine: Engine, prompt: string, geo: GeoContext, ct
       { url: "https://mock-directory.example/best", title: "Mock Directory" },
       { url: `https://mock-${engine}.example/list`, title: `Mock ${engine} source` },
     ],
-    costUsd: engine === "openai" ? 0.0112 : engine === "perplexity" ? 0.0025 : 0.0016,
+    costUsd: engine === "openai" ? 0.0117 : engine === "perplexity" ? 0.0025 : 0.0016,
     costReported: false,
     usage: { inputTokens: 2000, outputTokens: 300, searches: 1 },
     raw: { mock: true, prompt },

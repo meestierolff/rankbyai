@@ -43,6 +43,16 @@ describe("provider HTTP layer", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${KEY}`);
   });
 
+  it("asks ChatGPT for one web search per answer, which is what the cost estimate assumes", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ output: [{ type: "message", content: [{ type: "output_text", text: "1. **A** – x" }] }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await askOpenAi(KEY, "prompt", { lat: 1, lng: 2 });
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as { max_tool_calls?: number; tool_choice?: string };
+    expect(body.max_tool_calls).toBe(1);
+    expect(body.tool_choice).toBe("required");
+  });
+
   it("retries a 429 once, then reports a rate limit", async () => {
     const fetchMock = vi.fn(async () => new Response("{}", { status: 429 }));
     vi.stubGlobal("fetch", fetchMock);

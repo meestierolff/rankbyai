@@ -108,7 +108,7 @@ The ladder terms live in the database row `ladder_lock` (seeded: $29 base, +$10 
 | `HOUSE_*` | House API keys, used only for free checks, included-scan packs and the operator's own demos |
 | `OPENAI_MODEL`, `PERPLEXITY_MODEL`, `GEMINI_MODEL`, `LLM_FIXES_MODEL` | Optional model overrides |
 | `COST_*`, `FREE_CHECKS_*` | Cost guard caps and free-check limits |
-| `RESEND_API_KEY`, `EMAIL_FROM` | Transactional email |
+| `EMAIL_FROM` plus `BREVO_API_KEY` or `RESEND_API_KEY` | Transactional email (the purchase confirmation). `EMAIL_FROM` is `Name <address>` and must be a sender verified at the provider. Replies go to `LEGAL_EMAIL`. Without these the purchase still completes; the buyer just gets no email. |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Bot protection on the free check and the removal form |
 | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` | Analytics (cookieless until consent in the EU/EEA/UK/CH) |
 | `SOD_TRACKER_SNIPPET_SRC` | Ship or Die tracker script URL, loaded on every page |

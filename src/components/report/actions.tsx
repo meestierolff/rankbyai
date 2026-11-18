@@ -32,8 +32,8 @@ const noSubscribe = () => () => {};
  */
 export function FixPromptBlock({ text, kind }: { text: string; kind: string }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
-  // The address the reader opened (null while rendering on the server; it does not change after load).
-  const url = useSyncExternalStore(noSubscribe, () => window.location.href.split("#")[0], () => null);
+  // The report's own address: origin and path only, never a query string (null while rendering on the server).
+  const url = useSyncExternalStore(noSubscribe, () => `${window.location.origin}${window.location.pathname}`, () => null);
   const full = url ? `${text}\n\nThe full report: ${url}` : text;
   return (
     <div className="flex flex-col gap-3">

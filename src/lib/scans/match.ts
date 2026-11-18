@@ -1,6 +1,7 @@
 /** Matching a business against names in AI answers and Maps results (brief 6.1, 6.5). */
 
-const SUFFIXES = new Set(["llc", "inc", "ltd", "limited", "co", "corp", "company", "pllc", "pc", "plc", "lp", "llp", "the", "and"]);
+// Company-form words, including the Australian and New Zealand "Pty Ltd" and the Indian "Pvt Ltd".
+const SUFFIXES = new Set(["llc", "inc", "ltd", "limited", "co", "corp", "company", "pllc", "pc", "plc", "lp", "llp", "pty", "pvt", "the", "and"]);
 
 export function normalizeName(name: string): string {
   return name

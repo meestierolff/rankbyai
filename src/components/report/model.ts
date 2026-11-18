@@ -1,7 +1,7 @@
 import { aiCellColors, mapsCellColors, pointName, type CellView } from "@/components/brand/grid";
 import { ENGINE_LABEL, type Engine } from "@/lib/pricing-constants";
 import { milesBetween } from "@/lib/scans/grid";
-import { normalizeName } from "@/lib/scans/match";
+import { namesMatch, normalizeName } from "@/lib/scans/match";
 import { domainOf } from "@/lib/scans/parse";
 import type { AiSummary, MapsSummary } from "@/lib/scans/summary";
 import type { AiPoint, AiPointResult, AiQuote, MapsPoint, PointState, RecommendedBusiness, ReportView } from "./types";
@@ -116,7 +116,9 @@ export function recommendedFrom(points: AiPoint[], samples: RawSample[], busines
     }
     for (const nb of s.named_businesses ?? []) {
       if (nb.you) continue;
-      const key = normalizeName(nb.name);
+      // One business written several ways ("110 DigiTech", "110 DigiTec", "110 DigiTech Pty Ltd") is one row.
+      const norm = normalizeName(nb.name);
+      const key = norm ? ([...rows.keys()].find((k) => k === norm || namesMatch(rows.get(k)!.name, nb.name)) ?? norm) : "";
       if (!key || seen.has(key)) continue;
       seen.add(key);
       const row = rows.get(key) ?? { name: nb.name, you: false, points: new Set<number>(), answers: 0 };

@@ -6,7 +6,7 @@ import { ENGINE_LABEL } from "@/lib/pricing-constants";
 import { cn } from "@/lib/utils";
 import { CopyLinkButton, FixPromptBlock, PdfLink } from "./actions";
 import {
-  brandTextOnDark, dataDates, fixPrompt, fmtDay, headlineStats, isHex6, orList, placeOf, quoteBlocks, splitBlocks, textOn, verdict, wordCount,
+  aService, brandTextOnDark, dataDates, fixPrompt, fmtDay, headlineStats, isHex6, orList, placeOf, quoteBlocks, splitBlocks, textOn, verdict, wordCount,
   type HeadlineStat, type QuoteBlock,
 } from "./derive";
 import { MapSection } from "./map-section";
@@ -102,7 +102,7 @@ export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHr
                 ai={aiGrid ? {
                   n: aiGrid.n, points: aiGrid.points,
                   initial: nearestPoint(aiGrid.points, target ?? aiGrid.center, aiGrid.n)?.idx ?? null,
-                  caption: `${orList(aiGrid.engines.map((e) => e.label), "and")} were asked for ${aiGrid.service ? `a ${aiGrid.service} recommendation` : "a recommendation"} at every point, with the same question, on ${fmtDay(aiGrid.date)}.`,
+                  caption: `${orList(aiGrid.engines.map((e) => e.label), "and")} were asked for ${aiGrid.service ? `${aService(aiGrid.service)} recommendation` : "a recommendation"} at every point, with the same question, on ${fmtDay(aiGrid.date)}.`,
                 } : null}
                 maps={mapsGrid ? {
                   n: mapsGrid.n, points: mapsGrid.points, keyword: mapsGrid.keyword,

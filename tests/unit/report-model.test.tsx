@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { VARIANTS, type VariantKey } from "@/app/dev/report-preview/fixtures";
-import { contrastRatio, fitVerdict, fixPrompt, headlineStats, placeOf, quoteBlocks, sentenceEnds, splitBlocks, textOn, verdict } from "@/components/report/derive";
+import { aService, contrastRatio, fitVerdict, fixPrompt, headlineStats, placeOf, quoteBlocks, sentenceEnds, splitBlocks, textOn, verdict } from "@/components/report/derive";
 import {
   aiCounts, buildAiPoints, buildMapsPoints, buildQuote, mapsCounts, nearestPoint, recommendedFrom, safeHttpUrl, type QuoteRow, type RawPoint, type RawSample,
 } from "@/components/report/model";
@@ -224,5 +224,33 @@ describe("fix prompt for an AI assistant", () => {
     const view = VARIANTS.full.build();
     const ai = { ...view.ai!, pointsMentioned: view.ai!.pointsChecked };
     expect(fixPrompt({ ...view, ai, maps: null, audit: { ...view.audit!, findings: [] } })).toBeNull();
+  });
+});
+
+describe("service word in sentences", () => {
+  it("takes the right article and capitalises acronyms", () => {
+    expect(aService("dentist")).toBe("a dentist");
+    expect(aService("seo agency")).toBe("an SEO agency");
+    expect(aService("local seo agency")).toBe("a local SEO agency");
+    expect(aService("hvac contractor")).toBe("an HVAC contractor");
+    expect(aService("electrician")).toBe("an electrician");
+    expect(aService("uniform shop")).toBe("a uniform shop");
+    expect(aService("it support")).toBe("an IT support");
+    expect(aService("plumber")).toBe("a plumber");
+  });
+});
+
+describe("competitors written several ways", () => {
+  it("count as one business", () => {
+    const pts = [0, 1, 2].map((i) => pt(i, 3));
+    const points = buildAiPoints(pts, [], ["openai"]).map((p) => ({ ...p, state: "done" as const }));
+    const samples = [
+      sample(0, "openai", ["110 DigiTech", "Smile Dental"], null),
+      sample(1, "openai", ["110 DigiTec"], null),
+      sample(2, "openai", ["110 DigiTech Pty Ltd"], null),
+    ];
+    const rows = recommendedFrom(points, samples, "Northgate Family Dental");
+    expect(rows.find((r) => r.name === "110 DigiTech")?.points).toBe(3);
+    expect(rows.filter((r) => /digitec/i.test(r.name))).toHaveLength(1);
   });
 });

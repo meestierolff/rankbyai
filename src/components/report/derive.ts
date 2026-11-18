@@ -19,6 +19,19 @@ export function dataDates(view: ReportView): string {
   return first === last ? fmtDay(first) : `${fmtDay(first, "short")} – ${fmtDay(last, "short")}`;
 }
 
+/** Service words that are acronyms, written in capitals in sentences. */
+const ACRONYMS = new Set(["seo", "sem", "ppc", "hvac", "it", "cpa", "ux", "ui", "pr", "ai", "llc"]);
+
+/** The service as a noun with its article: "a dentist", "an electrician", "an SEO agency", "an HVAC contractor". */
+export function aService(service: string): string {
+  const words = service.trim().split(/\s+/).filter(Boolean).map((w) => (ACRONYMS.has(w.toLowerCase()) ? w.toUpperCase() : w));
+  const first = words[0] ?? "";
+  // "an" before a vowel sound: a vowel letter (not "uni-", "use-", "eu-", "one"), or an acronym whose
+  // first letter is named with a vowel sound (A, E, F, H, I, L, M, N, O, R, S, X).
+  const an = ACRONYMS.has(first.toLowerCase()) ? /^[aefhilmnorsx]/i.test(first) : /^[aeiou]/i.test(first) && !/^(uni|use|usu|eu|one)/i.test(first);
+  return `${an ? "an" : "a"} ${words.join(" ")}`;
+}
+
 /** "Austin, TX". A city typed with its region already ("Austin, TX") does not get the region twice. */
 export function placeOf(view: ReportView): string {
   const city = view.business.city?.trim() || null;
@@ -50,7 +63,7 @@ export function verdict(view: ReportView): string {
   const ai = view.ai;
   if (ai && ai.n === 1 && ai.single) {
     const answered = ai.single.filter((s) => s.available);
-    if (answered.length) parts.push(`Asked for ${ai.service ? `a ${ai.service} recommendation` : "a recommendation"} at the business location, ${answered.filter((s) => s.mentioned).length} of ${answered.length} AI assistants named ${name}.`);
+    if (answered.length) parts.push(`Asked for ${ai.service ? `${aService(ai.service)} recommendation` : "a recommendation"} at the business location, ${answered.filter((s) => s.mentioned).length} of ${answered.length} AI assistants named ${name}.`);
   } else if (ai && ai.pointsChecked > 0) {
     const k = ai.pointsChecked;
     parts.push(
@@ -147,7 +160,7 @@ export function fixPrompt(view: ReportView): string | null {
   if (ai && ai.pointsChecked > 0) {
     const engines = orList(ai.engines.filter((e) => e.available).map((e) => e.label), "and") || "AI assistants";
     const rival = topRival(view);
-    lines.push(`- Asked to recommend ${ai.service ? `a ${oneLine(ai.service, 60)}` : "a business like it"} from ${ai.pointsChecked} points ${near}, ${engines} named ${name} at ${ai.pointsMentioned} of them.${rival ? ` ${oneLine(rival.name, 80)} was named at ${rival.points}.` : ""}`);
+    lines.push(`- Asked to recommend ${ai.service ? aService(oneLine(ai.service, 60)) : "a business like it"} from ${ai.pointsChecked} points ${near}, ${engines} named ${name} at ${ai.pointsMentioned} of them.${rival ? ` ${oneLine(rival.name, 80)} was named at ${rival.points}.` : ""}`);
   }
   if (maps && !maps.single && maps.pointsDone > 0) lines.push(`- On Google Maps it is in the top 3 for ${quoteMark(keyword)} at ${maps.top3Points} of ${maps.pointsDone} points.`);
   if (maps?.single) lines.push(maps.single.rank != null && maps.single.rank <= 20 ? `- On Google Maps it ranks #${maps.single.rank} for ${quoteMark(keyword)} at the business location.` : `- On Google Maps it is not in the top 20 for ${quoteMark(keyword)} at the business location.`);

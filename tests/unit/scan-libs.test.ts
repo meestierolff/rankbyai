@@ -122,6 +122,8 @@ describe("business matching", () => {
     expect(namesMatch("Dentique", "Dentique: Leila Moghadam, DMD")).toBe(true);
     expect(namesMatch("Northgate Family Dental", "Northgate Family Dental Care, PLLC")).toBe(true);
     expect(namesMatch("Smiles4Kids", "Smiles 4 Kids")).toBe(true);
+    expect(namesMatch("110 DigiTech", "110 DigiTech Pty Ltd")).toBe(true);
+    expect(namesMatch("110 DigiTech", "110 DigiTec")).toBe(true);
     expect(namesMatch("Lifetime Smiles Cosmetic Dentistry - South Austin", "Lifetime Smiles Cosmetic Dentistry")).toBe(true);
   });
   it("position in a list and mention in text", () => {

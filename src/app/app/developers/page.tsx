@@ -20,7 +20,7 @@ export default async function Page() {
     <>
       <PageHeader
         title="API & MCP"
-        description="Run everything in this app from your own scripts or from an AI agent. Every request that costs money returns an estimate first and runs only with confirm: true."
+        description="Run businesses, scans, audits, Fix Kits, prospect reports and branding from your own scripts or from an AI agent. Every request that costs money returns an estimate first and runs only with confirm: true."
         actions={<><SecondaryLink href="/app/api/reference">API reference</SecondaryLink><SecondaryLink href="/api/v1/openapi.json">OpenAPI JSON</SecondaryLink></>}
       />
       <div className="flex flex-col gap-6">

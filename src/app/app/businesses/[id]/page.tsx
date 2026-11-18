@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CombinedView } from "@/components/app/combined-view";
 import type { MapPoint } from "@/components/app/grid-map";
+import { DeleteBusiness } from "@/components/app/delete-business";
 import { ShareLinkCard } from "@/components/app/m3-controls";
 import { LocalTime } from "@/components/app/local-time";
 import { userRead } from "@/components/app/reads";
@@ -166,6 +167,10 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
             ))}
           </ul>
         )}
+      </Panel>
+
+      <Panel title="Delete" className="mt-6">
+        <DeleteBusiness businessId={b.id} name={b.name} scanCount={scans.length < 30 ? scans.length : null} />
       </Panel>
     </>
   );

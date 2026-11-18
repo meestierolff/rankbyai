@@ -16,6 +16,9 @@ export function redactAnalyticsUrl(raw: string): string {
   }
 }
 
+/** Any report path inside a string (URLs, paths, referrers) with its slug replaced. */
+export const redactReportSlugs = (s: string) => s.replace(/\/r\/[A-Za-z0-9_-]{12,64}/g, "/r/[slug]");
+
 const beforeSend = (event: BeforeSendEvent): BeforeSendEvent => ({ ...event, url: redactAnalyticsUrl(event.url) });
 
 export function VercelAnalytics() {

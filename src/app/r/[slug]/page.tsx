@@ -46,6 +46,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: view.brand.name || view.brand.hideRankbyai ? { absolute: view.brand.name ? `${title} | ${view.brand.name}` : title } : title,
     description,
     robots: ROBOTS,
+    // The address holds the report's access key: other sites get no referrer from this page.
+    referrer: "same-origin",
     openGraph: { type: "article", title, description, ...(siteName ? { siteName } : {}) },
     twitter: { card: "summary_large_image", title, description },
   };

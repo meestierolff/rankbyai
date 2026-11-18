@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { publicEnv } from "@/lib/env-public";
 import { setAnalyticsClient } from "@/lib/analytics";
+import { redactReportSlugs } from "./vercel-analytics";
 
 const CONSENT_KEY = "rb_consent"; // "granted" | "denied"
 const EU_LANG_REGIONS = new Set(["AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE","IS","LI","NO","GB","CH"]);
@@ -42,6 +43,15 @@ export function AnalyticsProvider() {
           capture_pageview: true,
           autocapture: false,
           disable_session_recording: true,
+          // A report's slug is its access key: never send it (URLs, paths and referrers alike).
+          before_send: (event) => {
+            if (!event) return event;
+            for (const bag of [event.properties, event.$set, event.$set_once] as (Record<string, unknown> | undefined)[]) {
+              if (!bag) continue;
+              for (const [k, v] of Object.entries(bag)) if (typeof v === "string" && v.includes("/r/")) bag[k] = redactReportSlugs(v);
+            }
+            return event;
+          },
         });
         (window as unknown as { __rbPosthog?: typeof posthog }).__rbPosthog = posthog;
         setAnalyticsClient(posthog);

@@ -1,0 +1,73 @@
+/*
+ * Dashboard demo (tour.tsx).
+ * DotGrid (components/brand/grid.tsx) hard-codes the app's `grid-well` and `animate-rb-pop`.
+ * These classes restyle it for the landing page. They are unlayered and use doubled selectors,
+ * so they win over the Tailwind utilities whatever the order of the generated CSS.
+ */
+
+/* Grid well: 24px square grid on the surface colour. */
+.well.well {
+  background-color: var(--lp-surface);
+  background-image: linear-gradient(#171717 1px, transparent 1px), linear-gradient(90deg, #171717 1px, transparent 1px);
+  background-size: 24px 24px;
+  border: 1px solid var(--lp-line-2);
+  border-radius: 12px;
+}
+
+/* ScoreRing paints its inner disc with the app card colour; match the landing card it sits on. */
+.ring > div > div {
+  background-color: var(--lp-surface);
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes progress {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+/* Step progress. Duration and play state are set inline by the component. */
+.progress {
+  animation-name: progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Cell pop-in. The per-cell delay is set inline by DotGrid. */
+  .pop.pop > button {
+    animation-name: pop;
+    animation-duration: 420ms;
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.25);
+    animation-fill-mode: backwards;
+  }
+
+  /* Step content fades up on every step change. */
+  .enter {
+    animation: enter 320ms ease-out;
+  }
+}

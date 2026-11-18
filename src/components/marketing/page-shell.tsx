@@ -6,11 +6,11 @@ import { Header } from "./header";
 /** Shell for every public page that is not the home page (legal, docs, SEO pages, regional pages). */
 export function PageShell({ children }: { children: ReactNode }) {
   return (
-    <>
+    <div className="min-h-dvh overflow-x-clip bg-lp-bg">
       <Header withOffer={false} />
       <main>{children}</main>
       <Footer />
-    </>
+    </div>
   );
 }
 

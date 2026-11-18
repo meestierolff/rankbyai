@@ -1,24 +1,35 @@
-import { Chevron, Eyebrow } from "@/components/brand/primitives";
 import type { FaqItem } from "@/lib/faq";
+import { cn } from "@/lib/utils";
+import { Bezel } from "./lp";
 
-/** 9.14 FAQ. Native <details>, server-rendered so the answers are in the HTML. */
-export function Faq({ items, title = "Straight answers about AI visibility tracking." }: { items: FaqItem[]; title?: string }) {
+/**
+ * 9.14 FAQ. Native <details>, server-rendered, so every answer is in the HTML whether its row is
+ * open or not. The first two rows start open. `title` is the line under the heading.
+ */
+export function Faq({
+  items, title = "Straight answers about AI visibility tracking.", heading = "Before you buy.",
+}: { items: FaqItem[]; title?: string; heading?: string }) {
   return (
-    <section id="faq" className="container-page section-y grid grid-cols-[repeat(auto-fit,minmax(min(100%,380px),1fr))] items-start gap-[clamp(32px,5vw,64px)]">
-      <div className="flex flex-col gap-[22px]">
-        <Eyebrow>FAQ</Eyebrow>
-        <h2 className="m-0 text-[clamp(34px,4.4vw,52px)] leading-[1.08] font-semibold tracking-[-0.035em] text-balance">{title}</h2>
+    <section id="faq" className="py-[130px] text-lp-fg">
+      <div className="container-lp text-center">
+        <h2 className="m-0 text-[clamp(44px,7vw,84px)] leading-none font-semibold tracking-[-0.05em]">{heading}</h2>
+        <p className="mt-5 mb-0 text-[17px] text-lp-muted">{title}</p>
       </div>
-      <div className="flex flex-col">
-        {items.map((f) => (
-          <details key={f.q} className="border-b border-border py-6">
-            <summary className="flex justify-between gap-4 text-[18px] font-medium">
-              {f.q}
-              <Chevron />
-            </summary>
-            <p className="mt-[14px] mb-0 text-[16px] leading-[1.6] text-muted-foreground">{f.a}</p>
-          </details>
-        ))}
+      <div className="container-lp mt-14">
+        <Bezel large innerClassName="bg-[#0b0b0b] px-[clamp(18px,4vw,40px)] py-2">
+          {items.map((f, i) => (
+            <details key={f.q} open={i < 2} className={cn("group", i > 0 && "border-t border-lp-line-2")}>
+              <summary className="flex items-center justify-between gap-4 py-6 text-[clamp(17px,2vw,20px)] font-medium tracking-[-0.01em]">
+                <span>{f.q}</span>
+                <span aria-hidden className="shrink-0 font-mono text-[18px] text-lp-faint">
+                  <span className="group-open:hidden">+</span>
+                  <span className="hidden group-open:inline">−</span>
+                </span>
+              </summary>
+              <p className="m-0 max-w-[720px] pb-[26px] text-[16.5px] leading-[1.65] text-lp-muted">{f.a}</p>
+            </details>
+          ))}
+        </Bezel>
       </div>
     </section>
   );

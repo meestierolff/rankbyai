@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateYearlyDataCost, estimateAiGrid, estimateMapsGrid } from "@/lib/cost/estimate";
+import { calculateYearlyDataCost, estimateAiGrid, estimateMapsGrid, scenarioYearlyDataCost } from "@/lib/cost/estimate";
 import { priceCentsForSale } from "@/lib/ladder";
 import {
   AI_SAMPLE_EST_USD,
@@ -9,6 +9,7 @@ import {
   DEFAULT_COST_MAX_PER_CREDIT_USD,
   ENGINES,
   LLM_FIX_KIT_BUDGET_USD,
+  LOCAL_FALCON_STARTER_CREDITS_PER_YEAR,
   LLM_PARSE_BUDGET_USD,
   PACKS,
   SCENARIO,
@@ -46,18 +47,39 @@ describe("vendor price constants", () => {
     expect(estimateMapsGrid(9, "live").totalUsd).toBeCloseTo(0.162, 3);
   });
 
-  it("prices the comparison scenario at about $62 a year", () => {
+  it("prices a year of monthly 3×3 AI checks plus a 7×7 Maps grid for 30 prompts at about $62", () => {
     const r = calculateYearlyDataCost({
-      prompts: SCENARIO.clients * SCENARIO.promptsPerClient,
-      aiGrid: SCENARIO.aiGrid,
+      prompts: 30,
+      aiGrid: 3,
       engines: ENGINES,
       frequency: "monthly",
       geminiFreeAllowance: true,
-      mapsGrid: SCENARIO.mapsGrid,
+      mapsGrid: 7,
     });
     expect(r.checksPerYear).toBe(360);
     expect(Math.round(r.totalUsdPerYear)).toBe(62); // 360 × 9 × 0.0158 + 360 × 49 × 0.0006
     expect(r.geminiBillablePerMonth).toBe(0);
+  });
+
+  it("prices the published comparison scenario (weekly 7×7 Maps grids) at about $46 a year", () => {
+    const r = scenarioYearlyDataCost();
+    expect(r.checksPerYear).toBe(1560); // 10 clients × 3 prompts × 52 weeks
+    expect(r.aiUsdPerYear).toBe(0);
+    expect(r.totalUsdPerYear).toBeCloseTo(1560 * 49 * 0.0006, 6); // 45.864
+    expect(Math.round(r.totalUsdPerYear)).toBe(46);
+    expect(r.formula).toBe("1,560 Maps grids × 49 points × $0.0006");
+  });
+
+  it("the competitor plans in the comparison can run that scenario", () => {
+    const points = SCENARIO.clients * SCENARIO.promptsPerClient * 52 * SCENARIO.mapsGrid ** 2;
+    expect(points).toBe(SCENARIO.mapsPointsPerYear);
+    // Local Falcon: one credit per grid point (its pricing page); Starter billed yearly includes 90,000.
+    expect(points).toBeLessThanOrEqual(LOCAL_FALCON_STARTER_CREDITS_PER_YEAR);
+    // BrightLocal: a 7×7 grid with up to 5 keywords on every plan; Track covers 6–10 locations.
+    expect(SCENARIO.mapsGrid).toBeLessThanOrEqual(7);
+    expect(SCENARIO.promptsPerClient).toBeLessThanOrEqual(5);
+    expect(SCENARIO.clients).toBeLessThanOrEqual(10);
+    expect(SCENARIO.description).toContain("76,440");
   });
 
   it("charges Gemini grounding beyond the free monthly allowance", () => {

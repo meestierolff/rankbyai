@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { JsonLd } from "@/components/json-ld";
 import { Calculator } from "@/components/marketing/calculator";
 import { Compare } from "@/components/marketing/compare";
-import { EarlyAccessBanner } from "@/components/marketing/early-access";
 import { Faq } from "@/components/marketing/faq";
 import { Features } from "@/components/marketing/features";
 import { FinalCta, StickyBar } from "@/components/marketing/final-cta";
@@ -13,14 +12,14 @@ import { Hero } from "@/components/marketing/hero";
 import { LandingView } from "@/components/marketing/landing-view";
 import { OfferProvider } from "@/components/marketing/offer-context";
 import { Pricing } from "@/components/marketing/pricing";
-import { ApiMcp, CostBand, Fix, HowItWorks, KeySecurity, Problem } from "@/components/marketing/sections";
+import { FeatureRows, HowItWorks, Problem } from "@/components/marketing/sections";
+import { TopBanner } from "@/components/marketing/top-banner";
 import { Tour } from "@/components/marketing/tour";
-import { calculateYearlyDataCost } from "@/lib/cost/estimate";
+import { scenarioYearlyDataCost } from "@/lib/cost/estimate";
 import { miscEnv } from "@/lib/env";
-import { freeCheckOpen } from "@/lib/availability";
+import { freeCheckOpen, packsOpen } from "@/lib/availability";
 import { buildFaq } from "@/lib/faq";
 import { getOfferCached } from "@/lib/offer";
-import { ENGINES, SCENARIO } from "@/lib/pricing-constants";
 import { faqLd, graph, organizationLd, softwareLd, websiteLd } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -41,40 +40,33 @@ export default async function HomePage() {
   const offer = result.available ? result.offer : null;
   const faq = buildFaq(offer);
   // The published comparison scenario [estimate]: one number, used by hero, pricing and compare.
-  const scenarioYearUsd = calculateYearlyDataCost({
-    prompts: SCENARIO.clients * SCENARIO.promptsPerClient,
-    aiGrid: SCENARIO.aiGrid,
-    engines: ENGINES,
-    frequency: SCENARIO.frequency,
-    geminiFreeAllowance: true,
-    mapsGrid: SCENARIO.mapsGrid,
-  }).totalUsdPerYear;
+  const scenarioYearUsd = scenarioYearlyDataCost().totalUsdPerYear;
 
   return (
     <OfferProvider initial={live}>
       <JsonLd data={graph(organizationLd(), websiteLd(), softwareLd(offer), faqLd(faq))} />
       <LandingView />
-      <EarlyAccessBanner />
-      <Header />
-      <main>
-        <Hero scenarioYearUsd={scenarioYearUsd} />
-        <Tour />
-        <CostBand />
-        <Problem />
-        <Fix />
-        <Features />
-        <HowItWorks />
-        <KeySecurity />
-        <ApiMcp />
-        <Pricing scenarioYearUsd={scenarioYearUsd} />
-        <Compare scenarioYearUsd={scenarioYearUsd} />
-        <Calculator />
-        <Faq items={faq} />
-        <FreeCheck turnstileSiteKey={miscEnv.turnstileSiteKey()} open={freeCheckOpen()} />
-        <FinalCta />
-      </main>
-      <Footer padForStickyBar />
-      <StickyBar />
+      {/* Landing redesign: pure black page, warm off-white text (tokens --lp-*). */}
+      <div className="min-h-dvh overflow-x-clip bg-lp-bg text-lp-fg">
+        <TopBanner />
+        <Header />
+        <main>
+          <Hero scenarioYearUsd={scenarioYearUsd} />
+          <Tour />
+          <Problem />
+          <FeatureRows />
+          <Features />
+          <HowItWorks />
+          <Pricing scenarioYearUsd={scenarioYearUsd} packsOpen={packsOpen()} />
+          <Compare scenarioYearUsd={scenarioYearUsd} />
+          <Calculator />
+          <Faq items={faq} />
+          <FreeCheck turnstileSiteKey={miscEnv.turnstileSiteKey()} open={freeCheckOpen()} />
+          <FinalCta />
+        </main>
+        <Footer padForStickyBar />
+        <StickyBar />
+      </div>
     </OfferProvider>
   );
 }

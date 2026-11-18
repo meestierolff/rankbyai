@@ -2,6 +2,7 @@ import {
   AI_SAMPLE_EST_USD,
   DATAFORSEO_MAPS_PER_POINT,
   GEMINI,
+  SCENARIO,
   type AiGridSize,
   type Engine,
   type MapsGridSize,
@@ -105,7 +106,8 @@ export function calculateYearlyDataCost(input: CalculatorInput): CalculatorResul
   const mapsUsd = checksPerYear * mapsPoints * DATAFORSEO_MAPS_PER_POINT.standard;
 
   const n = (v: number) => v.toLocaleString("en-US");
-  const parts = [`${n(checksPerYear)} checks × ${points} ${points === 1 ? "point" : "points"} × ${input.engines.length} ${input.engines.length === 1 ? "engine" : "engines"}`];
+  const parts: string[] = [];
+  if (input.engines.length) parts.push(`${n(checksPerYear)} checks × ${points} ${points === 1 ? "point" : "points"} × ${input.engines.length} ${input.engines.length === 1 ? "engine" : "engines"}`);
   if (mapsPoints) parts.push(`${n(checksPerYear)} Maps grids × ${mapsPoints} points × $${DATAFORSEO_MAPS_PER_POINT.standard}`);
 
   return {
@@ -118,6 +120,18 @@ export function calculateYearlyDataCost(input: CalculatorInput): CalculatorResul
     geminiBillablePerMonth,
     formula: parts.join(" + "),
   };
+}
+
+/** Data cost of one year of the published comparison scenario (weekly Maps grids, no AI checks) [estimate]. */
+export function scenarioYearlyDataCost(): CalculatorResult {
+  return calculateYearlyDataCost({
+    prompts: SCENARIO.clients * SCENARIO.promptsPerClient,
+    aiGrid: 3,
+    engines: [],
+    frequency: SCENARIO.frequency,
+    geminiFreeAllowance: true,
+    mapsGrid: SCENARIO.mapsGrid,
+  });
 }
 
 export const usd0 = (v: number) => "$" + Math.round(v).toLocaleString("en-US");

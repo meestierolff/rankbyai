@@ -1,33 +1,21 @@
 import Link from "next/link";
-import { LogoLockup } from "@/components/brand/logo";
 import { HeaderCta } from "./header-cta";
+import { DotMark, LpWordmark, outlineClass } from "./lp";
 
-const NAV = [
-  { href: "/#features", label: "Features" },
-  { href: "/#how", label: "How it works" },
-  { href: "/#pricing", label: "Pricing" },
-  { href: "/#faq", label: "FAQ" },
-];
-
-/** Sticky marketing header. `cta` is omitted on pages rendered outside an OfferProvider. */
+/** Sticky marketing header. `withOffer` is false on pages rendered outside an OfferProvider. */
 export function Header({ withOffer = true }: { withOffer?: boolean }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-[rgba(11,11,11,0.82)] backdrop-blur-[12px]">
-      <div className="container-page flex flex-wrap items-center justify-between gap-x-5 gap-y-3 py-[14px]">
-        <Link href="/" className="no-underline">
-          <LogoLockup priority />
+    <header className="sticky top-0 z-50 border-b border-lp-line bg-[rgba(0,0,0,0.72)] text-lp-fg backdrop-blur-[14px]">
+      <div className="container-lp flex flex-wrap items-center justify-between gap-x-4 gap-y-3 py-[13px]">
+        <Link href="/" className="flex items-center gap-[10px] text-lp-fg no-underline">
+          <DotMark />
+          <LpWordmark />
         </Link>
-        <nav aria-label="Main" className="order-3 flex w-full justify-between gap-[clamp(16px,3vw,36px)] text-[15px] md:order-none md:w-auto md:justify-start">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className="text-muted-foreground no-underline transition-colors hover:text-fg">
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex items-center gap-[22px]">
-          <Link href="/login" className="text-[15px] font-medium text-fg no-underline hover:text-white">Log in</Link>
+        <nav aria-label="Main" className="flex items-center gap-[10px]">
           <HeaderCta withOffer={withOffer} />
-        </div>
+          <Link href="/#tour" className={outlineClass("hidden py-2 sm:inline-flex")}>See it work</Link>
+          <Link href="/login" className="px-2 py-2 text-[14.5px] text-lp-muted no-underline transition-colors hover:text-lp-fg">Log in</Link>
+        </nav>
       </div>
     </header>
   );

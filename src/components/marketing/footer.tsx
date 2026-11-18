@@ -1,53 +1,75 @@
 import Link from "next/link";
-import { Logo } from "@/components/brand/logo";
 import { NOT_AFFILIATED } from "@/lib/copy";
 import { legalEnv } from "@/lib/env";
 import { SEO_PAGES } from "@/lib/seo-pages";
+import { FooterMark } from "./footer-mark";
+import { DotMark, LpWordmark } from "./lp";
 
-const LINKS = [
+const PRODUCT_LINKS = [
   { href: "/pricing", label: "Pricing" },
+  { href: "/docs/api", label: "API docs" },
+  { href: "/ai", label: "AI by city" },
+  { href: "/llms.txt", label: "llms.txt" },
+];
+const LEGAL_LINKS = [
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
   { href: "/refunds", label: "Refunds" },
   { href: "/disclaimer", label: "Disclaimer" },
-  { href: "/removal", label: "Removal request" },
-  { href: "/docs/api", label: "API docs" },
-  { href: "/ai", label: "AI visibility by city" },
-  { href: "/llms.txt", label: "llms.txt" },
+  { href: "/removal", label: "Removal" },
 ];
+/** Guide pages shown as the third column; every other guide goes in the row below. */
+const GUIDE_COLUMN = ["/ai-rank-tracker", "/map-rank-tracker", "/local-seo-software", "/blog/how-to-show-up-in-chatgpt"];
+const SHORT_TITLE: Record<string, string> = { "/blog/how-to-show-up-in-chatgpt": "Show up in ChatGPT" };
+
+const shortTitle = (path: string, title: string) =>
+  SHORT_TITLE[path] ?? title.split(":")[0].replace(/ You Pay For Once| for Local Businesses| for Agencies, Paid Once| \(and Two Other Options\)/, "");
+
+const linkClass = "text-lp-muted no-underline transition-colors hover:text-lp-fg";
 
 /** 9.16 Footer. The operator line comes from LEGAL_* env; nothing is invented when they are unset. */
 export function Footer({ padForStickyBar = false }: { padForStickyBar?: boolean }) {
   const entity = legalEnv.entityName();
   const address = legalEnv.address();
   const email = legalEnv.email();
+  const column = GUIDE_COLUMN.map((path) => SEO_PAGES.find((p) => p.path === path)).filter((p) => p !== undefined);
+  const row = SEO_PAGES.filter((p) => !GUIDE_COLUMN.includes(p.path));
   return (
-    <footer className="border-t border-line">
-      <div className="container-page flex flex-wrap items-end justify-between gap-6 pt-10 pb-10">
-        <div className="flex max-w-[520px] flex-col gap-[10px]">
-          <Link href="/" className="flex items-center gap-3 no-underline">
-            <Logo height={30} />
-            <span className="text-[17px] font-semibold">rankbyai<span className="text-dim">.live</span></span>
+    <footer className="overflow-hidden border-t border-[#161616] bg-lp-bg pt-[72px] text-lp-fg">
+      <div className="container-lp grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-10">
+        <div>
+          <Link href="/" className="flex items-center gap-[10px] text-lp-fg no-underline">
+            <DotMark />
+            <LpWordmark />
           </Link>
-          <span className="text-[14px] leading-normal text-dim">
-            {entity ? `RankbyAI is operated by ${entity}${address ? `, ${address}` : ""}. ` : ""}
+          <div className="mt-5 text-[13.5px] text-lp-dim">© 2026 RankbyAI</div>
+          <div className="mt-[10px] max-w-[320px] text-[12.5px] leading-[1.6] text-lp-dim">
+            {entity ? `Operated by ${entity}${address ? `, ${address}` : ""}. ` : ""}
             {NOT_AFFILIATED}
-          </span>
+          </div>
         </div>
-        <nav aria-label="Footer" className="flex max-w-[560px] flex-wrap gap-x-7 gap-y-3 text-[15px]">
-          {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="text-muted-foreground no-underline transition-colors hover:text-fg">{l.label}</Link>
-          ))}
-          {email ? <a href={`mailto:${email}`} className="text-muted-foreground no-underline transition-colors hover:text-fg">Contact</a> : null}
+        <nav aria-label="Footer" className="grid grid-cols-3 content-start gap-x-5 gap-y-3 text-[15px]">
+          <div className="flex flex-col gap-3">
+            {PRODUCT_LINKS.map((l) => <Link key={l.href} href={l.href} className={linkClass}>{l.label}</Link>)}
+            {email ? <a href={`mailto:${email}`} className={linkClass}>Contact</a> : null}
+          </div>
+          <div className="flex flex-col gap-3">
+            {LEGAL_LINKS.map((l) => <Link key={l.href} href={l.href} className={linkClass}>{l.label}</Link>)}
+          </div>
+          <div className="flex flex-col gap-3">
+            {column.map((p) => <Link key={p.path} href={p.path} className={linkClass}>{shortTitle(p.path, p.title)}</Link>)}
+          </div>
         </nav>
       </div>
-      <div className={`container-page -mt-4 ${padForStickyBar ? "pb-[120px]" : "pb-12"}`}>
-        <nav aria-label="Guides and comparisons" className="flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-6 text-[14px]">
-          <span className="text-dim">Guides and comparisons:</span>
-          {SEO_PAGES.map((p) => (
-            <Link key={p.path} href={p.path} className="text-muted-foreground no-underline transition-colors hover:text-fg">{p.title.split(":")[0].replace(/ You Pay For Once| for Local Businesses| for Agencies, Paid Once| \(and Two Other Options\)/, "")}</Link>
-          ))}
-        </nav>
+      <nav aria-label="Guides and comparisons" className="container-lp mt-10">
+        <div className="flex flex-wrap gap-x-[18px] gap-y-2 border-t border-[#141414] pt-5 text-[12.5px] text-lp-dim">
+          <span>Guides and comparisons:</span>
+          {row.map((p) => <Link key={p.path} href={p.path} className="text-lp-dim no-underline transition-colors hover:text-lp-fg">{shortTitle(p.path, p.title)}</Link>)}
+        </div>
+      </nav>
+      <div className={`flex items-center justify-center gap-[3vw] px-[3vw] pt-[9vw] ${padForStickyBar ? "pb-[calc(4vw+84px)]" : "pb-[4vw]"}`}>
+        <FooterMark />
+        <div aria-hidden className="font-display text-[12.4vw] leading-[0.9] font-extrabold tracking-[-0.035em] whitespace-nowrap text-[#f2f0ec]">RankbyAI</div>
       </div>
     </footer>
   );

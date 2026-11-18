@@ -59,4 +59,38 @@
   --rb-gutter: clamp(20px, 4vw, 40px);
   --rb-section-y: clamp(80px, 10vw, 128px);
   --rb-band-y: clamp(48px, 6vw, 72px);
+
+  /*
+   * Landing redesign (design handoff "landing redesign", Nov 2026). New tokens, added next to the
+   * ones above instead of changing them: the app, share pages and PDFs keep the --rb-* values.
+   */
+  --lp-bg: #000000; /* page */
+  --lp-bg-banner: #070707; /* top banner */
+  --lp-frame-inner: #0a0a0a; /* inner panel of a bezel */
+  --lp-frame-inner-border: #1e1e1e;
+  --lp-surface: #0e0e0e; /* cards inside frames, right-hand columns */
+  --lp-well: #121212; /* segmented wells */
+  --lp-line: #1a1a1a; /* dividers */
+  --lp-line-2: #1c1c1c;
+  --lp-border: #262626; /* chips, inputs */
+  --lp-border-2: #2e2e2e;
+  --lp-border-3: #333333; /* secondary buttons */
+  --lp-fg: #f4f2ee; /* warm off-white */
+  --lp-fg-2: #d6d3ce;
+  --lp-muted: #8f8f8f; /* body copy on black (6.6:1) */
+  --lp-dim: #7a7a7a; /* small labels (4.9:1) */
+  --lp-faint: #6b6b6b; /* mono captions on wells only */
+  --lp-accent: #ff7a1a; /* brand orange: dots, active states, fills */
+  --lp-accent-text: #ff8a3d; /* orange text on black */
+  --lp-accent-soft: #ffb27a;
+  --lp-accent-tint: rgba(255, 122, 26, 0.1);
+  --lp-accent-border: rgba(255, 122, 26, 0.5);
+  --lp-strike: #e5484d; /* line through competitor prices */
+  --lp-ours: #3fbf6a; /* our price, positive deltas */
+  --lp-ours-dim: #2e8a4e;
+  --lp-cream-text: #17130f;
+  --lp-shadow-bezel: 0 30px 80px rgba(0, 0, 0, 0.6);
+  --lp-shadow-bezel-lg: 0 40px 120px rgba(0, 0, 0, 0.7);
+  --lp-container: 880px;
+  --lp-container-wide: 1040px;
 }

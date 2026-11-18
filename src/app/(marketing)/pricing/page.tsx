@@ -7,10 +7,10 @@ import { Footer } from "@/components/marketing/footer";
 import { Header } from "@/components/marketing/header";
 import { OfferProvider } from "@/components/marketing/offer-context";
 import { Pricing } from "@/components/marketing/pricing";
-import { calculateYearlyDataCost } from "@/lib/cost/estimate";
+import { packsOpen } from "@/lib/availability";
+import { scenarioYearlyDataCost } from "@/lib/cost/estimate";
 import { buildFaq } from "@/lib/faq";
 import { getOfferCached } from "@/lib/offer";
-import { ENGINES, SCENARIO } from "@/lib/pricing-constants";
 import { breadcrumbLd, faqLd, graph, softwareLd } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -25,21 +25,21 @@ export default async function PricingPage() {
   const live = result.available ? { ...result.offer, paidTotal: result.paidTotal } : null;
   const offer = result.available ? result.offer : null;
   const faq = buildFaq(offer);
-  const scenarioYearUsd = calculateYearlyDataCost({
-    prompts: SCENARIO.clients * SCENARIO.promptsPerClient, aiGrid: SCENARIO.aiGrid, engines: ENGINES, frequency: SCENARIO.frequency, geminiFreeAllowance: true, mapsGrid: SCENARIO.mapsGrid,
-  }).totalUsdPerYear;
+  const scenarioYearUsd = scenarioYearlyDataCost().totalUsdPerYear;
   return (
     <OfferProvider initial={live}>
       <JsonLd data={graph(breadcrumbLd([{ name: "Home", path: "/" }, { name: "Pricing", path: "/pricing" }]), softwareLd(offer), faqLd(faq))} />
-      <Header />
-      <main>
-        <h1 className="sr-only">RankbyAI pricing</h1>
-        <Pricing scenarioYearUsd={scenarioYearUsd} />
-        <Compare scenarioYearUsd={scenarioYearUsd} />
-        <Calculator />
-        <Faq items={faq} />
-      </main>
-      <Footer />
+      <div className="min-h-dvh overflow-x-clip bg-lp-bg text-lp-fg">
+        <Header />
+        <main>
+          <h1 className="sr-only">RankbyAI pricing</h1>
+          <Pricing scenarioYearUsd={scenarioYearUsd} packsOpen={packsOpen()} />
+          <Compare scenarioYearUsd={scenarioYearUsd} />
+          <Calculator />
+          <Faq items={faq} />
+        </main>
+        <Footer />
+      </div>
     </OfferProvider>
   );
 }

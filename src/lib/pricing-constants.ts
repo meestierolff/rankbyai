@@ -108,6 +108,8 @@ export const COMPETITORS = {
     plan: "Starter, billed yearly",
     yearUsd: 299.88,
     monthlyEquivalent: "$24.99/mo",
+    /** Price of one extra credit (brief 9.12). */
+    extraCreditUsd: 0.05,
     source: "localfalcon.com/pricing",
   },
   whitespark: {
@@ -123,16 +125,31 @@ export const COMPETITORS = {
   },
 } as const;
 
-/** The published comparison scenario (brief 9.12): used by the hero cost card, the maths box and the compare table. */
+/**
+ * The published comparison scenario: used by the hero offer box, the pricing card and the compare
+ * table, so the three always agree.
+ *
+ * The landing redesign (Nov 2026) changed it from the brief's monthly AI + Maps scenario to weekly
+ * 7×7 Maps grids. Competitor prices are still the brief's (9.12, dated COMPETITOR_PRICES_DATE);
+ * `coverage` records the check that both plans can actually run this scenario.
+ */
 export const SCENARIO = {
   clients: 10,
   promptsPerClient: 3,
-  aiGrid: 3 as AiGridSize,
   mapsGrid: 7 as MapsGridSize,
-  frequency: "monthly" as const,
+  frequency: "weekly" as const,
+  /** Line above the three prices in the hero. */
+  headline: "One year of weekly 7×7 Maps grids for 10 clients, 3 prompts each.",
   description:
-    "An agency checks 10 clients, 3 prompts each, once a month on a 3×3 AI grid across 3 engines, plus a monthly 7×7 Maps grid for the same prompts.",
+    "An agency tracks 10 clients, 3 prompts each, every week on a 7×7 Google Maps grid: 1,560 grids and 76,440 grid points a year.",
+  /** Grid points a year: 30 prompts × 52 weeks × 49 points. Asserted in tests/unit/pricing.test.ts. */
+  mapsPointsPerYear: 76_440,
+  coverageDate: "18 Nov 2026",
+  coverage:
+    "Plan fit checked on the vendors' own pages on 18 Nov 2026: Local Falcon charges one credit per grid point and Starter billed yearly includes 90,000 credits; BrightLocal states that every plan includes a 7×7 grid with up to 5 keywords and that reports can run weekly.",
 };
+/** Local Falcon Starter, billed yearly: credits per year (brief 9.12; localfalcon.com/pricing). */
+export const LOCAL_FALCON_STARTER_CREDITS_PER_YEAR = 90_000;
 
 /** Included-scan packs (keys included). Prices in integer cents. */
 export const PACKS = {

@@ -10,6 +10,32 @@
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-heading: var(--font-geist-sans), system-ui, sans-serif;
+  --font-display: var(--font-archivo), var(--font-geist-sans), system-ui, sans-serif;
+
+  /* Landing redesign tokens (see tokens.css) */
+  --color-lp-bg: var(--lp-bg);
+  --color-lp-banner: var(--lp-bg-banner);
+  --color-lp-inner: var(--lp-frame-inner);
+  --color-lp-surface: var(--lp-surface);
+  --color-lp-well: var(--lp-well);
+  --color-lp-line: var(--lp-line);
+  --color-lp-line-2: var(--lp-line-2);
+  --color-lp-border: var(--lp-border);
+  --color-lp-border-2: var(--lp-border-2);
+  --color-lp-border-3: var(--lp-border-3);
+  --color-lp-fg: var(--lp-fg);
+  --color-lp-fg-2: var(--lp-fg-2);
+  --color-lp-muted: var(--lp-muted);
+  --color-lp-dim: var(--lp-dim);
+  --color-lp-faint: var(--lp-faint);
+  --color-lp-accent: var(--lp-accent);
+  --color-lp-accent-text: var(--lp-accent-text);
+  --color-lp-accent-soft: var(--lp-accent-soft);
+  --color-lp-strike: var(--lp-strike);
+  --color-lp-ours: var(--lp-ours);
+  --color-lp-ours-dim: var(--lp-ours-dim);
+  --shadow-lp-bezel: var(--lp-shadow-bezel);
+  --shadow-lp-bezel-lg: var(--lp-shadow-bezel-lg);
 
   /* Brand tokens */
   --color-bg: var(--rb-bg);
@@ -198,6 +224,70 @@
   max-width: var(--rb-container);
   margin-inline: auto;
   padding-inline: var(--rb-gutter);
+}
+/* Landing redesign: 880px content column, 1040px for the demo and the compare table. */
+@utility container-lp {
+  width: 100%;
+  max-width: var(--lp-container);
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+@utility container-lp-wide {
+  width: 100%;
+  /* The prototype's wide blocks are 1040px of content inside 24px of section padding. */
+  max-width: calc(var(--lp-container-wide) + 48px);
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+/* Archivo on its wide (125%) axis: hero H1, the big price, the footer wordmark, big stats. */
+@utility font-display {
+  font-family: var(--font-display);
+  font-stretch: 125%;
+  font-variation-settings: "wdth" 125;
+}
+@utility lp-h2 {
+  font-weight: 600;
+  font-size: clamp(40px, 6vw, 74px);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+@utility lp-h3 {
+  font-weight: 600;
+  font-size: clamp(34px, 4.2vw, 46px);
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+@utility lp-lead {
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--lp-muted);
+  text-wrap: pretty;
+}
+@utility lp-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lp-accent-text);
+}
+/* The gridded well behind every dot grid on the landing page. */
+@utility lp-grid-well {
+  background-color: var(--lp-surface);
+  background-image: linear-gradient(#171717 1px, transparent 1px), linear-gradient(90deg, #171717 1px, transparent 1px);
+  background-size: 24px 24px;
+  border: 1px solid var(--lp-line-2);
+  border-radius: 12px;
+}
+/* Cream primary button. */
+@utility lp-cream {
+  color: var(--lp-cream-text);
+  background: linear-gradient(180deg, #f8f5f0 0%, #dcd5ca 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 28px rgba(0, 0, 0, 0.4);
 }
 @utility container-narrow {
   width: 100%;

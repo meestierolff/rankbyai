@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Archivo, Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { AnalyticsProvider } from "@/components/analytics/analytics-provider";
@@ -7,6 +7,8 @@ import { miscEnv, publicEnv } from "@/lib/env";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"], display: "swap" });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], display: "swap" });
+// Display face of the landing page. Variable weight plus the width axis (the design uses 125%).
+const archivo = Archivo({ variable: "--font-archivo", subsets: ["latin"], axes: ["wdth"], display: "swap" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(publicEnv.siteUrl),
@@ -25,7 +27,7 @@ export const viewport: Viewport = { themeColor: "#0b0b0b", colorScheme: "dark" }
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const tracker = miscEnv.sodTrackerSrc();
   return (
-    <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable} ${archivo.variable}`}>
       <body className="min-h-dvh">
         {children}
         <AnalyticsProvider />

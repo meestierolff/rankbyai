@@ -5,7 +5,8 @@ import { FixKitMock } from "@/components/marketing/feature-mocks";
 import { CATEGORY_LABEL, CATEGORY_WEIGHTS, type Category, type CheckResult } from "@/lib/audit/checks";
 import type { StoredAuditInputs } from "@/lib/audit/run";
 import type { SessionContext } from "@/lib/auth";
-import { currentUserDb } from "@/lib/db/session";
+import { memberRead } from "@/lib/db/member-read";
+import { userRead } from "./reads";
 import { isMockMode } from "@/lib/mock";
 import { getCreditBalance, getKeyStatuses } from "@/lib/workspace-data";
 import { AuditForm, AuditProgress, FixKitPanel, PagePlanEditor, ReviewMath, type KitView } from "./audit-client";
@@ -17,13 +18,18 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
 interface AuditListRow { id: string; business_id: string; status: string; score: number | null; checks_ran: number; checks_total: number; funding: string; created_at: string; inputs: { service?: string }; businesses: { name: string } | { name: string }[] | null }
 
 export async function AuditIndexPage({ ctx, businessId }: { ctx: SessionContext; businessId?: string }) {
-  const db = await currentUserDb();
   const ws = ctx.workspace;
+  // memberRead falls back to a server read for this workspace when the gateway drops the signed-in identity.
+  // The business list feeds the form: a failure there throws (error page) rather than showing no businesses.
   const [{ data: bizRows }, keyRows, credits, { data: auditRows, error }] = await Promise.all([
-    db.from("businesses").select("id, name, city, primary_category").eq("workspace_id", ws.id).neq("source", "prospect").order("created_at", { ascending: false }).limit(500),
+    memberRead<{ id: string; name: string; city: string | null; primary_category: string | null }[]>("Businesses", ws.id, (db) =>
+      db.from("businesses").select("id, name, city, primary_category").eq("workspace_id", ws.id).neq("source", "prospect").order("created_at", { ascending: false }).limit(500),
+    ),
     getKeyStatuses(ws.id),
     getCreditBalance(ws.id),
-    db.from("audits").select("id, business_id, status, score, checks_ran, checks_total, funding, created_at, inputs, businesses(name)").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(50),
+    memberRead<unknown[]>("Audits", ws.id, (db) =>
+      db.from("audits").select("id, business_id, status, score, checks_ran, checks_total, funding, created_at, inputs, businesses(name)").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(50),
+    ).then((r) => ({ data: r.data, error: null }), (e: unknown) => ({ data: null, error: e })),
   ]);
   const businesses = ((bizRows ?? []) as { id: string; name: string; city: string | null; primary_category: string | null }[]).map((b) => ({ id: b.id, name: b.name, city: b.city, category: b.primary_category }));
   const audits = (auditRows ?? []) as unknown as AuditListRow[];
@@ -112,13 +118,20 @@ function Finding({ f }: { f: FindingRow }) {
   );
 }
 
+interface AuditDetailRow {
+  id: string; business_id: string; status: string; score: number | null; category_scores: unknown; checks_ran: number; checks_total: number;
+  inputs: unknown; funding: string; est_cost_usd: number | null; cost_usd: number | null; error: string | null; created_at: string; finished_at: string | null; businesses: unknown;
+}
+
 export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; auditId: string }) {
   if (!/^[0-9a-f-]{36}$/.test(auditId)) notFound();
-  const db = await currentUserDb();
-  const { data: audit } = await db
-    .from("audits")
-    .select("id, business_id, status, score, category_scores, checks_ran, checks_total, inputs, funding, est_cost_usd, cost_usd, error, created_at, finished_at, businesses(id, name, city)")
-    .eq("id", auditId).eq("workspace_id", ctx.workspace.id).maybeSingle();
+  // A failed read raises an error page; only an audit that really is not there is a 404.
+  const { data: audit } = await memberRead<AuditDetailRow>("Audit", ctx.workspace.id, (db) =>
+    db
+      .from("audits")
+      .select("id, business_id, status, score, category_scores, checks_ran, checks_total, inputs, funding, est_cost_usd, cost_usd, error, created_at, finished_at, businesses(id, name, city)")
+      .eq("id", auditId).eq("workspace_id", ctx.workspace.id).maybeSingle(),
+  );
   if (!audit) notFound();
   const business = one(audit.businesses as unknown as { id: string; name: string; city: string | null } | { id: string; name: string; city: string | null }[]);
   const header = (
@@ -138,10 +151,17 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
   if (audit.status === "failed") return <>{header}<ErrorState title="The audit did not finish" body={audit.error ?? "Nothing was charged for it. Run it again."} /></>;
 
   const inputs = audit.inputs as StoredAuditInputs;
-  const [{ data: findingRows }, { data: previousRows }, { data: kitRows }] = await Promise.all([
-    db.from("audit_findings").select("id, priority, category, title, evidence, fix, impact_note, check_key, data").eq("audit_id", audit.id),
-    db.from("audits").select("id, score, created_at").eq("business_id", audit.business_id).eq("status", "done").lt("created_at", audit.created_at).order("created_at", { ascending: false }).limit(1),
-    db.from("fix_kits").select("id, description, faqs, jsonld_localbusiness, jsonld_faq, llms_txt, checklist").eq("audit_id", audit.id).order("created_at", { ascending: false }).limit(1),
+  const ws = ctx.workspace.id;
+  // Findings have no workspace column, so they are read signed in only; a failed read throws (error page,
+  // never an audit that looks empty). The other two filter by workspace and may fall back to a server read.
+  const [findingRows, { data: previousRows }, { data: kitRows }] = await Promise.all([
+    userRead("Audit findings", (db) => db.from("audit_findings").select("id, priority, category, title, evidence, fix, impact_note, check_key, data").eq("audit_id", audit.id)),
+    memberRead<unknown[]>("Previous audit", ws, (db) =>
+      db.from("audits").select("id, score, created_at").eq("workspace_id", ws).eq("business_id", audit.business_id).eq("status", "done").lt("created_at", audit.created_at).order("created_at", { ascending: false }).limit(1),
+    ),
+    memberRead<unknown[]>("Fix kit", ws, (db) =>
+      db.from("fix_kits").select("id, description, faqs, jsonld_localbusiness, jsonld_faq, llms_txt, checklist").eq("workspace_id", ws).eq("audit_id", audit.id).order("created_at", { ascending: false }).limit(1),
+    ),
   ]);
   const findings = ((findingRows ?? []) as FindingRow[]).sort((a, b) => a.priority.localeCompare(b.priority));
   const previous = ((previousRows ?? []) as { id: string; score: number | null; created_at: string }[])[0];

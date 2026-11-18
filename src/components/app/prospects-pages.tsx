@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { SessionContext } from "@/lib/auth";
-import { currentUserDb } from "@/lib/db/session";
+import { memberRead } from "@/lib/db/member-read";
 import { isMockMode } from "@/lib/mock";
 import type { BatchRow } from "@/lib/prospects/batch";
 import { getCreditBalance, getKeyStatuses } from "@/lib/workspace-data";
@@ -10,12 +10,14 @@ import { ErrorState, PageHeader, Panel, PrimaryLink, StatusChip } from "./ui";
 import { LocalTime } from "./local-time";
 
 export async function ProspectIndexPage({ ctx }: { ctx: SessionContext }) {
-  const db = await currentUserDb();
   const ws = ctx.workspace;
+  // memberRead falls back to a server read for this workspace when the gateway drops the signed-in identity.
   const [keyRows, credits, { data: batchRows, error }] = await Promise.all([
     getKeyStatuses(ws.id),
     getCreditBalance(ws.id),
-    db.from("prospect_batches").select("id, mode, niche, city, funding, total, done, failed, status, created_at").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(50),
+    memberRead<Omit<BatchView, "rows">[]>("Prospect batches", ws.id, (db) =>
+      db.from("prospect_batches").select("id, mode, niche, city, funding, total, done, failed, status, created_at").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(50),
+    ).then((r) => ({ data: r.data, error: null }), (e: unknown) => ({ data: null, error: e })),
   ]);
   const batches = (batchRows ?? []) as Omit<BatchView, "rows">[];
   const locked = ws.plan !== "lifetime";
@@ -57,8 +59,10 @@ export async function ProspectIndexPage({ ctx }: { ctx: SessionContext }) {
 
 export async function ProspectBatchPage({ ctx, batchId }: { ctx: SessionContext; batchId: string }) {
   if (!/^[0-9a-f-]{36}$/.test(batchId)) notFound();
-  const db = await currentUserDb();
-  const { data: batch } = await db.from("prospect_batches").select("id, mode, niche, city, funding, total, done, failed, status, rows, created_at").eq("id", batchId).eq("workspace_id", ctx.workspace.id).maybeSingle();
+  // A failed read raises an error page; only a batch that really is not there is a 404.
+  const { data: batch } = await memberRead<Omit<BatchView, "rows"> & { rows: unknown }>("Prospect batch", ctx.workspace.id, (db) =>
+    db.from("prospect_batches").select("id, mode, niche, city, funding, total, done, failed, status, rows, created_at").eq("id", batchId).eq("workspace_id", ctx.workspace.id).maybeSingle(),
+  );
   if (!batch) notFound();
   const view: BatchView = { ...batch, rows: batch.rows as BatchRow[] };
   return (

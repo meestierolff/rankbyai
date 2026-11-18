@@ -447,8 +447,10 @@ function AnswerCard({ a, businessName }: { a: QuotedAnswer; businessName: string
                 {a.cited.map((c, _i, all) => (
                   <li key={c.url}>
                     <a href={c.url} target="_blank" rel="nofollow noopener noreferrer ugc" title={c.title || c.url} className="inline-block max-w-full truncate rounded-full border border-lp-border-2 px-[10px] py-[3px] font-mono text-[12px] text-lp-muted no-underline hover:border-lp-border-3 hover:text-lp-fg">
-                      {/* Several sources on one site (Gemini cites Google Maps places): name each by its title. */}
-                      {c.title && all.filter((o) => o.domain === c.domain).length > 1 ? c.title.slice(0, 48) : c.domain}
+                      {/* The domain is always the label (the title is the vendor's text). Several sources on one
+                          site (Gemini cites Google Maps places) add their title after it, de-emphasised. */}
+                      {c.domain}
+                      {c.title && all.filter((o) => o.domain === c.domain).length > 1 ? <span className="text-dim"> · {c.title.slice(0, 40)}</span> : null}
                     </a>
                   </li>
                 ))}

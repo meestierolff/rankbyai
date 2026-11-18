@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ErrorState, PageHeader, Panel, StatTile, StatusChip, fmtDate, fmtUsd } from "@/components/app/ui";
 import { LiveDot } from "@/components/brand/primitives";
+import { checkoutOpen } from "@/lib/availability";
 import { requireSession } from "@/lib/auth";
 import { fmtPrice, formatClosesAt } from "@/lib/ladder";
 import { fetchOfferFresh } from "@/lib/offer";
@@ -23,6 +24,12 @@ export default async function BillingPage() {
   return (
     <>
       <PageHeader title="Billing" description="One payment for the software. API usage is billed to you by your own vendors, or comes out of included scan credits." />
+
+      {!checkoutOpen() ? (
+        <div role="note" className="mb-5 rounded-xl border border-border-strong bg-surface-2 px-4 py-3 text-[14px] text-muted-foreground">
+          Checkout is not open yet, so nothing can be bought or charged today. The price shown is the live price.
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-4">
         <StatTile label="Plan" value={lifetime ? "Lifetime" : "Not purchased"} tone={lifetime ? "good" : undefined} hint={lifetime ? `Seat #${ws.lifetime_seat ?? "—"}` : "Look around with sample data"} />

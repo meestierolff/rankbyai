@@ -261,7 +261,7 @@ export function BatchProgress({ initial }: { initial: BatchView }) {
           <div className="h-full rounded-full bg-g1 transition-[width] duration-500" style={{ width: `${pct}%` }} />
         </div>
         <p className="m-0 text-[13px] text-dim">
-          {active ? "The Maps grid uses the standard queue, so a batch takes about 5 to 10 minutes. You can leave this page; the reports are saved as they finish." : batch.failed ? `${batch.failed} ${batch.failed === 1 ? "report" : "reports"} failed${batch.funding === "credits" ? " and gave their credits back" : ""}.` : "Every report is ready."}
+          {active ? "The Maps grid uses the standard queue, so a batch takes about 5 to 10 minutes. Reports are saved as they finish. Keep this page open, or come back to it, to keep the batch moving." : batch.failed ? `${batch.failed} ${batch.failed === 1 ? "report" : "reports"} failed${batch.funding === "credits" ? " and gave their credits back" : ""}.` : "Every report is ready."}
         </p>
         <div className="flex flex-wrap gap-2">
           {batch.done > 0 ? (

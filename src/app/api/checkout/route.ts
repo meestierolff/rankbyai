@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   } catch (err) {
     if (err instanceof MissingEnvError) {
       return Response.json(
-        { error: "payments_not_configured", message: `Payments are not configured yet (${err.missing.join(", ")}).` },
+        { error: "payments_not_open", message: "Checkout is not open yet. Nothing was charged." },
         { status: 503 },
       );
     }

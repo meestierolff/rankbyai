@@ -17,6 +17,7 @@ import { ApiMcp, CostBand, Fix, HowItWorks, KeySecurity, Problem } from "@/compo
 import { Tour } from "@/components/marketing/tour";
 import { calculateYearlyDataCost } from "@/lib/cost/estimate";
 import { miscEnv } from "@/lib/env";
+import { freeCheckOpen } from "@/lib/availability";
 import { buildFaq } from "@/lib/faq";
 import { getOfferCached } from "@/lib/offer";
 import { ENGINES, SCENARIO } from "@/lib/pricing-constants";
@@ -69,7 +70,7 @@ export default async function HomePage() {
         <Compare scenarioYearUsd={scenarioYearUsd} />
         <Calculator />
         <Faq items={faq} />
-        <FreeCheck turnstileSiteKey={miscEnv.turnstileSiteKey()} />
+        <FreeCheck turnstileSiteKey={miscEnv.turnstileSiteKey()} open={freeCheckOpen()} />
         <FinalCta />
       </main>
       <Footer padForStickyBar />

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { providerFetch } from "@/lib/providers/http";
+import { providerFetch, RATE_LIMIT_RETRIES, rateLimitWaitMs } from "@/lib/providers/http";
 import { askOpenAi, validateOpenAi } from "@/lib/providers/openai";
 import { ProviderError } from "@/lib/providers/types";
 
@@ -53,11 +53,34 @@ describe("provider HTTP layer", () => {
     expect(body.tool_choice).toBe("required");
   });
 
-  it("retries a 429 once, then reports a rate limit", async () => {
+  it("waits out a vendor rate limit several times before reporting it", async () => {
+    vi.useFakeTimers();
     const fetchMock = vi.fn(async () => new Response("{}", { status: 429 }));
     vi.stubGlobal("fetch", fetchMock);
-    await expect(providerFetch("https://example.invalid", { provider: "openai", headers: {}, retries: 1 })).rejects.toMatchObject({ kind: "rate_limit" });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const pending = providerFetch("https://example.invalid", { provider: "perplexity", headers: {}, retries: 1 }).catch((e) => e);
+    await vi.runAllTimersAsync();
+    expect(await pending).toMatchObject({ kind: "rate_limit" });
+    expect(fetchMock).toHaveBeenCalledTimes(RATE_LIMIT_RETRIES + 2); // four rate-limit waits, then the ordinary two attempts
+    vi.useRealTimers();
+  });
+
+  it("succeeds when the rate limit clears, as happens when nine calls start at once", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("{}", { status: 429, headers: { "retry-after": "2" } })).mockResolvedValueOnce(new Response("{}", { status: 429 })).mockResolvedValueOnce(new Response(JSON.stringify({ ok: 1 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const pending = providerFetch<{ ok: number }>("https://example.invalid", { provider: "perplexity", headers: {} });
+    await vi.runAllTimersAsync();
+    expect(await pending).toEqual({ ok: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
+
+  it("waits as long as the vendor asks, within a ceiling", () => {
+    expect(rateLimitWaitMs("2", 0)).toBe(2000);
+    expect(rateLimitWaitMs("60", 0)).toBe(12_000);
+    expect(rateLimitWaitMs(null, 0)).toBe(1500);
+    expect(rateLimitWaitMs(null, 2)).toBe(6000);
+    expect(rateLimitWaitMs("soon", 1)).toBe(3000);
   });
 
   it("does not retry an auth error", async () => {

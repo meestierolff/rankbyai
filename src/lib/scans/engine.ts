@@ -216,6 +216,12 @@ async function claim(scanId: string): Promise<ScanRow | null> {
 const extendLease = (scanId: string) =>
   dbAdmin().from("scans").update({ lease_until: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString() }).eq("id", scanId);
 
+/**
+ * Parallel calls per engine. Perplexity's rate limit on a new key is far lower than the others'
+ * (it refused 7 of 9 parallel calls on 18 Nov 2026), so it gets two at a time.
+ */
+const ENGINE_CONCURRENCY: Record<Engine, number> = { openai: 5, gemini: 5, perplexity: 2 };
+
 async function pool<T>(items: T[], size: number, worker: (item: T) => Promise<void>) {
   let i = 0;
   await Promise.all(Array.from({ length: Math.min(size, items.length) }, async () => {
@@ -293,7 +299,7 @@ async function runAi(scan: ScanRow, business: BusinessRow, creds: ProviderCreden
       return;
     }
     let dead: string | null = null; // set after an auth/quota error: stop hammering this engine
-    await pool(list, 5, async (s) => {
+    await pool(list, ENGINE_CONCURRENCY[engine], async (s) => {
       if (Date.now() > deadline) return; // left pending; a later call continues
       if (dead) {
         await admin.from("ai_samples").update({ status: "failed", error: dead }).eq("id", s.id);

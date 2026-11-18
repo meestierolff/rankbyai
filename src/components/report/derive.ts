@@ -19,7 +19,13 @@ export function dataDates(view: ReportView): string {
   return first === last ? fmtDay(first) : `${fmtDay(first, "short")} – ${fmtDay(last, "short")}`;
 }
 
-export const placeOf = (view: ReportView) => [view.business.city, view.business.region].filter(Boolean).join(", ");
+/** "Austin, TX". A city typed with its region already ("Austin, TX") does not get the region twice. */
+export function placeOf(view: ReportView): string {
+  const city = view.business.city?.trim() || null;
+  const region = view.business.region?.trim() || null;
+  if (city && region && city.toLowerCase().split(/\s*,\s*/).includes(region.toLowerCase())) return city;
+  return [city, region].filter(Boolean).join(", ");
+}
 
 const around = (view: ReportView) => (view.business.city ? `around ${view.business.city}` : "around the business");
 const quoteMark = (s: string | null) => (s ? `“${s}”` : "its main search");

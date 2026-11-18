@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { VARIANTS, type VariantKey } from "@/app/dev/report-preview/fixtures";
-import { contrastRatio, fitVerdict, headlineStats, quoteBlocks, sentenceEnds, splitBlocks, textOn, verdict } from "@/components/report/derive";
+import { contrastRatio, fitVerdict, headlineStats, placeOf, quoteBlocks, sentenceEnds, splitBlocks, textOn, verdict } from "@/components/report/derive";
 import {
   aiCounts, buildAiPoints, buildMapsPoints, buildQuote, mapsCounts, nearestPoint, recommendedFrom, safeHttpUrl, type QuoteRow, type RawPoint, type RawSample,
 } from "@/components/report/model";
@@ -170,5 +170,17 @@ describe("link-preview finding", () => {
       const f = fitVerdict(verdict(VARIANTS[key].build()), false);
       expect(f.text.length, key).toBeLessThanOrEqual(250);
     }
+  });
+});
+
+describe("place line", () => {
+  const at = (city: string | null, region: string | null) => placeOf({ business: { name: "X", city, region, category: null, lat: null, lng: null } } as unknown as ReportView);
+  it("joins city and region once", () => {
+    expect(at("Austin", "TX")).toBe("Austin, TX");
+    expect(at("Austin, TX", "TX")).toBe("Austin, TX");
+    expect(at("Austin, tx", "TX")).toBe("Austin, tx");
+    expect(at("Texarkana", "TX")).toBe("Texarkana, TX");
+    expect(at(null, "TX")).toBe("TX");
+    expect(at("Austin", null)).toBe("Austin");
   });
 });

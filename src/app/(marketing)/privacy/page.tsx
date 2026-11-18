@@ -225,7 +225,7 @@ export default function PrivacyPage() {
       <h3>Vercel Web Analytics</h3>
       <p>
         Vercel Web Analytics counts page views, which pages are visited and where visits come from (the referring site, country and device type). It sets no cookies and stores nothing on
-        your device. According to Vercel, a visit is told apart by a hash of the request that is discarded after 24 hours. It runs on every page, including report links, and is not
+        your device. According to Vercel, a visitor is told apart by a hash of the request, and visitor sessions are discarded after 24 hours (vercel.com/docs/analytics/privacy-policy). It runs on every page, including report links, and is not
         controlled by the analytics choice above.
       </p>
       <h3>Ship or Die hackathon tracker</h3>

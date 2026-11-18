@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ErrorState, PageHeader, Panel, StatTile, StatusChip, fmtDate, fmtUsd } from "@/components/app/ui";
 import { LiveDot } from "@/components/brand/primitives";
-import { checkoutOpen } from "@/lib/availability";
+import { checkoutOpen, packsOpen } from "@/lib/availability";
 import { requireSession } from "@/lib/auth";
 import { fmtPrice, formatClosesAt } from "@/lib/ladder";
 import { fetchOfferFresh } from "@/lib/offer";
@@ -20,12 +20,14 @@ export default async function BillingPage() {
   const [offerResult, orders, credits] = await Promise.all([fetchOfferFresh(), getOrders(ws.id), getCreditBalance(ws.id)]);
   const lifetime = ws.plan === "lifetime";
   const offer = offerResult.available ? offerResult.offer : null;
+  const checkoutAvailable = checkoutOpen();
+  const packsAvailable = packsOpen();
 
   return (
     <>
       <PageHeader title="Billing" description="One payment for the software. API usage is billed to you by your own vendors, or comes out of included scan credits." />
 
-      {!checkoutOpen() ? (
+      {!checkoutAvailable ? (
         <div role="note" className="mb-5 rounded-xl border border-border-strong bg-surface-2 px-4 py-3 text-[14px] text-muted-foreground">
           Checkout is not open yet, so nothing can be bought or charged today. The price shown is the live price.
         </div>
@@ -79,9 +81,14 @@ export default async function BillingPage() {
                 <span className="text-[15px] font-medium">{PACKS[key].label} · {PACKS[key].credits} credits</span>
                 <span className="text-[13px] text-dim">${PACKS[key].priceCents / 100} one-time, plus tax where it applies</span>
               </span>
-              <BuyPackButton productKey={key} label={`Buy for $${PACKS[key].priceCents / 100}`} disabled={!lifetime} />
+              <BuyPackButton productKey={key} label={packsAvailable ? `Buy for $${PACKS[key].priceCents / 100}` : "Not open yet"} disabled={!lifetime || !packsAvailable} />
             </div>
           ))}
+          {!packsAvailable && checkoutAvailable ? (
+            <p role="note" className="m-0 text-[13px] leading-normal text-muted-foreground">
+              Scan packs are not open yet. Scans on your own API keys work today.
+            </p>
+          ) : null}
           <p className="m-0 text-[13px] leading-normal text-dim">
             1 credit = one 3×3 AI grid on 3 engines, one Maps grid up to 9×9, or one audit. A prospect report uses {CREDIT_COST.prospect_report}; a 5×5 AI grid uses {CREDIT_COST.ai_grid_5}.
             {lifetime ? "" : " Packs require lifetime access."}

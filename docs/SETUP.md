@@ -45,19 +45,46 @@ openssl rand -hex 32      # DATAFORSEO_PINGBACK_SECRET
 
 ## 3. Stripe (test mode first)
 
-Use the dedicated RankbyAI Stripe account.
+Use the dedicated RankbyAI Stripe account. One script does the whole setup and is safe to run again: it looks up the products, prices and webhook endpoint before creating anything.
+
+**The key.** Use a restricted key (Developers → API keys → Create restricted key), not the full secret key. The site and the script need exactly these permissions, everything else stays on None:
+
+| Permission | Level | Used for |
+|---|---|---|
+| Checkout Sessions | Write | Opening the payment page (the site, on every purchase) |
+| Refunds (listed with Charges) | Write | The self-serve refund button |
+| Products | Write | Setup only: creating the lifetime product and the two packs |
+| Prices | Write | Setup only: the two pack prices |
+| Webhook Endpoints | Write | Setup only: creating the endpoint and capturing its signing secret |
+
+After setup the last three can be set back to None. If a permission is missing, Stripe's refusal names it and the script prints that message.
+
+Keep the key in a gitignored file, never in chat or in a command line:
 
 ```bash
-STRIPE_SECRET_KEY=sk_test_... node scripts/stripe-setup.mjs
+echo 'STRIPE_SECRET_KEY=rk_test_...' > .env.stripe.test.local
+node --env-file=.env.stripe.test.local scripts/stripe-setup.mjs
 ```
 
-The script creates the lifetime product and the two pack prices (idempotent) and prints `STRIPE_PRODUCT_LIFETIME`, `STRIPE_PRICE_PACK_25`, `STRIPE_PRICE_PACK_100`, `STRIPE_TAX_CODE_SAAS`. Then:
+That creates the lifetime product and the two pack prices and prints `STRIPE_PRODUCT_LIFETIME`, `STRIPE_PRICE_PACK_25`, `STRIPE_PRICE_PACK_100`, `STRIPE_TAX_CODE_SAAS`. It ends with a preflight: it opens a checkout page the way the site does and closes it again, which proves the key's permissions, that Stripe Tax is switched on and that the product exists. Nobody is charged.
 
-- Enable Stripe Tax and add your registrations.
-- Add a webhook endpoint `<origin>/api/webhooks/stripe` with: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`.
-- Set `STRIPE_SECRET_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
+**Going live** is a deliberate step by the operator:
 
-Switching to live keys is a deliberate, manual step by the operator.
+```bash
+node --env-file=.env.stripe.live.local scripts/stripe-setup.mjs --live \
+  --account acct_YOURS \
+  --webhook https://rankbyai.live/api/webhooks/stripe \
+  --vercel production
+vercel deploy --prod
+```
+
+- `--account` stops the script unless the key belongs to that account.
+- `--webhook` creates the endpoint with `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`. Stripe shows the signing secret only once, so the script requires `--vercel` or `--save` to give it somewhere to go.
+- `--vercel production` stores `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and the ids in Vercel without printing the secrets. It refuses a test key on production and a live key on preview.
+
+Before the live run: switch on Stripe Tax in the dashboard (Settings → Tax) and add your registrations. The preflight fails with Stripe's own message if Tax is not ready.
+
+**What opens when.** Checkout opens only when the secret key, the lifetime product and the webhook secret are all set and the key matches the site (live on production, test elsewhere). Without the webhook secret a buyer would pay and receive nothing, so the site keeps checkout closed. Scan packs open only when, in addition, both pack prices, the house DataForSEO login and all three house AI keys are set, because a credit is sold as a three-engine AI grid. No publishable key is needed: checkout is a redirect to Stripe.
 
 ## 4. Price ladder
 

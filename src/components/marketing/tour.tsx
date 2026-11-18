@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AiDisclaimer, MOCK_NAV, PriorityBadge, ScoreRing } from "@/components/brand/primitives";
 import { DotGrid, aiCellColors, mapsCellColors, pointName, type CellView } from "@/components/brand/grid";
 import { track } from "@/lib/analytics";
@@ -67,6 +67,29 @@ export function Tour() {
   const animated = seen && !reduced;
   const revealKey = animated ? cycle : undefined;
 
+  // The steps differ in height. The frame keeps the tallest height it has shown, so the page below
+  // does not jump every time the demo advances. A change of window width starts the measure again.
+  const stepRef = useRef<HTMLDivElement>(null);
+  const [minBody, setMinBody] = useState(0);
+  useLayoutEffect(() => {
+    const el = stepRef.current;
+    const column = el?.parentElement;
+    if (!el || !column) return;
+    const pad = getComputedStyle(column);
+    const natural = Math.ceil(el.offsetHeight + parseFloat(pad.paddingTop) + parseFloat(pad.paddingBottom));
+    setMinBody((prev) => (natural > prev ? natural : prev));
+  }, [step, engine, cycle]);
+  useEffect(() => {
+    let width = window.innerWidth;
+    const onResize = () => {
+      if (window.innerWidth === width) return;
+      width = window.innerWidth;
+      setMinBody(0);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const next = useCallback(() => {
     setStep((s) => (s + 1) % STEPS.length);
     setCycle((c) => c + 1);
@@ -92,10 +115,10 @@ export function Tour() {
           onBlurCapture={() => setHover(false)}
         >
           <TourWindowBar url={cur.url} />
-          <div className="flex min-h-[560px]">
+          <div className="flex min-h-[560px]" style={minBody ? { minHeight: minBody } : undefined}>
             <TourSidebar active={cur.nav} />
             <div className="min-w-0 flex-1 px-[clamp(16px,2.6vw,28px)] pt-[clamp(16px,2.6vw,28px)] pb-24 text-left">
-              <div key={cycle} className={animated ? styles.enter : undefined}>
+              <div key={cycle} ref={stepRef} className={animated ? styles.enter : undefined}>
                 {step === 0 ? <CheckStep engine={engine} setEngine={setEngine} revealKey={revealKey} /> : null}
                 {step === 1 ? <CompareStep revealKey={revealKey} /> : null}
                 {step === 2 ? <AuditStep /> : null}

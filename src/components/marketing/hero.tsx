@@ -79,7 +79,7 @@ export function Hero({ scenarioYearUsd }: { scenarioYearUsd: number }) {
   const { offer } = useOffer();
   const priced = offer?.open ? offer : null;
   return (
-    <section id="top" className="relative isolate flex flex-col items-center overflow-hidden bg-lp-bg px-6 pt-14 pb-16 text-lp-fg">
+    <section id="top" className="relative isolate flex flex-col items-center overflow-hidden bg-lp-bg px-6 pt-10 pb-16 text-lp-fg">
       <HeroGlow />
 
       {priced ? (
@@ -100,7 +100,7 @@ export function Hero({ scenarioYearUsd }: { scenarioYearUsd: number }) {
 
       <a
         href="#compare"
-        className="mt-[30px] block w-full max-w-[880px] rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(10,8,7,0.82)] px-[clamp(16px,3vw,32px)] pt-[22px] pb-[18px] text-lp-fg no-underline shadow-[0_24px_70px_rgba(0,0,0,0.45)] backdrop-blur-[16px] transition-colors hover:border-[rgba(255,255,255,0.24)]"
+        className="mt-[30px] block w-full max-w-[880px] rounded-[20px] border border-[rgba(255,255,255,0.12)] bg-[rgba(10,8,7,0.82)] px-[clamp(16px,3vw,32px)] pt-[20px] pb-[14px] text-lp-fg no-underline shadow-[0_24px_70px_rgba(0,0,0,0.45)] backdrop-blur-[16px] transition-colors hover:border-[rgba(255,255,255,0.24)]"
       >
         <div className="text-center text-[clamp(13px,1.4vw,15px)] leading-normal text-[#a3a3a3]">{SCENARIO.headline}</div>
         <div className="mt-[18px] grid grid-cols-[repeat(auto-fit,minmax(min(100%,180px),1fr))] items-end gap-[18px]">
@@ -123,7 +123,7 @@ export function Hero({ scenarioYearUsd }: { scenarioYearUsd: number }) {
           </div>
         </div>
         {/* Required with every competitor price: its source and date. Also says what our number is made of. */}
-        <div className="mt-[14px] text-center text-[12px] leading-normal text-lp-dim">
+        <div className="mt-[10px] text-center text-[12px] leading-[1.4] text-lp-dim">
           Yearly list prices from their pricing pages, {COMPETITOR_PRICES_DATE}.
           {priced ? ` Ours: ${fmtPrice(priced.currentPriceUsd)} once plus ≈ ${usd0(scenarioYearUsd)} of Maps data [estimate].` : " Ours is an estimate."}{" "}
           <span className="underline underline-offset-[3px]">How we calculated this</span>

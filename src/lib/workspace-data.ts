@@ -20,12 +20,12 @@ export async function getKeyStatuses(workspaceId: string): Promise<KeyStatus[]> 
   const cols = "provider, hint, status, last_validated_at, last_balance_usd";
   // Members read the safe view. The server reads the same safe columns from the table (the view
   // shows rows to members only); the encrypted key itself is never selected.
-  const { data } = await memberRead("API key status", (db, asServer) => db.from(asServer ? "api_credentials" : "api_credentials_public").select(cols).eq("workspace_id", workspaceId));
+  const { data } = await memberRead("API key status", workspaceId, (db, asServer) => db.from(asServer ? "api_credentials" : "api_credentials_public").select(cols).eq("workspace_id", workspaceId));
   return (data ?? []) as KeyStatus[];
 }
 
 export async function getCreditBalance(workspaceId: string): Promise<number> {
-  const { data } = await memberRead("Credit balance", (db) => db.from("credit_ledger").select("delta").eq("workspace_id", workspaceId));
+  const { data } = await memberRead("Credit balance", workspaceId, (db) => db.from("credit_ledger").select("delta").eq("workspace_id", workspaceId));
   return ((data ?? []) as { delta: number }[]).reduce((s, r) => s + r.delta, 0);
 }
 
@@ -41,7 +41,7 @@ export interface OrderRow {
   refundable: boolean;
 }
 export async function getOrders(workspaceId: string): Promise<OrderRow[]> {
-  const { data } = await memberRead("Orders", (db) =>
+  const { data } = await memberRead("Orders", workspaceId, (db) =>
     db
       .from("orders")
       .select("id, product_key, amount_cents, tax_cents, status, ladder_seat, created_at")
@@ -73,7 +73,7 @@ export interface ScanRow {
   businesses?: { name: string } | null;
 }
 export async function getRecentScans(workspaceId: string, limit = 8): Promise<ScanRow[]> {
-  const { data } = await memberRead("Recent scans", (db) =>
+  const { data } = await memberRead("Recent scans", workspaceId, (db) =>
     db
       .from("scans")
       .select("id, business_id, kind, grid_size, status, funding, keyword, niche, engines, est_cost_usd, actual_cost_usd, summary, created_at, finished_at, businesses(name)")
@@ -89,13 +89,13 @@ export async function getByokSpendThisMonth(workspaceId: string): Promise<number
   const start = new Date();
   start.setUTCDate(1);
   start.setUTCHours(0, 0, 0, 0);
-  const { data } = await memberRead("Spend this month", (db) =>
+  const { data } = await memberRead("Spend this month", workspaceId, (db) =>
     db.from("scans").select("actual_cost_usd").eq("workspace_id", workspaceId).eq("funding", "byok").gte("created_at", start.toISOString()),
   );
   return ((data ?? []) as { actual_cost_usd: number | null }[]).reduce((s, r) => s + Number(r.actual_cost_usd ?? 0), 0);
 }
 
 export async function countRows(table: "businesses" | "clients" | "tracked_queries" | "api_keys", workspaceId: string): Promise<number> {
-  const { count } = await memberRead(`Count of ${table}`, (db) => db.from(table).select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId));
+  const { count } = await memberRead(`Count of ${table}`, workspaceId, (db) => db.from(table).select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId));
   return count ?? 0;
 }

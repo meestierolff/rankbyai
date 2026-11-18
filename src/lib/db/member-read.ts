@@ -1,6 +1,6 @@
 import "server-only";
-import { dbAdmin, type Db } from "./clients";
-import { currentUserDb } from "./session";
+import { getSessionContext } from "@/lib/auth";
+import { dbAdmin, dbUser, type Db } from "./clients";
 
 /**
  * Reads for a signed-in member that must never come back as a fake "nothing here yet".
@@ -14,10 +14,13 @@ import { currentUserDb } from "./session";
  * fails, it runs the SAME query as the server and logs the first error. If that fails too, it
  * throws, so the page shows an error instead of a wrong empty state.
  *
- * The rule that makes the second step safe: `run` MUST scope its query to `workspaceId` itself
- * (`.eq("workspace_id", workspaceId)`), and `workspaceId` MUST come from the verified session
- * (`requireSession()` / `getSessionContext()`), never from the request. The server role bypasses
- * row-level security, so a query without that filter would read other workspaces.
+ * The server role bypasses row-level security, so the fallback is guarded twice:
+ *   1. `workspaceId` must be the workspace of the verified session. This function checks that
+ *      itself, from the session cookie, and throws otherwise. A workspace id taken from the request
+ *      can therefore never reach the server role.
+ *   2. `run` must filter its query by that id (`.eq("workspace_id", workspaceId)`); for a row
+ *      fetched by its own id, add the workspace filter as well. This part cannot be enforced here,
+ *      so every caller is reviewed for it.
  *
  * `asServer` tells `run` which of the two it is, for the rare read that needs another source as
  * the server (a member-only view returns nothing to the server role).
@@ -28,8 +31,23 @@ export interface ReadResult<T> {
   count?: number | null;
 }
 
-export async function memberRead<T>(what: string, run: (db: Db, asServer: boolean) => PromiseLike<ReadResult<T>>): Promise<{ data: T | null; count: number | null }> {
-  const first = await run(await currentUserDb(), false);
+export class NotAMemberError extends Error {
+  constructor() {
+    super("This workspace does not belong to the signed-in user.");
+    this.name = "NotAMemberError";
+  }
+}
+
+export async function memberRead<T>(
+  what: string,
+  workspaceId: string,
+  run: (db: Db, asServer: boolean) => PromiseLike<ReadResult<T>>,
+): Promise<{ data: T | null; count: number | null }> {
+  const ctx = await getSessionContext();
+  // No session, or a workspace other than the session's own: never read, on either path.
+  if (!ctx || ctx.workspace.id !== workspaceId) throw new NotAMemberError();
+
+  const first = await run(dbUser(ctx.user.id), false);
   if (!first.error) return { data: first.data, count: first.count ?? null };
   console.warn(`[db] ${what}: signed-in read failed (${first.error.code ?? "no code"}); reading as the server`);
   const second = await run(dbAdmin(), true);

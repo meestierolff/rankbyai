@@ -106,6 +106,7 @@ The ladder terms live in the database row `ladder_lock` (seeded: $29 base, +$10 
 |---|---|
 | `NEXT_PUBLIC_SITE_URL` | Canonical origin, e.g. `https://rankbyai.live` |
 | `HOUSE_*` | House API keys, used only for free checks, included-scan packs and the operator's own demos |
+| `SCAN_PACKS_FOR_SALE` | Set to `0` to keep scan packs closed while the house keys are in place. Unset means packs open as soon as they can be delivered. |
 | `OPENAI_MODEL`, `PERPLEXITY_MODEL`, `GEMINI_MODEL`, `LLM_FIXES_MODEL` | Optional model overrides |
 | `COST_*`, `FREE_CHECKS_*` | Cost guard caps and free-check limits |
 | `EMAIL_FROM` plus `BREVO_API_KEY` or `RESEND_API_KEY` | Transactional email (the purchase confirmation). `EMAIL_FROM` is `Name <address>` and must be a sender verified at the provider. Replies go to `LEGAL_EMAIL`. Without these the purchase still completes; the buyer just gets no email. |

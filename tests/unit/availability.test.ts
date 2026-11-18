@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkoutReady, packsReady } from "@/lib/availability";
+import { checkoutReady, packsForSale, packsReady } from "@/lib/availability";
 
 /**
  * Money is only taken when the purchase can also be delivered.
@@ -41,5 +41,10 @@ describe("packs open only when the scans they promise can run", () => {
     expect(packsReady({ ...ready, pack25PriceId: undefined })).toBe(false);
     expect(packsReady({ ...ready, pack100PriceId: undefined })).toBe(false);
     expect(packsReady({ ...ready, checkout: false })).toBe(false);
+  });
+  it("stays closed while the owner has switched pack sales off, even when everything is ready", () => {
+    expect(packsReady({ ...ready, forSale: false })).toBe(false);
+    for (const v of ["0", "off", "false", "No", " OFF "]) expect(packsForSale(v), v).toBe(false);
+    for (const v of [undefined, "", "1", "on", "true"]) expect(packsForSale(v), String(v)).toBe(true);
   });
 });

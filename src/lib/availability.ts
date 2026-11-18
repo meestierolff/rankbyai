@@ -23,9 +23,16 @@ export function checkoutReady(v: { secretKey?: string; lifetimeProductId?: strin
  * A pack is sold as scans on our keys, and one credit is described as an AI grid on three engines.
  * So packs open only when the data key and all three AI keys are present.
  */
-export function packsReady(v: { checkout: boolean; pack25PriceId?: string; pack100PriceId?: string; dataKey: boolean; aiKeys: number }): boolean {
+export function packsReady(v: { checkout: boolean; pack25PriceId?: string; pack100PriceId?: string; dataKey: boolean; aiKeys: number; forSale?: boolean }): boolean {
+  if (v.forSale === false) return false;
   return v.checkout && !!v.pack25PriceId && !!v.pack100PriceId && v.dataKey && v.aiKeys >= 3;
 }
+
+/**
+ * The owner's switch. House keys can be in place for the owner's own scans and the free check
+ * while packs are not sold yet: SCAN_PACKS_FOR_SALE=0 (or "off"/"false") keeps them closed.
+ */
+export const packsForSale = (value: string | undefined = process.env.SCAN_PACKS_FOR_SALE): boolean => !["0", "off", "false", "no"].includes((value ?? "").trim().toLowerCase());
 
 const filled = (v: string | undefined) => !!v && v.trim() !== "";
 
@@ -43,6 +50,7 @@ export function checkoutOpen(): boolean {
 export function packsOpen(): boolean {
   if (!checkoutOpen()) return false;
   const env = stripeEnv.get();
+  if (!packsForSale()) return false;
   if (isMockMode()) return !!env.STRIPE_PRICE_PACK_25 && !!env.STRIPE_PRICE_PACK_100;
   const house = houseKeysEnv.get();
   return packsReady({

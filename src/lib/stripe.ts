@@ -11,5 +11,3 @@ export function getStripe(): Stripe {
   stripe = new Stripe(env.STRIPE_SECRET_KEY, { appInfo: { name: "RankbyAI", url: "https://rankbyai.live" } });
   return stripe;
 }
-
-export const isLiveStripeKey = (key: string | undefined) => !!key && key.startsWith("sk_live_");

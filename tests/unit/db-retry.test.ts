@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { dbAdmin, dbUser } from "@/lib/db/clients";
+import { dbAdmin, dbUser, identityRetryDelayMs } from "@/lib/db/clients";
 
 /**
  * The Neon gateway can run the first request on a new connection without the user's identity.
@@ -9,7 +9,10 @@ const missing = () => new Response(JSON.stringify({ code: "RB001", message: "ran
 const rows = (data: unknown) => new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } });
 const USER = "00000000-0000-4000-8000-000000000001";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
 
 describe("identity retry", () => {
   it("retries a signed-in request until the identity arrives", async () => {
@@ -29,13 +32,19 @@ describe("identity retry", () => {
     expect(fetchMock.mock.calls.map((c) => (c[1] as RequestInit).body)).toEqual([JSON.stringify({ name: "Northgate Family Dental" }), JSON.stringify({ name: "Northgate Family Dental" })]);
   });
 
-  it("gives up after a few attempts and reports the error", async () => {
+  it("keeps trying for about three seconds, then reports the error", async () => {
+    vi.useFakeTimers();
     const fetchMock = vi.fn().mockImplementation(async () => missing());
     vi.stubGlobal("fetch", fetchMock);
-    const { data, error } = await dbUser(USER).from("workspaces").select("id");
+    const pending = dbUser(USER).from("workspaces").select("id").then((r) => r);
+    await vi.runAllTimersAsync();
+    const { data, error } = await pending;
     expect(data).toBeNull();
     expect(error?.code).toBe("RB001");
-    expect(fetchMock).toHaveBeenCalledTimes(5); // the first try and four retries
+    expect(fetchMock).toHaveBeenCalledTimes(9); // the first try and eight retries
+    const total = Array.from({ length: 8 }, (_, n) => identityRetryDelayMs(n)).reduce((a, b) => a + b, 0);
+    expect(total).toBeGreaterThan(3000); // a cold gateway refused five tries within 350 ms on 18 Nov 2026
+    expect(total).toBeLessThan(4000);
   });
 
   it("does not retry other errors, and never retries the server role", async () => {

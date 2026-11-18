@@ -22,7 +22,13 @@ function baseUrl(): string {
 
 /** Raised by private.uid() when a signed-in request reached the database without its identity. */
 export const IDENTITY_MISSING = "RB001";
-const IDENTITY_RETRIES = 4;
+const IDENTITY_RETRIES = 8;
+/**
+ * Wait before retry n (0-based): 30, 60, 120, 240, 480 ms, then 800 ms each, about 3.3 s in total.
+ * On 18 Nov 2026 a first sign-in on production was refused five times within 350 ms, so the old
+ * limit of four quick retries was too short for a cold gateway.
+ */
+export const identityRetryDelayMs = (attempt: number): number => Math.min(30 * 2 ** attempt, 800);
 
 async function identityMissing(res: Response): Promise<boolean> {
   if (res.ok) return false;
@@ -41,7 +47,7 @@ function client(role: DbRole, userId?: string): Db {
       // The database refuses such a request (RB001) before touching any row, so sending it again is
       // safe, also for writes. See db/migrations/0004_identity_guard.sql.
       if (role !== "authenticated" || attempt >= IDENTITY_RETRIES || !(await identityMissing(res))) return res;
-      await new Promise((r) => setTimeout(r, 25 * (attempt + 1) + Math.random() * 25));
+      await new Promise((r) => setTimeout(r, identityRetryDelayMs(attempt) + Math.random() * 25));
     }
   };
   return new PostgrestClient(baseUrl(), { fetch: authedFetch });

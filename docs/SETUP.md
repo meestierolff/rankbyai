@@ -20,7 +20,7 @@ Everything lives in one Neon project. Locally, `pnpm db:setup` starts Postgres a
 
 **The public key file is a production dependency.** The Data API fetches it from the JWKS URL it was given (currently the raw GitHub address of `public/.well-known/jwks.json` on `main`). If that address stops working (repository renamed, made private, file moved), database calls start failing once the gateway's key cache expires. Whoever can change that file can issue tokens the database accepts, exactly like whoever holds the private key in the hosting environment. After go-live, point the Data API at `https://<your domain>/.well-known/jwks.json` (Neon console → Data API → authentication provider) so it no longer depends on the repository. Preview and production currently trust the same key; give `preview` its own key pair and JWKS URL if other people get access to preview secrets.
 
-One behaviour to know about: the Neon gateway can run the first request on a newly opened connection without the user's identity. The database refuses that request with error `RB001` (migration `0004_identity_guard.sql`) and the server retries it, so users never see it. If `RB001` ever shows up in logs as a final error, the retry limit in `src/lib/db/clients.ts` was exhausted.
+One behaviour to know about: the Neon gateway can run the first request on a newly opened connection without the user's identity. The database refuses that request with error `RB001` (migration `0004_identity_guard.sql`) and the server retries it (eight times over about three seconds). The sign-in lookup additionally falls back to a server-side read, so a sign-in cannot fail on this. If `RB001` shows up in logs as a final error, the retry limit in `src/lib/db/clients.ts` was exhausted.
 
 How requests reach the database: the app never opens a Postgres connection at runtime. The server signs a token that lives five minutes and names a role (`anonymous`, `authenticated` plus the user id, or `service_role`), and sends it to the Data API. The Data API switches to that role, and row-level security decides what the request can see. The browser never receives one of these tokens.
 
@@ -60,6 +60,14 @@ Use the dedicated RankbyAI Stripe account. One script does the whole setup and i
 After setup the last three can be set back to None. If a permission is missing, Stripe's refusal names it and the script prints that message, so add that one and run the script again.
 
 **Proving the payment path.** `tests/live/stripe-live.test.ts` makes a real test-mode payment, has Stripe deliver the signed events to the running app, delivers one of them twice, and refunds it. Run it after any change to checkout or the webhook (instructions at the top of the file).
+
+`tests/live/stripe-purchase-live.test.ts` is the check for the key itself: the app's own checkout call opens the page with your restricted key, you pay it with Stripe's test card, and the app's own refund call runs. Use it after creating or changing a key.
+
+**Three things to know about a Stripe account that also serves other sites.**
+
+- Their payment events reach this site's webhook too. Every RankbyAI checkout carries `metadata.app = rankbyai` and the webhook fulfils only those, so another product's payment can never grant access here. Other events are answered with 200 and ignored.
+- Stripe allows three different API versions across an account's webhook endpoints. At that limit the setup script creates the endpoint with the newest version the account already has and says so.
+- If the account has an approval rule for refunds (Stripe dashboard, Settings → Approvals), a refund from the Billing page is not instant: Stripe files an approval request that expires after 24 hours, and the refund runs when you approve it. The buyer is told the refund was requested and is approved by hand. Remove the rule if you want refunds to be instant.
 
 Keep the key in a gitignored file, never in chat or in a command line:
 

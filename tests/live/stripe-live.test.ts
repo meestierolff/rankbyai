@@ -60,6 +60,7 @@ describe.skipIf(!live)("Stripe, real test-mode payment through the webhook", () 
       "--override", `payment_page_confirm:expected_amount=${priceCents}`,
       "--add", `checkout_session:metadata.workspace_id=${u.workspaceId}`,
       "--add", `checkout_session:metadata.user_id=${u.id}`,
+      "--add", "checkout_session:metadata.app=rankbyai",
       "--add", "checkout_session:metadata.product_key=lifetime",
       "--add", `checkout_session:metadata.hold_id=${holdId}`,
       "--add", `checkout_session:metadata.ladder_price_cents=${priceCents}`,

@@ -4,7 +4,7 @@ import { io } from "next/cache";
 import { redirect } from "next/navigation";
 import { captureServer } from "@/lib/analytics-server";
 import { isAuthConfigured, neonAuth } from "@/lib/auth-neon/server";
-import { dbAdmin, dbUser, isDatabaseConfigured } from "@/lib/db/clients";
+import { dbAdmin, dbUser, IDENTITY_MISSING, isDatabaseConfigured } from "@/lib/db/clients";
 import { miscEnv } from "@/lib/env";
 
 export { safeNextPath } from "@/lib/safe-next";
@@ -43,13 +43,18 @@ export interface SessionContext {
 
 type MembershipRow = { role: "owner" | "member"; workspaces: Workspace | Workspace[] };
 
+const membershipQuery = (db: ReturnType<typeof dbAdmin>, userId: string) =>
+  db.from("workspace_members").select("role, workspaces(*)").eq("user_id", userId).order("created_at", { ascending: true }).limit(1);
+
 async function loadMembership(userId: string): Promise<{ role: "owner" | "member"; workspace: Workspace } | null> {
-  const { data, error } = await dbUser(userId)
-    .from("workspace_members")
-    .select("role, workspaces(*)")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: true })
-    .limit(1);
+  let { data, error } = await membershipQuery(dbUser(userId), userId);
+  if (error?.code === IDENTITY_MISSING) {
+    // The gateway kept dropping this user's identity even after the retries. Nobody can use the app
+    // without this one lookup, so read it as the server instead: the same rows row-level security
+    // would return, because the filter is the id of the session that was just verified.
+    console.warn("[auth] membership read as the server after repeated RB001");
+    ({ data, error } = await membershipQuery(dbAdmin(), userId));
+  }
   // A failed lookup is not "this user has no workspace yet": never fall through to first-sign-in setup.
   if (error) throw new Error(`workspace lookup failed (${error.code ?? "unknown"})`);
   const row = (data as MembershipRow[] | null)?.[0];

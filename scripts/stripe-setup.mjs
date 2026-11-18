@@ -177,9 +177,21 @@ if (webhookUrl) {
     if (missing.length) console.log(`    It does not listen for: ${missing.join(", ")}. Add them in the dashboard.`);
     console.log("    Its signing secret cannot be read again. If STRIPE_WEBHOOK_SECRET is not stored yet, delete this endpoint in the dashboard and run this command again.");
   } else {
-    const created = await step("Creating the webhook endpoint", () =>
-      stripe.webhookEndpoints.create({ url: webhookUrl, enabled_events: WEBHOOK_EVENTS, api_version: stripe.getApiField("version"), description: "RankbyAI purchases and refunds" }),
-    );
+    const create = (api_version) => stripe.webhookEndpoints.create({ url: webhookUrl, enabled_events: WEBHOOK_EVENTS, api_version, description: "RankbyAI purchases and refunds" });
+    const created = await step("Creating the webhook endpoint", async () => {
+      try {
+        return await create(stripe.getApiField("version"));
+      } catch (err) {
+        // Stripe allows three different API versions across an account's endpoints. An account that
+        // already serves other sites may be at that limit: use the newest version it already has.
+        if (!/unique versions/i.test(String(err?.message ?? ""))) throw err;
+        const versions = (await stripe.webhookEndpoints.list({ limit: 100 })).data.map((e) => e.api_version).filter(Boolean).sort();
+        const newest = versions.at(-1);
+        if (!newest) throw err;
+        console.log(`  Webhook version    this account is at Stripe's limit of three versions; using its newest, ${newest}, instead of ${stripe.getApiField("version")}`);
+        return create(newest);
+      }
+    });
     if (!created.secret) stop(`Stripe created ${created.id} but returned no signing secret. Delete that endpoint in the dashboard and run this command again.`);
     values.STRIPE_WEBHOOK_SECRET = created.secret;
     console.log(`  Webhook endpoint   ${created.id}  (created, signing secret captured, not shown)`);

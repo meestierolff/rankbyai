@@ -181,7 +181,7 @@ describe("checkout race (acceptance c)", () => {
     });
     expect(params.success_url).toContain("/app/thanks?session_id={CHECKOUT_SESSION_ID}");
     expect(params.line_items?.[0].price_data).toMatchObject({ currency: "usd", product: "prod_test_lifetime", tax_behavior: "exclusive" });
-    expect(params.metadata).toMatchObject({ workspace_id: buyers[0].workspaceId, user_id: buyers[0].id, product_key: "lifetime", ladder_price_cents: "2900" });
+    expect(params.metadata).toMatchObject({ app: "rankbyai", workspace_id: buyers[0].workspaceId, user_id: buyers[0].id, product_key: "lifetime", ladder_price_cents: "2900" });
     expect(params.payment_intent_data?.metadata).toEqual(params.metadata);
     expect(options?.idempotencyKey).toMatch(/^checkout:.+:lifetime:.+/);
     const minutes = ((params.expires_at ?? 0) * 1000 - Date.now()) / 60_000;

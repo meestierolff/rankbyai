@@ -45,7 +45,7 @@ const lifetimeSession = (user: TestUser, sessionId: string, holdId: string, pi: 
   amount_subtotal: 2900, amount_total: 3509, currency: "usd",
   total_details: { amount_tax: 609, amount_discount: 0, amount_shipping: 0 },
   customer_details: { email: user.email },
-  metadata: { workspace_id: user.workspaceId, user_id: user.id, product_key: "lifetime", ladder_price_cents: "2900", hold_id: holdId },
+  metadata: { app: "rankbyai", workspace_id: user.workspaceId, user_id: user.id, product_key: "lifetime", ladder_price_cents: "2900", hold_id: holdId },
   ...over,
 });
 
@@ -134,6 +134,19 @@ describe("checkout.session.completed → lifetime", () => {
     expect(r.outcome?.handled).toBe(false);
     expect(await sql("select 1 from public.orders")).toEqual([]);
   });
+
+  it("ignores a paid session from another product in the same Stripe account, even with the same metadata names", async () => {
+    const { holdId, sessionId } = await reserve(u, 2900);
+    const foreign = lifetimeSession(u, sessionId, holdId, "pi_foreign");
+    const unmarked: Record<string, string> = { ...foreign.metadata };
+    delete unmarked.app;
+    for (const metadata of [{ ...foreign.metadata, app: "another-product" }, unmarked]) {
+      const r = await process(signedEvent("checkout.session.completed", { ...foreign, metadata }));
+      expect(r.outcome).toMatchObject({ handled: false, note: "not a RankbyAI checkout" });
+    }
+    expect(await sql("select 1 from public.orders")).toEqual([]);
+    expect((await ws(u.workspaceId)).plan).toBe("locked");
+  });
 });
 
 describe("expired sessions and refunds", () => {
@@ -175,7 +188,7 @@ describe("packs and credits", () => {
     id: sessionId, object: "checkout.session", payment_status: "paid", payment_intent: pi, customer: "cus_test_1",
     amount_subtotal: key === "pack_25" ? 1900 : 5900, currency: "usd", total_details: { amount_tax: 0 },
     customer_details: { email: user.email },
-    metadata: { workspace_id: user.workspaceId, user_id: user.id, product_key: key },
+    metadata: { app: "rankbyai", workspace_id: user.workspaceId, user_id: user.id, product_key: key },
   });
   const balance = async (wsId: string) => (await admin.rpc("credit_balance", { p_workspace_id: wsId })).data as number;
 

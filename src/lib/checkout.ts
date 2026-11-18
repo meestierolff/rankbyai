@@ -35,6 +35,12 @@ export type CheckoutResult =
   | { status: 409; body: { error: "price_changed"; current_price_cents: number } }
   | { status: 400 | 403 | 409 | 410 | 502 | 503; body: { error: string; message: string } };
 
+/**
+ * Marks a checkout as ours. A Stripe account can serve several products, and then their payment
+ * events reach this site's webhook too. The webhook fulfils only sessions that carry this marker.
+ */
+export const CHECKOUT_APP = "rankbyai";
+
 const SESSION_MINUTES = 31; // Stripe's minimum is 30; the ladder hold lasts 40.
 
 interface ReserveResult {
@@ -118,6 +124,7 @@ async function startLifetime(input: CheckoutInput, deps: CheckoutDeps): Promise<
     }
 
     const metadata = {
+      app: CHECKOUT_APP,
       workspace_id: input.workspaceId,
       user_id: input.userId,
       product_key: "lifetime",
@@ -164,6 +171,7 @@ async function startPack(input: CheckoutInput, deps: CheckoutDeps, key: PackKey)
   const now = deps.now?.() ?? new Date();
   const minuteBucket = Math.floor(now.getTime() / 60_000);
   const metadata = {
+    app: CHECKOUT_APP,
     workspace_id: input.workspaceId,
     user_id: input.userId,
     product_key: key,

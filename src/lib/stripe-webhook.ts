@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 import type { Db } from "@/lib/db/clients";
+import { CHECKOUT_APP } from "@/lib/checkout";
 import { PACKS, type PackKey } from "@/lib/pricing-constants";
 
 /**
@@ -24,10 +25,12 @@ const idOf = (v: string | { id: string } | null | undefined): string | null => (
 async function fulfil(session: Stripe.Checkout.Session, deps: WebhookDeps): Promise<WebhookOutcome> {
   if (session.payment_status !== "paid") return { handled: false, note: "session not paid yet" };
   const md = session.metadata ?? {};
+  // Another product in the same Stripe account may use the same metadata names. Only our own marker counts.
+  if (md.app !== CHECKOUT_APP) return { handled: false, note: "not a RankbyAI checkout" };
   const workspaceId = md.workspace_id;
   const userId = md.user_id;
   const productKey = md.product_key;
-  if (!workspaceId || !userId || !productKey) return { handled: false, note: "missing metadata (not a RankbyAI checkout)" };
+  if (!workspaceId || !userId || !productKey) return { handled: false, note: "missing metadata" };
 
   const email = session.customer_details?.email ?? session.customer_email ?? null;
   const amount = session.amount_subtotal ?? 0;

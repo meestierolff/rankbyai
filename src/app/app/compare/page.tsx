@@ -4,7 +4,7 @@ import { LocalTime } from "@/components/app/local-time";
 import { userRead } from "@/components/app/reads";
 import { EmptyState, PageHeader, Panel, StatTile, inputClass } from "@/components/app/ui";
 import { AiDisclaimer, ctaClass, secondaryClass } from "@/components/brand/primitives";
-import { DotGrid, aiCellColors, mapsCellColors, pointName, type CellView } from "@/components/brand/grid";
+import { DotGrid, aiCellColors, mapsCellColors, pointName, skippedCell, type CellView } from "@/components/brand/grid";
 import { requireSession } from "@/lib/auth";
 import { memberRead } from "@/lib/db/member-read";
 import { ENGINE_LABEL } from "@/lib/pricing-constants";
@@ -119,8 +119,10 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
     const sb = all.filter((s) => s.scan_id === after.id);
     const c = compareAi(sa, sb, before.grid_size, after.grid_size);
     headline = compareHeadline("ai", c);
-    const grid = (samples: AiCompareSample[], n: number): CellView[] =>
+    const skippedAt = (scanId: string, idx: number) => pts.some((p) => p.scan_id === scanId && p.idx === idx && p.status === "skipped");
+    const grid = (samples: AiCompareSample[], n: number, scanId: string): CellView[] =>
       Array.from({ length: n * n }, (_, idx) => {
+        if (skippedAt(scanId, idx)) return { key: String(idx), ...skippedCell(where(idx).replace(/^Point /, "")) };
         const done = samples.filter((s) => s.point_idx === idx && s.status === "done");
         const hits = done.filter((s) => s.mentioned);
         const best = hits.length ? Math.min(...hits.map((s) => s.mention_position ?? 5)) : null;
@@ -135,8 +137,8 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
           ))}
         </div>
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Panel title={<>Before · <LocalTime iso={before.created_at} /></>}><DotGrid n={before.grid_size} cells={grid(sa, before.grid_size)} fontPx={12} gapPx={7} /></Panel>
-          <Panel title={<>After · <LocalTime iso={after.created_at} /></>}><DotGrid n={after.grid_size} cells={grid(sb, after.grid_size)} fontPx={12} gapPx={7} /></Panel>
+          <Panel title={<>Before · <LocalTime iso={before.created_at} /></>}><DotGrid n={before.grid_size} cells={grid(sa, before.grid_size, before.id)} fontPx={12} gapPx={7} /></Panel>
+          <Panel title={<>After · <LocalTime iso={after.created_at} /></>}><DotGrid n={after.grid_size} cells={grid(sb, after.grid_size, after.id)} fontPx={12} gapPx={7} /></Panel>
           <Panel title="Change per point">
             {c.samePoints ? (
               <>
@@ -155,7 +157,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
     const c = compareMaps(pa, pb);
     headline = compareHeadline("maps", c);
     const grid = (points: MapsComparePoint[]): CellView[] =>
-      points.map((p) => (p.status === "done" ? { key: String(p.idx), ...mapsCellColors(p.rank), title: `${where(p.idx)}: ${p.rank ? `rank #${p.rank}` : "not in the top 20"}` } : { key: String(p.idx), bg: "var(--rb-well)", fg: "var(--rb-faint)", label: "!", title: `${where(p.idx)}: no result` }));
+      points.map((p) => p.status === "skipped" ? { key: String(p.idx), ...skippedCell(where(p.idx).replace(/^Point /, "")) } : (p.status === "done" ? { key: String(p.idx), ...mapsCellColors(p.rank), title: `${where(p.idx)}: ${p.rank ? `rank #${p.rank}` : "not in the top 20"}` } : { key: String(p.idx), bg: "var(--rb-well)", fg: "var(--rb-faint)", label: "!", title: `${where(p.idx)}: no result` }));
     body = (
       <>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">

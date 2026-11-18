@@ -5,6 +5,7 @@ import { ProsePage } from "@/components/marketing/page-shell";
 import { AI_DISCLAIMER_TEXT, NOT_AFFILIATED } from "@/lib/copy";
 import { miscEnv } from "@/lib/env";
 import { DEFAULT_LADDER, fmtPrice, formatClosesAt } from "@/lib/ladder";
+import { largerMapsGridsText, largestOneCreditMapsGrid } from "@/lib/cost/credits";
 import { CREDIT_COST, FAIR_USE, PACKS, REFUND_DAYS } from "@/lib/pricing-constants";
 
 export const metadata: Metadata = {
@@ -105,8 +106,9 @@ export default function TermsPage() {
         </li>
         <li>Packs need a workspace on the lifetime plan.</li>
         <li>
-          What a credit buys: a 3×3 AI grid on three engines, a Maps grid up to 9×9, or an audit costs {CREDIT_COST.ai_grid_3} credit. A 5×5 AI grid costs {CREDIT_COST.ai_grid_5} credits. A
-          prospect report costs {CREDIT_COST.prospect_report} credits.
+          What a credit buys: a 3×3 AI grid on three engines, a Maps grid up to {largestOneCreditMapsGrid()}, or an audit costs {CREDIT_COST.ai_grid_3} credit. A 5×5 AI grid costs {CREDIT_COST.ai_grid_5} credits.
+          {largerMapsGridsText() ? ` ${largerMapsGridsText().replace(/^./, (c) => c.toUpperCase())}.` : ""} A prospect report costs {CREDIT_COST.prospect_report} credits. Credits for a grid are
+          counted on the points that are checked: grid points you skip are not counted.
         </li>
         <li>
           <strong>Credits never expire.</strong>

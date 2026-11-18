@@ -1,3 +1,8 @@
+import { gridSizesText, largerMapsGridsText, largestOneCreditMapsGrid } from "@/lib/cost/credits";
+import { AI_GRID_SIZES, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
+import { MAX_POINT_IDX } from "@/lib/scans/skip";
+import { COUNTRY_CODES } from "@/lib/countries";
+
 /**
  * OpenAPI 3.1 description of /api/v1. Kept next to the handlers (core.ts, rest.ts); the test suite
  * validates it against the OpenAPI schema and checks that every route in it answers.
@@ -33,6 +38,16 @@ const paging = [
 ];
 const page = { limit: { type: "integer" }, offset: { type: "integer" } };
 const scanStatus = { type: "string", enum: ["queued", "running", "done", "partial", "failed"] };
+const ANY_GRID = [...new Set([...AI_GRID_SIZES, ...MAPS_GRID_SIZES])].sort((x, y) => x - y);
+const gridSides = (sizes: readonly number[]) => gridSizesText(sizes).replace(/(\d+)×\d+/g, "$1");
+const largerGrids = largerMapsGridsText();
+const skipPoints = {
+  type: "array", maxItems: MAX_POINT_IDX, uniqueItems: true,
+  items: { type: "integer", minimum: 0, maximum: MAX_POINT_IDX },
+  description:
+    "Grid points not to check, for areas you do not want tracked (water, a park, outside the service area). Each point is its idx: row × grid_size + col, row 0 in the north and col 0 in the west, so 0 is the north-west corner and the business is the centre point. " +
+    "Skipped points are never looked up and cost nothing; the estimate and the credits count the active points only. Every number must be a point of the grid, each once, and at least one point must stay active (otherwise 400 invalid_spec). They come back in the scan's `skip_points` and as points with status `skipped`.",
+};
 const auditStatus = { type: "string", enum: ["queued", "running", "done", "failed"] };
 
 export function openApiSpec(siteUrl: string) {
@@ -61,7 +76,7 @@ export function openApiSpec(siteUrl: string) {
         post: {
           operationId: "addBusiness", tags: ["Businesses"], summary: "Add a business",
           description: "With `lat` and `lng` the business is stored as given, at no cost. With `name` and `city` it is looked up on Google Maps: one paid lookup on your DataForSEO key, which needs `confirm: true`.",
-          requestBody: { required: true, content: json(obj({ name: { type: "string" }, city: { type: "string" }, country: { type: "string", enum: ["US", "GB", "CA", "AU", "IE", "NZ"], default: "US" }, lat: { type: "number", minimum: -90, maximum: 90 }, lng: { type: "number", minimum: -180, maximum: 180 }, address: { type: "string" }, website: { type: "string", format: "uri" }, phone: { type: "string" }, primary_category: { type: "string" }, confirm }, ["name"])) },
+          requestBody: { required: true, content: json(obj({ name: { type: "string" }, city: { type: "string" }, country: { type: "string", enum: [...COUNTRY_CODES], default: "US" }, lat: { type: "number", minimum: -90, maximum: 90 }, lng: { type: "number", minimum: -180, maximum: 180 }, address: { type: "string" }, website: { type: "string", format: "uri" }, phone: { type: "string" }, primary_category: { type: "string" }, confirm }, ["name"])) },
           responses: {
             "200": { description: "Either the estimate (confirm_required) or a business that already existed.", content: json({ oneOf: [ref("ConfirmRequired"), obj({ business: ref("Business"), existing: { type: "boolean" } })] }) },
             "201": { description: "Business created.", content: json(obj({ business: ref("Business"), existing: { type: "boolean" } })) },
@@ -98,12 +113,13 @@ export function openApiSpec(siteUrl: string) {
         },
         post: {
           operationId: "createScan", tags: ["Scans"], summary: "Estimate or run a scan",
-          description: "`kind: ai` asks the AI engines who they recommend at each grid point (grid 1, 3 or 5). `kind: maps` reads the Google Maps rank at each point (grid 3, 5, 7 or 9).",
+          description: `\`kind: ai\` asks the AI engines who they recommend at each grid point (grid ${gridSides(AI_GRID_SIZES)}). \`kind: maps\` reads the Google Maps rank at each point (grid ${gridSides(MAPS_GRID_SIZES)}); with funding: credits a grid up to ${largestOneCreditMapsGrid()} uses 1 credit${largerGrids ? ` and ${largerGrids}` : ""}. \`skip_points\` leaves out points you do not want checked.`,
           requestBody: { required: true, content: json(obj({
             business_id: uuid, kind: { type: "string", enum: ["ai", "maps"] },
             keyword: { type: "string", description: "The service people search for, e.g. \"dentist\". `prompt` is accepted as an alias." },
             prompt_template: { type: "string", description: "AI scans only. Must contain {service} and {neighbourhood} or {city}." },
-            grid_size: { type: "integer", enum: [1, 3, 5, 7, 9], description: "AI scans: 1, 3 or 5. Maps scans: 3, 5, 7 or 9." }, radius_miles: { type: "number", default: 2, maximum: 50 },
+            grid_size: { type: "integer", enum: ANY_GRID, description: `AI scans: ${gridSides(AI_GRID_SIZES)}. Maps scans: ${gridSides(MAPS_GRID_SIZES)}.` }, radius_miles: { type: "number", default: 2, maximum: 50 },
+            skip_points: skipPoints,
             engines: { type: "array", items: { type: "string", enum: ["openai", "perplexity", "gemini"] }, description: "AI scans. Default: every engine you have a key for." },
             mode: { type: "string", enum: ["standard", "priority", "live"], default: "priority", description: "Maps scans: queue speed." },
             funding, confirm,
@@ -156,7 +172,7 @@ export function openApiSpec(siteUrl: string) {
         post: {
           operationId: "createProspectBatch", tags: ["Prospects"], summary: "Estimate or start a prospect batch",
           description: "Finds businesses for a niche and a city and builds a report for the first `max_reports` that are outside the Google Maps top 3. 2 credits per report, or your own keys.",
-          requestBody: { required: true, content: json(obj({ niche: { type: "string" }, city: { type: "string" }, country: { type: "string", enum: ["US", "GB", "CA", "AU", "IE", "NZ"], default: "US" }, max_reports: { type: "integer", minimum: 1, maximum: 50, default: 10 }, funding, confirm }, ["niche", "city"])) },
+          requestBody: { required: true, content: json(obj({ niche: { type: "string" }, city: { type: "string" }, country: { type: "string", enum: [...COUNTRY_CODES], default: "US" }, max_reports: { type: "integer", minimum: 1, maximum: 50, default: 10 }, funding, confirm }, ["niche", "city"])) },
           responses: estimateOr("202", "The batch was started.", obj({ batch_id: uuid, status: { type: "string" }, reports: { type: "integer" }, businesses_found: { type: "integer" }, estimate: ref("Estimate") })),
         },
       },
@@ -193,6 +209,8 @@ export function openApiSpec(siteUrl: string) {
         Error: obj({ error: { type: "string", description: "Stable machine-readable code." }, message: { type: "string" } }, ["error", "message"]),
         Estimate: {
           ...obj({
+            points: { type: "integer", description: "Scans: grid points that will be checked." },
+            skipped: { type: "integer", description: "Scans: grid points left out with skip_points." },
             totalUsd: usd("Expected cost of the request."),
             highUsd: usd("Scans: upper bound, when Gemini grounding falls outside its monthly free allowance."),
             credits: { type: "integer", description: "Included-scan credits the request uses with funding: credits." },
@@ -215,9 +233,10 @@ export function openApiSpec(siteUrl: string) {
         }, ["id", "name"]),
         Scan: obj({
           id: uuid, business_id: uuid, kind: { type: "string", enum: ["ai", "maps"] }, keyword: nullable("string"), niche: nullable("string"),
-          engines: { type: "array", items: { type: "string", enum: ["openai", "perplexity", "gemini"] } }, grid_size: { type: "integer" }, radius_miles: { type: "number" },
+          engines: { type: "array", items: { type: "string", enum: ["openai", "perplexity", "gemini"] } }, grid_size: { type: "integer" },
+          skip_points: { type: "array", items: { type: "integer" }, description: "idx of the grid points that were not checked." }, radius_miles: { type: "number" },
           mode: { type: "string", enum: ["standard", "priority", "live"] }, funding: { type: "string" }, status: scanStatus, credits_used: { type: "integer" },
-          est_cost_usd: nullable("number"), actual_cost_usd: nullable("number"), summary: { type: "object", description: "Headline metrics once finished." }, error: nullable("string"),
+          est_cost_usd: nullable("number"), actual_cost_usd: nullable("number"), summary: { type: "object", description: "Headline metrics once finished. Skipped points are left out of every metric: `points` counts the active points and `points_skipped` the skipped ones." }, error: nullable("string"),
           created_at: dateTime, finished_at: nullable("string", { format: "date-time" }),
         }, ["id", "kind", "status"]),
         ScanPoints: obj({
@@ -229,7 +248,7 @@ export function openApiSpec(siteUrl: string) {
         ScanPoint: obj({
           idx: { type: "integer", description: "Number of the point within the grid; `row` and `col` give its position." }, row: { type: "integer" }, col: { type: "integer" }, lat: { type: "number" }, lng: { type: "number" }, label: nullable("string", { description: "AI scans: the neighbourhood or place name used for this point." }),
           rank: nullable("integer", { description: "Maps scans: the business's rank at this point; null when it is not in the results read there." }), top: { type: ["array", "null"], items: { type: "object" }, description: "Maps scans: up to 20 leading results at this point, each with rank, name, domain, rating and reviews." },
-          status: { type: "string", enum: ["pending", "posted", "done", "failed"] }, error: nullable("string"),
+          status: { type: "string", enum: ["pending", "posted", "done", "failed", "skipped"], description: "skipped: left out with skip_points; never looked up." }, error: nullable("string"),
         }, ["idx", "row", "col", "lat", "lng", "status"]),
         AiSample: obj({
           point_idx: { type: "integer", description: "The idx of the grid point." }, engine: { type: "string", enum: ["openai", "perplexity", "gemini"] }, prompt: { type: "string" }, answer_text: nullable("string"),

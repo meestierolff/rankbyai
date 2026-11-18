@@ -3,6 +3,7 @@ import { err, json, withSession } from "@/lib/api";
 import { validateSpec, type ScanSpec } from "@/lib/cost-guard";
 import { upsertTrackedQuery } from "@/lib/schedules";
 import { validateTemplate } from "@/lib/scans/prompt";
+import { MAX_POINT_IDX, normalizeSkip } from "@/lib/scans/skip";
 import { dbAdmin } from "@/lib/db/clients";
 
 const Body = z.object({
@@ -13,6 +14,8 @@ const Body = z.object({
   grid_size: z.number().int(),
   radius_miles: z.number().positive().max(50),
   engines: z.array(z.enum(["openai", "perplexity", "gemini"])).max(3).optional(),
+  /** Grid points every scheduled run skips. */
+  skip_points: z.array(z.number().int().min(0).max(MAX_POINT_IDX)).max(MAX_POINT_IDX).optional(),
   funding: z.enum(["byok", "credits"]).default("byok"),
   schedule: z.enum(["weekly", "monthly"]),
 });
@@ -24,7 +27,7 @@ export async function POST(request: Request) {
     const parsed = Body.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return err(400, "invalid_body", "Check the schedule settings.");
     const b = parsed.data;
-    const spec = (b.kind === "ai" ? { kind: "ai", grid: b.grid_size, engines: b.engines ?? [] } : { kind: "maps", grid: b.grid_size, mode: "standard" }) as ScanSpec;
+    const spec = (b.kind === "ai" ? { kind: "ai", grid: b.grid_size, engines: b.engines ?? [], skip: b.skip_points } : { kind: "maps", grid: b.grid_size, mode: "standard", skip: b.skip_points }) as ScanSpec;
     const specError = validateSpec(spec);
     if (specError) return err(400, "invalid_spec", specError);
     if (b.kind === "ai" && b.prompt_template) {
@@ -36,7 +39,7 @@ export async function POST(request: Request) {
 
     const result = await upsertTrackedQuery({
       workspaceId: ctx.workspace.id, businessId: b.business_id, kind: b.kind, keyword: b.keyword, promptTemplate: b.prompt_template,
-      gridSize: b.grid_size, radiusMiles: b.radius_miles, engines: b.engines ?? [], funding: b.funding, schedule: b.schedule,
+      gridSize: b.grid_size, skipPoints: normalizeSkip(b.skip_points), radiusMiles: b.radius_miles, engines: b.engines ?? [], funding: b.funding, schedule: b.schedule,
     });
     return result.ok ? json({ ok: true, id: result.id }) : err(409, "schedule_failed", result.message);
   });

@@ -5,7 +5,7 @@ import { AiGridMock } from "@/components/marketing/feature-mocks";
 import { PageShell } from "@/components/marketing/page-shell";
 import { fmtPrice } from "@/lib/ladder";
 import { getOfferCached } from "@/lib/offer";
-import { COMPETITOR_PRICES_DATE, COMPETITORS } from "@/lib/pricing-constants";
+import { COMPETITOR_PRICES_DATE, COMPETITORS, MAPS_GRID_RANGE } from "@/lib/pricing-constants";
 import { breadcrumbLd, faqLd, graph } from "@/lib/seo";
 import { publicEnv } from "@/lib/env-public";
 import { seoPage, type CompareColumn, type SeoPage } from "@/lib/seo-pages";
@@ -27,7 +27,7 @@ function rows(ourPrice: string): { label: string; cells: Record<CompareColumn, s
     } },
     { label: "What the scans cost", cells: { rankbyai: "What your API vendors charge, on your own keys, with an estimate before every scan. Or packs of included scans", localfalcon: "Credits included in the plan", brightlocal: "Included in the plan", semrush: "Included in the plan" } },
     { label: "AI recommendation grid", cells: { rankbyai: "Yes: ChatGPT, Perplexity and Gemini, 1×1 to 5×5 points", localfalcon: "Yes (AI visibility module)", brightlocal: "Yes (inside the Track plan)", semrush: "Not part of Map Rank Tracker" } },
-    { label: "Google Maps grid", cells: { rankbyai: "Yes, 3×3 to 9×9 points", localfalcon: "Yes, and Apple Maps", brightlocal: "Yes", semrush: "Yes" } },
+    { label: "Google Maps grid", cells: { rankbyai: `Yes, ${MAPS_GRID_RANGE} points`, localfalcon: "Yes, and Apple Maps", brightlocal: "Yes", semrush: "Yes" } },
     { label: "Citations and review management", cells: { rankbyai: "No", localfalcon: UNKNOWN, brightlocal: "Yes", semrush: "Other Semrush tools" } },
     { label: "Bulk white-label prospect reports", cells: { rankbyai: "Yes", localfalcon: UNKNOWN, brightlocal: UNKNOWN, semrush: UNKNOWN } },
     { label: "API and MCP server", cells: { rankbyai: "Yes, both", localfalcon: UNKNOWN, brightlocal: UNKNOWN, semrush: UNKNOWN } },

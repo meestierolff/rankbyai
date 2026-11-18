@@ -35,6 +35,8 @@ export interface TrackedQueryRow {
   prompt_template: string | null;
   niche: string | null;
   grid_size: number;
+  /** Points every run skips; createScan reads them from here for a scheduled run. */
+  skip_points: number[];
   radius_miles: number;
   engines: Engine[];
   funding: "byok" | "credits";
@@ -50,6 +52,8 @@ export interface TrackInput {
   keyword: string;
   promptTemplate?: string | null;
   gridSize: number;
+  /** idx of the grid points every run skips (validated by the caller with validateSpec). */
+  skipPoints?: number[];
   radiusMiles: number;
   engines: Engine[];
   funding: "byok" | "credits";
@@ -76,6 +80,7 @@ export async function upsertTrackedQuery(input: TrackInput, now: Date = new Date
     niche: input.kind === "ai" ? keyword : null,
     prompt_template: input.kind === "ai" ? (input.promptTemplate ?? null) : null,
     grid_size: input.gridSize,
+    skip_points: input.skipPoints ?? [],
     radius_miles: input.radiusMiles,
     engines: input.kind === "ai" ? input.engines : [],
     funding: input.funding,

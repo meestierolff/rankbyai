@@ -116,3 +116,29 @@ The ladder terms live in the database row `ladder_lock` (seeded: $29 base, +$10 
 | `EARLY_ACCESS_NOTE` | Banner text with true ship dates; hidden when empty |
 | `ADMIN_USER_IDS` | Comma-separated user ids (from Neon Auth) allowed into `/admin` |
 | `LEGAL_ENTITY_NAME`, `LEGAL_ADDRESS`, `LEGAL_EMAIL`, `LEGAL_KVK` | Operator identity shown in the footer and legal pages |
+
+## 6. Custom report domains (optional)
+
+Lifetime workspaces can send report links from their own subdomain, for example `https://reports.agency.com/r/{slug}`, under Settings → Branding. The server adds the domain to this Vercel project through the Vercel REST API and reads its verification and DNS status from there. Without the three variables below, the settings section says custom domains are not switched on and accepts nothing.
+
+| Variable | Value |
+|---|---|
+| `VERCEL_API_TOKEN` | A Vercel access token. Secret: server only, never `NEXT_PUBLIC_`. `pnpm check:secrets` fails the build check if it reaches a client bundle. |
+| `VERCEL_PROJECT_ID` | The project's id, `prj_…` (Project → Settings → General). Vercel sets this one itself on its deployments (a system environment variable, when "Automatically expose System Environment Variables" is on), so it usually needs setting only for local use. |
+| `VERCEL_TEAM_ID` | The team's id, `team_…` (Team → Settings → General). |
+
+**The token.** Create it under Account Settings → Tokens. Scope: open the team, then pick this project (not "All Projects"). That makes a project-scoped token (`vcp_…`) that can change nothing outside this project. Pick an expiry and note the date: when the token expires, adding, checking and removing domains stop working, but domains that are already active keep serving, because serving reads only the database. The calls it makes: add, get, verify and remove a project domain (`/v10/projects/{id}/domains`, `/v9/projects/{id}/domains/{domain}[/verify]`) and read the domain's DNS configuration (`/v6/domains/{domain}/config`). Vercel's documentation says project-scoped tokens are refused team-level resources; if "Check again" never shows a DNS record to create, the configuration read is the call being refused, and a team-scoped token (the team, "All Projects") is the fallback. That token can change every project in the team.
+
+**Where to set them.** Production only. A preview deployment with the token would add domains to the production project.
+
+**Database.** Apply `db/migrations/0008_custom_domains.sql` to both branches and refresh the Data API schema cache (the proxy reads `workspace_domains` through the Data API).
+
+**How a custom domain behaves** (`src/proxy.ts`, decision in `src/lib/domains.ts`). Any host that is not `NEXT_PUBLIC_SITE_URL`'s host, its `www.`, a `*.vercel.app` address or localhost is treated as a custom domain. It serves only `/r/{slug}` (with its Open Graph image and its PDF at `/r/{slug}/pdf`), the older PDF route `/api/reports/{slug}/pdf`, Next's static files, the icons and a `robots.txt` that disallows everything, and only while the domain's row is `active` and the report belongs to that domain's workspace. `/` redirects to the agency's website when one is set; everything else answers 404. Every response carries `X-Robots-Tag: noindex, nofollow`. If the database cannot be read, a custom domain answers 503 rather than serving anything. Domain lookups are cached for a minute per server instance.
+
+**If the main domain changes,** update the host list in the matcher at the bottom of `src/proxy.ts` (it has to be written out literally). Until then the main site still works, but the proxy runs on every one of its requests.
+
+**Limits.** The Hobby plan allows 50 domains per project, and `rankbyai.live` and `www` count toward that. Vercel's API allows 100 project-domain changes per minute.
+
+**Checking it after a deploy.** With an active test domain: `curl -sI https://<domain>/r/<slug>` answers 200 with `x-robots-tag: noindex, nofollow`; a slug from another workspace, `/app` and `/api/scans` answer 404; `/` answers 302 to the agency's website, or 404 when none is set.
+
+Removing a domain in the app removes it from the Vercel project. Tell the agency to delete its CNAME record too: a record that still points here could later be connected by someone else.

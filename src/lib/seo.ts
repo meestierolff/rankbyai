@@ -1,13 +1,13 @@
 import type { FaqItem } from "@/lib/faq";
 import type { Offer } from "@/lib/ladder";
 import { legalEnv, publicEnv } from "@/lib/env";
-import { REFUND_DAYS } from "@/lib/pricing-constants";
+import { MAPS_GRID_RANGE, REFUND_DAYS } from "@/lib/pricing-constants";
 
 const site = () => publicEnv.siteUrl;
 
 export const FEATURE_LIST = [
   "AI visibility grid across ChatGPT, Perplexity and Gemini (official APIs)",
-  "Google Maps rank grid from 3×3 to 9×9",
+  `Google Maps rank grid from ${MAPS_GRID_RANGE}`,
   "Scan history and side-by-side compare",
   "Local AI Audit with a 0–100 score and P0–P3 findings",
   "Fix Kit: profile text, FAQ, LocalBusiness and FAQ schema, llms.txt draft",

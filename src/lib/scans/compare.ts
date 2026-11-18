@@ -40,10 +40,11 @@ const namedAt = (samples: AiCompareSample[], idx: number) => {
 
 export function compareAi(a: AiCompareSample[], b: AiCompareSample[], gridA: number, gridB: number): AiComparison {
   const samePoints = gridA === gridB;
-  const total = gridB * gridB;
+  // Skipped points have no samples: the later scan's total is the points it actually checked.
+  const total = new Set(b.map((s) => s.point_idx)).size || gridB * gridB;
   const points: AiPointDelta[] = [];
   if (samePoints) {
-    for (let idx = 0; idx < total; idx++) {
+    for (let idx = 0; idx < gridB * gridB; idx++) {
       const x = namedAt(a, idx);
       const y = namedAt(b, idx);
       points.push({ idx, before: x.named, after: y.named, beforeDone: x.done, afterDone: y.done, delta: x.done && y.done ? y.named - x.named : null });
@@ -79,7 +80,7 @@ export interface MapsPointDelta {
   idx: number;
   before: number | null;
   after: number | null;
-  /** Positive = moved up (better). Not-in-top-20 counts as 21. Null when either side has no result. */
+  /** Positive = moved up (better). Not-in-top-20 counts as 21. Null when either side has no result (failed or skipped). */
   delta: number | null;
 }
 

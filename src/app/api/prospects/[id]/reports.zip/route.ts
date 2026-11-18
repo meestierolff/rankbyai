@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { err, sessionRead, withSession } from "@/lib/api";
 import { captureServer } from "@/lib/analytics-server";
-import { publicEnv } from "@/lib/env";
 import type { BatchRow } from "@/lib/prospects/batch";
 import { zipBatchPdfs } from "@/lib/prospects/zip";
+import { reportOriginFor } from "@/lib/domains-server";
 
 export const maxDuration = 300;
 
@@ -16,7 +16,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if (!batch) return err(404, "not_found", "Unknown batch.");
     const rows = batch.rows.filter((r) => r.status === "done" && r.report_slug);
     if (rows.length === 0) return err(409, "no_reports", "No report in this batch is ready yet.");
-    const zip = await zipBatchPdfs(rows, publicEnv.siteUrl);
+    const zip = await zipBatchPdfs(rows, await reportOriginFor(ctx.workspace.id));
     await captureServer("pdf_downloaded", ctx.workspace.id, { kind: "batch_zip", count: zip.count });
     return new Response(new Uint8Array(zip.bytes), {
       headers: { "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="prospect-reports-${String(batch.niche ?? "batch").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.zip"`, "Cache-Control": "no-store" },

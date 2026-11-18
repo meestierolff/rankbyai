@@ -3,12 +3,13 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AiDisclaimer } from "@/components/brand/primitives";
-import { DotGrid, EngineDots, aiCellColors, mapsCellColors, pointName, type CellView } from "@/components/brand/grid";
+import { DotGrid, EngineDots, aiCellColors, dotGridScale, mapsCellColors, pointName, skippedCell, type CellView } from "@/components/brand/grid";
 import { Segmented } from "@/components/brand/segmented";
 import { track } from "@/lib/analytics";
 import { ENGINE_LABEL, type Engine } from "@/lib/pricing-constants";
+import { skippedLine } from "@/lib/scans/skip";
 import { cn } from "@/lib/utils";
-import type { MapPoint } from "./grid-map";
+import { markerSizeFor, type MapPoint } from "./grid-map";
 import { ErrorState, StatTile, StatusChip, fmtUsd } from "./ui";
 import { LocalTime } from "./local-time";
 
@@ -80,13 +81,16 @@ export function ScanResult({ scanId, businessName, initial }: { scanId: string; 
   const { scan } = data;
   const active = scan.status === "queued" || scan.status === "running";
   const center = Math.floor((scan.grid_size * scan.grid_size) / 2);
-  const sel = selected ?? center;
+  const skippedCount = data.points.filter((p) => p.status === "skipped").length;
+  // Open on the business's own point, or on the first checked point when the user skipped that one.
+  const centreSkipped = data.points.find((p) => p.idx === center)?.status === "skipped";
+  const sel = selected ?? (centreSkipped ? (data.points.find((p) => p.status !== "skipped")?.idx ?? center) : center);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3 text-[14px] text-muted-foreground">
         <StatusChip tone={statusTone(scan.status)}>{active ? "running" : scan.status}</StatusChip>
-        <span>{scan.kind === "ai" ? "AI grid" : "Maps grid"} {scan.grid_size}×{scan.grid_size} · {Number(scan.radius_miles)} mi radius · “{scan.niche ?? scan.keyword}”</span>
+        <span>{scan.kind === "ai" ? "AI grid" : "Maps grid"} {scan.grid_size}×{scan.grid_size}{skippedCount ? ` (${skippedLine(scan.grid_size, skippedCount)})` : ""} · {Number(scan.radius_miles)} mi radius · “{scan.niche ?? scan.keyword}”</span>
         <span>· <LocalTime iso={scan.created_at} /></span>
         <span className="font-mono">
           · estimate {fmtUsd(scan.est_cost_usd, 3)} → actual {active ? "…" : fmtUsd(scan.actual_cost_usd, 3)}
@@ -162,10 +166,11 @@ function AiResult({ data, businessName, view, setView, sel, setSel }: ViewProps)
     return m;
   }, [samples]);
 
-  const cellFor = (idx: number): { bg: string; fg: string; label: string; title: string } => {
+  const cellFor = (idx: number): { bg: string; fg: string; label: string; title: string; skipped?: boolean } => {
     const list = byPoint.get(idx) ?? [];
     const p = points.find((x) => x.idx === idx);
     const where = p ? pointName(p.row, p.col) : `#${idx}`;
+    if (p?.status === "skipped") return skippedCell(where);
     if (engine !== "all") {
       const s = list.find((x) => x.engine === engine);
       if (!s || s.status === "pending") return { bg: "var(--rb-well)", fg: "var(--rb-faint)", label: "·", title: `Point ${where}: waiting` };
@@ -185,13 +190,16 @@ function AiResult({ data, businessName, view, setView, sel, setSel }: ViewProps)
   const cells: CellView[] = points.map((p) => ({ key: String(p.idx), ...cellFor(p.idx), selected: p.idx === sel }));
   const mapPoints: MapPoint[] = points.map((p) => ({ key: String(p.idx), lat: p.lat, lng: p.lng, ...cellFor(p.idx), selected: p.idx === sel }));
   const selPoint = points.find((p) => p.idx === sel);
+  const selSkipped = selPoint?.status === "skipped";
   const selSamples = (byPoint.get(sel) ?? []).filter((s) => engine === "all" || s.engine === engine);
   const engines = scan.engines;
+  const checked = points.filter((p) => p.status !== "skipped").length || n * n;
+  const anySkipped = checked < points.length;
 
   return (
     <>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-4">
-        <StatTile label="Points where AI names the business" value={`${summary.points_mentioned ?? 0}/${n * n}`} hint="At least one engine" tone={(summary.points_mentioned ?? 0) > 0 ? "good" : undefined} />
+        <StatTile label="Points where AI names the business" value={`${summary.points_mentioned ?? 0}/${checked}`} hint={anySkipped ? `At least one engine · ${n * n - checked} skipped points not counted` : "At least one engine"} tone={(summary.points_mentioned ?? 0) > 0 ? "good" : undefined} />
         {engines.map((e) => {
           const s = summary.engines?.[e];
           return <StatTile key={e} label={`${ENGINE_LABEL[e].short} mention rate`} value={s?.available ? pct(s.mention_rate) : s ? "unavailable" : "…"} hint={s?.available ? `${s.mentioned}/${s.done} points${s.avg_position ? ` · avg position ${s.avg_position}` : ""}` : s ? "Engine unavailable for this scan" : "Running"} tone={s && !s.available ? "bad" : undefined} />;
@@ -218,6 +226,7 @@ function AiResult({ data, businessName, view, setView, sel, setSel }: ViewProps)
             {[["var(--rb-g1)", "Named, top 3"], ["var(--rb-amber)", "Named, 4–5"], ["var(--rb-none)", "Not named"]].map(([c, l]) => (
               <span key={l} className="flex items-center gap-[6px]"><span className="size-[9px] rounded-full" style={{ background: c }} />{l}</span>
             ))}
+            {anySkipped ? <span className="flex items-center gap-[6px]"><span className="size-[9px] rounded-full border border-dashed border-faint" />Not checked (skipped)</span> : null}
             <span>! = engine unavailable</span>
             {engine === "all" ? <span>Label = engines naming the business</span> : null}
           </div>
@@ -230,9 +239,11 @@ function AiResult({ data, businessName, view, setView, sel, setSel }: ViewProps)
               <span className="font-mono text-[14px] font-semibold">Point {selPoint ? pointName(selPoint.row, selPoint.col) : "—"}</span>
               <span className="text-[13px] text-dim">{selPoint?.label ?? (selPoint ? `${selPoint.lat.toFixed(4)}, ${selPoint.lng.toFixed(4)}` : "")}</span>
             </div>
-            <EngineDots positions={engines.map((e) => { const s = (byPoint.get(sel) ?? []).find((x) => x.engine === e); return !s || s.status !== "done" ? "unavailable" : s.mentioned ? (s.mention_position ?? 5) : null; })} size={10} />
+            {selSkipped ? null : <EngineDots positions={engines.map((e) => { const s = (byPoint.get(sel) ?? []).find((x) => x.engine === e); return !s || s.status !== "done" ? "unavailable" : s.mentioned ? (s.mention_position ?? 5) : null; })} size={10} />}
           </div>
-          {selSamples.length === 0 ? <p className="m-0 text-[14px] text-muted-foreground">Waiting for answers at this point.</p> : null}
+          {selSkipped ? (
+            <p className="m-0 text-[14px] text-muted-foreground">This point was skipped when the check was set up: no engine was asked here, and it is not part of any number on this page.</p>
+          ) : selSamples.length === 0 ? <p className="m-0 text-[14px] text-muted-foreground">Waiting for answers at this point.</p> : null}
           {selSamples.map((s) => (
             <details key={s.engine} open={selSamples.length === 1 || s.mentioned === true} className="rounded-xl border border-border bg-inset px-4 py-3">
               <summary className="flex items-center justify-between gap-3 text-[15px] font-medium">
@@ -342,16 +353,19 @@ function MapsResult({ data, businessName, view, setView, sel, setSel }: ViewProp
     return (p.top ?? []).find((t) => (t.cid ?? t.name) === overlay)?.rank ?? null;
   };
   const who = overlay ? (rivals.find((r) => (r.cid ?? r.name) === overlay)?.name ?? "Competitor") : businessName;
-  const cellFor = (p: ScanData["points"][number]) => {
+  const cellFor = (p: ScanData["points"][number]): { bg: string; fg: string; label: string; title: string; skipped?: boolean } => {
     const where = pointName(p.row, p.col);
+    if (p.status === "skipped") return skippedCell(where);
     if (p.status === "pending" || p.status === "posted") return { bg: "var(--rb-well)", fg: "var(--rb-faint)", label: "·", title: `Point ${where}: waiting for Google Maps results` };
     if (p.status === "failed") return { bg: "transparent", fg: "var(--rb-faint)", label: "!", title: `Point ${where}: lookup failed` };
     const r = rankAt(p);
     return { ...mapsCellColors(r), title: `Point ${where}: ${who} ${r ? `ranks #${r}` : "is not in the top 20"}` };
   };
   const cells: CellView[] = points.map((p) => ({ key: String(p.idx), ...cellFor(p), selected: p.idx === sel }));
-  const mapPoints: MapPoint[] = points.map((p) => ({ key: String(p.idx), lat: p.lat, lng: p.lng, ...cellFor(p), selected: p.idx === sel, small: n >= 9 }));
+  const mapPoints: MapPoint[] = points.map((p) => ({ key: String(p.idx), lat: p.lat, lng: p.lng, ...cellFor(p), selected: p.idx === sel, small: n >= 9, size: markerSizeFor(n) }));
   const selPoint = points.find((p) => p.idx === sel);
+  const anySkipped = points.some((p) => p.status === "skipped");
+  const scale = dotGridScale(n);
 
   return (
     <>
@@ -375,7 +389,9 @@ function MapsResult({ data, businessName, view, setView, sel, setSel }: ViewProp
             <ViewToggle view={view} setView={setView} />
           </div>
           {view === "grid" ? (
-            <DotGrid n={n} cells={cells} onSelect={(i) => setSel(points[i].idx)} className="mx-auto w-full max-w-[560px]" fontPx={n >= 9 ? 10 : 12} gapPx={n >= 9 ? 4 : 6} padPx={14} />
+            <div className="overflow-x-auto">
+              <DotGrid n={n} cells={cells} onSelect={(i) => setSel(points[i].idx)} className="mx-auto w-full max-w-[560px]" fontPx={scale.fontPx} gapPx={scale.gapPx} minCellPx={scale.minCellPx} padPx={n >= 13 ? 10 : 14} />
+            </div>
           ) : (
             <GridMap center={{ lat: scan.center_lat, lng: scan.center_lng }} radiusMiles={Number(scan.radius_miles)} points={mapPoints} onSelect={(k) => setSel(Number(k))} className="h-[480px]" />
           )}
@@ -383,15 +399,18 @@ function MapsResult({ data, businessName, view, setView, sel, setSel }: ViewProp
             {[["var(--rb-g1)", "1–3"], ["var(--rb-amber)", "4–10"], ["var(--rb-orange)", "11–20"], ["var(--rb-red)", "20+"]].map(([c, l]) => (
               <span key={l} className="flex items-center gap-[6px]"><span className="size-[9px] rounded-full" style={{ background: c }} />{l}</span>
             ))}
+            {anySkipped ? <span className="flex items-center gap-[6px]"><span className="size-[9px] rounded-full border border-dashed border-faint" />Not checked (skipped)</span> : null}
           </div>
         </section>
 
         <section className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5" aria-label="Selected point" aria-live="polite">
           <div className="flex flex-col gap-[2px]">
-            <span className="font-mono text-[14px] font-semibold">Point {selPoint ? pointName(selPoint.row, selPoint.col) : "—"} · top 20 on Google Maps</span>
+            <span className="font-mono text-[14px] font-semibold">Point {selPoint ? pointName(selPoint.row, selPoint.col) : "—"} · {selPoint?.status === "skipped" ? "not checked" : "top 20 on Google Maps"}</span>
             <span className="text-[13px] text-dim">{selPoint ? `${selPoint.lat.toFixed(4)}, ${selPoint.lng.toFixed(4)}` : ""}</span>
           </div>
-          {!selPoint?.top ? (
+          {selPoint?.status === "skipped" ? (
+            <p className="m-0 text-[14px] text-muted-foreground">This point was skipped when the grid was set up: it was not looked up, cost nothing, and is not part of any number on this page.</p>
+          ) : !selPoint?.top ? (
             <p className="m-0 text-[14px] text-muted-foreground">{selPoint?.status === "failed" ? (selPoint.error ?? "This lookup failed.") : "Waiting for results at this point."}</p>
           ) : selPoint.top.length === 0 ? (
             <p className="m-0 text-[14px] text-muted-foreground">Google Maps returned no results here.</p>

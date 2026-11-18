@@ -3,7 +3,11 @@ import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod";
 import type { ApiCaller } from "@/lib/api-keys";
 import { captureServer } from "@/lib/analytics-server";
+import { largerMapsGridsText, largestOneCreditMapsGrid } from "@/lib/cost/credits";
+import { AI_GRID_SIZES, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
+import { MAX_POINT_IDX } from "@/lib/scans/skip";
 import * as core from "./core";
+import { COUNTRY_CODES, DEFAULT_COUNTRY } from "@/lib/countries";
 
 /**
  * MCP tools (brief 7.8). Each tool calls the same operation as its REST endpoint.
@@ -22,12 +26,14 @@ const GUIDE =
 
 const funding = z.enum(["byok", "credits"]).default("byok").describe("byok = the user's own API keys; credits = included scans");
 const confirm = z.boolean().default(false).describe("false returns the cost estimate only. true runs it and spends money: ask the user first.");
-const country = z.enum(["US", "GB", "CA", "AU", "IE", "NZ"]).default("US");
+const country = z.enum(COUNTRY_CODES).default(DEFAULT_COUNTRY).describe("Country of the business: ISO 3166-1 alpha-2 code, e.g. US, GB, DE, NL");
 const paging = {
   limit: z.number().int().min(1).max(core.PAGE_LIMIT_MAX).default(50).describe("How many to return (1 to 200)"),
   offset: z.number().int().min(0).max(core.PAGE_OFFSET_MAX).default(0).describe("How many to skip, for the next page"),
 };
 const id = (what: string) => z.string().describe(`Id (a UUID) of the ${what}`);
+/** "1, 3 or 5" */
+const numberList = (xs: readonly number[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} or ${xs[xs.length - 1]}` : xs.join(""));
 
 // Output shapes. Objects are open (extra fields are allowed) so a new column never breaks a client.
 const open = z.looseObject;
@@ -97,24 +103,33 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
     radius_miles: z.number().positive().max(50).default(2).describe("Half the width of the grid. 2 miles suits a city business; use 5 to 10 for service-area businesses."),
     funding,
   };
-  const aiGrid = z.literal([1, 3, 5]).default(3).describe("3 = 3×3 grid (9 points). 5×5 costs about three times as much.");
-  const mapsGrid = z.literal([3, 5, 7, 9]).default(7).describe("7 = 7×7 grid (49 points)");
-  const anyGrid = z.literal([1, 3, 5, 7, 9]).default(3).describe("Points per side. AI scans: 1, 3 or 5. Maps scans: 3, 5, 7 or 9.");
+  const aiGrid = z.literal(AI_GRID_SIZES).default(3).describe("3 = 3×3 grid (9 points). 5×5 costs about three times as much.");
+  const largerGrids = largerMapsGridsText();
+  const mapsGrid = z.literal(MAPS_GRID_SIZES).default(7).describe(
+    `7 = 7×7 grid (49 points). The price is per point checked. On included scans a grid up to ${largestOneCreditMapsGrid()} uses 1 credit${largerGrids ? `; ${largerGrids}` : ""}.`,
+  );
+  const anyGridSizes = [...new Set([...AI_GRID_SIZES, ...MAPS_GRID_SIZES])].sort((x, y) => x - y) as [number, ...number[]];
+  const anyGrid = z.literal(anyGridSizes).default(3).describe(
+    `Points per side. AI scans: ${numberList(AI_GRID_SIZES)}. Maps scans: ${numberList(MAPS_GRID_SIZES)}.`,
+  );
+  const skipPoints = z.array(z.number().int().min(0).max(MAX_POINT_IDX)).max(MAX_POINT_IDX).optional().describe(
+    "Grid points NOT to check, for areas the user does not want tracked (water, a park, outside the service area). Each point is its idx: row × grid_size + col, row 0 in the north and col 0 in the west, so 0 is the north-west corner and the business is the centre point. Skipped points are never looked up and cost nothing; at least one point must stay active. get_scan with include_points lists them with status skipped.",
+  );
   const engines = z.array(z.enum(["openai", "perplexity", "gemini"])).min(1).max(3).optional().describe("Default: every engine a key is available for");
   const mode = z.enum(["standard", "priority", "live"]).default("priority").describe("Maps queue: standard is cheapest (about 5 minutes), priority about 1 minute, live a few seconds");
 
   server.registerTool("estimate_scan", {
     title: "Estimate a scan",
     description: "Return what an AI or Maps scan would cost, without running it. Free. Show the result to the user before run_ai_scan or run_maps_scan.",
-    inputSchema: z.object({ ...scanInput, kind: z.enum(["ai", "maps"]), grid_size: anyGrid, engines, mode }),
+    inputSchema: z.object({ ...scanInput, kind: z.enum(["ai", "maps"]), grid_size: anyGrid, skip_points: skipPoints, engines, mode }),
     outputSchema: open({ confirm_required: z.boolean(), estimate: estimateOut, message: z.string() }),
   }, (a) => reply("estimate_scan", () => core.createScanOp(caller, { ...a, confirm: false }, defer)));
 
   server.registerTool("run_ai_scan", {
     title: "Run an AI visibility scan",
-    description: "Ask each AI engine \"who are the best {keyword} near me?\" at every point of a grid around the business and record whether it names the business, in which position, who it names instead and which sources it cites. Costs money: without confirm it returns the estimate only. Poll get_scan for the result. A low mention rate with strong Maps ranks points at missing sources and thin on-page content; run_audit shows which.",
+    description: "Ask each AI engine \"who are the best {keyword} near me?\" at every point of a grid around the business and record whether it names the business, in which position, who it names instead and which sources it cites. Costs money: without confirm it returns the estimate only. Poll get_scan for the result. skip_points leaves out points the user does not want asked about. A low mention rate with strong Maps ranks points at missing sources and thin on-page content; run_audit shows which.",
     inputSchema: z.object({
-      ...scanInput, grid_size: aiGrid, engines,
+      ...scanInput, grid_size: aiGrid, skip_points: skipPoints, engines,
       prompt_template: z.string().max(400).optional().describe("Optional wording of the question asked at each point. Must contain {service} and {neighbourhood} or {city}. Leave it out for the standard question."),
       confirm,
     }),
@@ -122,8 +137,8 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("run_maps_scan", {
     title: "Run a Google Maps rank scan",
-    description: "Read the business's Google Maps rank for the keyword at every point of a grid around it (official data API, top 20 per point). Costs money: without confirm it returns the estimate only. Poll get_scan for the result. Ranks usually fall with distance from the business; a business that is top 3 only near its own door has a proximity-only footprint.",
-    inputSchema: z.object({ ...scanInput, grid_size: mapsGrid, mode, confirm }),
+    description: "Read the business's Google Maps rank for the keyword at every point of a grid around it (official data API, top 20 per point). Costs money: without confirm it returns the estimate only. Poll get_scan for the result. skip_points leaves out points the user does not want tracked (water, a park, outside the service area); they cost nothing. Ranks usually fall with distance from the business; a business that is top 3 only near its own door has a proximity-only footprint.",
+    inputSchema: z.object({ ...scanInput, grid_size: mapsGrid, skip_points: skipPoints, mode, confirm }),
   }, (a) => reply("run_maps_scan", () => core.createScanOp(caller, { ...a, kind: "maps" }, defer)));
 
   server.registerTool("list_scans", {

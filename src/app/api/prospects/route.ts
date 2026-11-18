@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { err, json, withSession } from "@/lib/api";
 import { captureServer } from "@/lib/analytics-server";
+import { DEFAULT_COUNTRY, isCountryCode } from "@/lib/countries";
 import { BATCH_MAX, createBatch, processBatch } from "@/lib/prospects/batch";
 
 export const maxDuration = 300;
@@ -19,7 +20,7 @@ const Body = z.object({
   mode: z.enum(["search", "csv"]),
   niche: z.string().trim().min(2).max(80),
   city: z.string().trim().max(120).nullable().default(null),
-  country: z.enum(["US", "GB", "CA", "AU", "IE", "NZ"]).default("US"),
+  country: z.string().trim().toUpperCase().refine(isCountryCode).default(DEFAULT_COUNTRY),
   candidates: z.array(Candidate).min(1).max(BATCH_MAX),
   funding: z.enum(["byok", "credits"]).default("byok"),
   confirm: z.boolean().default(false),

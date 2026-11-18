@@ -2,7 +2,7 @@ import { AI_DISCLAIMER_TEXT } from "@/lib/copy";
 import { publicEnv } from "@/lib/env";
 import { fmtPrice, formatClosesAt } from "@/lib/ladder";
 import { getOfferCached } from "@/lib/offer";
-import { PACKS, REFUND_DAYS } from "@/lib/pricing-constants";
+import { MAPS_GRID_RANGE, PACKS, REFUND_DAYS } from "@/lib/pricing-constants";
 import { STATIC_PAGES } from "@/lib/site-pages";
 
 /** /llms.txt: a short, factual source for AI assistants. No sales claims, no testimonials. */
@@ -22,7 +22,7 @@ Local-marketing agencies and freelancers in the US and UK who track and report l
 
 ## What it does
 - AI Visibility Tracker: 1×1, 3×3 or 5×5 grids, three AI engines per point, full answers, named businesses and cited sources.
-- Maps Grid Tracker: Google Maps rank on grids from 3×3 to 9×9.
+- Maps Grid Tracker: Google Maps rank on grids from ${MAPS_GRID_RANGE}. Points the user does not want tracked (water, a park, outside the service area) can be skipped; they are not looked up.
 - Local AI Audit: a 0–100 score with P0–P3 findings, each with evidence and a fix, plus a Fix Kit (profile text, FAQ, LocalBusiness and FAQ schema, llms.txt draft).
 - Prospect Reports: white-label reports with live links and PDFs, in bulk for a niche and a city.
 - REST API and MCP server.

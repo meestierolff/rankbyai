@@ -47,7 +47,7 @@ describe("grid geometry", () => {
   const c = { lat: 30.2672, lng: -97.7431 };
   it("1×1 is the centre", () => expect(buildGrid(c, 1, 2)).toEqual([{ idx: 0, row: 0, col: 0, lat: c.lat, lng: c.lng }]));
   it("n×n spans ±radius with the centre in the middle, row 0 in the north", () => {
-    for (const n of [3, 5, 7, 9]) {
+    for (const n of [3, 5, 7, 9, 11, 13, 15]) {
       const g = buildGrid(c, n, 2);
       expect(g).toHaveLength(n * n);
       const mid = g[(n * n - 1) / 2];

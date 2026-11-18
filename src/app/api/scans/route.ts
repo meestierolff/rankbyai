@@ -4,6 +4,7 @@ import { err, json, withSession } from "@/lib/api";
 import { captureServer } from "@/lib/analytics-server";
 import type { ScanSpec } from "@/lib/cost-guard";
 import { createScan, processScan } from "@/lib/scans/engine";
+import { MAX_POINT_IDX } from "@/lib/scans/skip";
 
 export const maxDuration = 300;
 
@@ -16,6 +17,8 @@ const Body = z.object({
   radius_miles: z.number().positive().max(50),
   engines: z.array(z.enum(["openai", "perplexity", "gemini"])).max(3).optional(),
   mode: z.enum(["standard", "priority", "live"]).optional(),
+  /** Grid points not to check; range, repeats and "one point stays active" are checked against grid_size by createScan. */
+  skip_points: z.array(z.number().int().min(0).max(MAX_POINT_IDX)).max(MAX_POINT_IDX).optional(),
   funding: z.enum(["byok", "credits"]).default("byok"),
   confirm: z.boolean().default(false),
 });
@@ -30,8 +33,8 @@ export async function POST(request: Request) {
     if (!parsed.success) return err(400, "invalid_body", "Check the scan settings and try again.");
     const b = parsed.data;
     const spec = (b.kind === "ai"
-      ? { kind: "ai", grid: b.grid_size, engines: b.engines ?? [] }
-      : { kind: "maps", grid: b.grid_size, mode: b.mode ?? "priority" }) as ScanSpec;
+      ? { kind: "ai", grid: b.grid_size, engines: b.engines ?? [], skip: b.skip_points }
+      : { kind: "maps", grid: b.grid_size, mode: b.mode ?? "priority", skip: b.skip_points }) as ScanSpec;
 
     const result = await createScan({
       workspaceId: ctx.workspace.id, plan: ctx.workspace.plan, businessId: b.business_id, spec, keyword: b.keyword,

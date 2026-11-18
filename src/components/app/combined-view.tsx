@@ -3,9 +3,9 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { AiDisclaimer } from "@/components/brand/primitives";
-import { DotGrid, type CellView } from "@/components/brand/grid";
+import { DotGrid, dotGridScale, type CellView } from "@/components/brand/grid";
 import { Segmented } from "@/components/brand/segmented";
-import type { MapPoint } from "./grid-map";
+import { markerSizeFor, type MapPoint } from "./grid-map";
 
 const GridMap = dynamic(() => import("./grid-map").then((m) => m.GridMap), {
   ssr: false,
@@ -14,7 +14,10 @@ const GridMap = dynamic(() => import("./grid-map").then((m) => m.GridMap), {
 
 type Layer = "maps" | "ai" | "both";
 
-/** The AI grid drawn over the same map as the Maps grid (brief 7.3, "our twist"). */
+/**
+ * The AI grid drawn over the same map as the Maps grid (brief 7.3, "our twist").
+ * A point with `skipped: true` was not checked: it is drawn as a dashed ring, never as a rank.
+ */
 export function CombinedView({
   center, radiusMiles, maps, ai, insight, mapsN, aiN,
 }: {
@@ -28,11 +31,15 @@ export function CombinedView({
 }) {
   const [layer, setLayer] = useState<Layer>(maps && ai ? "both" : maps ? "maps" : "ai");
   const [view, setView] = useState<"map" | "grid">("map");
+  // Dense Maps grids (up to 15×15) get smaller markers so neighbouring points do not cover each other.
+  const mapsMarker = markerSizeFor(mapsN);
   const points: MapPoint[] = [
-    ...(maps && layer !== "ai" ? maps.map((p) => ({ ...p, small: layer === "both" })) : []),
+    ...(maps && layer !== "ai" ? maps.map((p) => ({ ...p, small: layer === "both", size: layer === "both" ? Math.min(22, mapsMarker) : mapsMarker })) : []),
     ...(ai && layer !== "maps" ? ai : []),
   ];
-  const cells = (pts: MapPoint[]): CellView[] => pts.map((p) => ({ key: p.key, bg: p.bg, fg: p.fg, label: p.label, title: p.title }));
+  const cells = (pts: MapPoint[]): CellView[] => pts.map((p) => ({ key: p.key, bg: p.bg, fg: p.fg, label: p.label, title: p.title, skipped: p.skipped }));
+  const scale = dotGridScale(mapsN);
+  const anySkipped = [...(maps ?? []), ...(ai ?? [])].some((p) => p.skipped);
 
   return (
     <div className="flex flex-col gap-4">
@@ -53,14 +60,17 @@ export function CombinedView({
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {maps && layer !== "ai" ? (
-            <div className="flex flex-col gap-2"><span className="text-[13px] text-muted-foreground">Google Maps rank · {mapsN}×{mapsN}</span><DotGrid n={mapsN} cells={cells(maps)} fontPx={mapsN >= 9 ? 9 : 11} gapPx={4} /></div>
+            <div className="flex min-w-0 flex-col gap-2">
+              <span className="text-[13px] text-muted-foreground">Google Maps rank · {mapsN}×{mapsN}</span>
+              <div className="overflow-x-auto"><DotGrid n={mapsN} cells={cells(maps)} fontPx={mapsN >= 9 ? scale.fontPx - 1 : 11} gapPx={Math.min(4, scale.gapPx)} minCellPx={scale.minCellPx} /></div>
+            </div>
           ) : null}
           {ai && layer !== "maps" ? (
             <div className="flex flex-col gap-2"><span className="text-[13px] text-muted-foreground">AI engines naming the business · {aiN}×{aiN}</span><DotGrid n={aiN} cells={cells(ai)} fontPx={13} gapPx={8} /></div>
           ) : null}
         </div>
       )}
-      <p className="m-0 text-[12px] text-dim">Small markers: Google Maps rank. Large markers: how many AI engines named the business at that point.</p>
+      <p className="m-0 text-[12px] text-dim">Small markers: Google Maps rank. Large markers: how many AI engines named the business at that point.{anySkipped ? " Dashed rings: points that were skipped and not checked." : ""}</p>
       {ai ? <AiDisclaimer /> : null}
     </div>
   );

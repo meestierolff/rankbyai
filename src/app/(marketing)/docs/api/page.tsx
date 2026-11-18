@@ -5,6 +5,8 @@ import { MCP_TOOLS } from "@/lib/api-v1/mcp-tools";
 import { Eyebrow } from "@/components/brand/primitives";
 import { PageShell } from "@/components/marketing/page-shell";
 import { mcpSnippets } from "@/lib/api-v1/snippets";
+import { gridSizesText, largerMapsGridsText, largestOneCreditMapsGrid } from "@/lib/cost/credits";
+import { AI_GRID_SIZES, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 import { publicEnv } from "@/lib/env-public";
 
 export const metadata: Metadata = {
@@ -65,6 +67,16 @@ export default function ApiDocsPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="flex flex-col gap-4" aria-labelledby="grids">
+          <h2 id="grids" className={h2}>Grid sizes and skipped points</h2>
+          <p className={p}>
+            <code className={code}>grid_size</code> is the number of points per side. AI scans take {gridSizesText(AI_GRID_SIZES)}; Maps scans take {gridSizesText(MAPS_GRID_SIZES)}. The grid is centred on the business and spans <code className={code}>radius_miles</code> in every direction. On included scans a Maps grid up to {largestOneCreditMapsGrid()} uses 1 credit{largerMapsGridsText() ? `; ${largerMapsGridsText()}` : ""}.
+          </p>
+          <p className={p}>
+            <code className={code}>skip_points</code> (REST and MCP, AI and Maps scans) lists the points you do not want checked, such as water, a park or places outside the service area. A point is its <code className={code}>idx</code>: <code className={code}>row × grid_size + col</code>, with row 0 in the north and col 0 in the west, so 0 is the north-west corner and the centre point is the business. Skipped points are never sent to a vendor and cost nothing: the estimate and the credits count the active points only, and every summary metric leaves them out. Each number must be a point of the grid, each only once, and at least one point must stay active; otherwise the request answers <code className={code}>400</code> with <code className={code}>invalid_spec</code>. The scan returns the list as <code className={code}>skip_points</code>, and its points list them with status <code className={code}>skipped</code>.
+          </p>
         </section>
 
         <section className="flex flex-col gap-4" aria-labelledby="reports">

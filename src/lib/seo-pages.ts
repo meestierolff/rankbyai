@@ -8,6 +8,8 @@
  *  - Each page says what the other tool does well.
  *  - No rankings or results are promised.
  */
+import { MAPS_GRID_SIZES } from "@/lib/pricing-constants";
+
 export type CompareColumn = "rankbyai" | "localfalcon" | "brightlocal" | "semrush";
 export type Block = string | { list: string[] };
 
@@ -325,7 +327,8 @@ export const SEO_PAGES: SeoPage[] = [
         { list: [
           "7×7 points is a good default: enough detail to see the shape of the footprint.",
           "Use a radius of about 2 miles for a business customers travel to, and 5 to 10 miles for a service-area business.",
-          "9×9 gives a finer picture of a large area; 3×3 or 5×5 is enough for a quick check.",
+          `9×9 gives a finer picture of a large area, and grids up to ${MAPS_GRID_SIZES[MAPS_GRID_SIZES.length - 1]}×${MAPS_GRID_SIZES[MAPS_GRID_SIZES.length - 1]} cover a wide service area point by point; 3×3 or 5×5 is enough for a quick check.`,
+          "Points you do not want tracked, such as water, a park or places outside the service area, can be skipped. They are not looked up and do not count in the averages.",
         ] },
         "RankbyAI shows the cost before you run. Maps lookups are billed per point by the data provider, and the standard queue is the cheapest.",
       ] },

@@ -5,6 +5,7 @@ import { SampleTag } from "@/components/brand/primitives";
 import type { SessionContext } from "@/lib/auth";
 import { memberRead } from "@/lib/db/member-read";
 import { isMockMode } from "@/lib/mock";
+import { MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 import { getCreditBalance, getKeyStatuses, type ScanRow } from "@/lib/workspace-data";
 import { includedScans } from "./included";
 import { LocalTime } from "./local-time";
@@ -26,7 +27,7 @@ const COPY = {
   maps: {
     title: "Maps Grid",
     path: "maps-grid",
-    description: "Google Maps rank for a keyword at every point of a grid, from 3×3 to 9×9, with the top 20 at each pin.",
+    description: `Google Maps rank for a keyword at every point of a grid, from ${MAPS_GRID_SIZES[0]}×${MAPS_GRID_SIZES[0]} to ${MAPS_GRID_SIZES[MAPS_GRID_SIZES.length - 1]}×${MAPS_GRID_SIZES[MAPS_GRID_SIZES.length - 1]}, with the top 20 at each pin. Skip the points you do not want tracked.`,
     run: "New Maps grid",
     empty: "Run your first Maps grid to see where the business ranks on Google Maps across its area.",
   },
@@ -38,26 +39,26 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
   // Every read is filtered by the session's workspace id and goes through memberRead: a failed
   // read throws (the page's error state shows) instead of looking like "Add a business first".
   const [{ data: bizRows }, keyRows, credits, included, { data: scanRows }, { data: scheduleRows }] = await Promise.all([
-    memberRead("Businesses", ws.id, (db) => db.from("businesses").select("id, name, city, primary_category").eq("workspace_id", ws.id).not("lat", "is", null).order("created_at", { ascending: false }).limit(500)),
+    memberRead("Businesses", ws.id, (db) => db.from("businesses").select("id, name, city, primary_category, lat, lng").eq("workspace_id", ws.id).not("lat", "is", null).order("created_at", { ascending: false }).limit(500)),
     getKeyStatuses(ws.id),
     getCreditBalance(ws.id),
     includedScans(ws.id),
     memberRead("Scan history", ws.id, (db) =>
       db
         .from("scans")
-        .select("id, business_id, kind, grid_size, status, funding, keyword, niche, engines, est_cost_usd, actual_cost_usd, summary, created_at, finished_at, businesses(name)")
+        .select("id, business_id, kind, grid_size, skip_points, status, funding, keyword, niche, engines, est_cost_usd, actual_cost_usd, summary, created_at, finished_at, businesses(name)")
         .eq("workspace_id", ws.id)
         .eq("kind", kind)
         .order("created_at", { ascending: false })
         .limit(50),
     ),
     memberRead("Schedules", ws.id, (db) =>
-      db.from("tracked_queries").select("id, business_id, keyword, niche, grid_size, schedule, next_run_at, active, funding, businesses(name)").eq("workspace_id", ws.id).eq("kind", kind).neq("schedule", "none").order("created_at", { ascending: false }).limit(100),
+      db.from("tracked_queries").select("id, business_id, keyword, niche, grid_size, skip_points, schedule, next_run_at, active, funding, businesses(name)").eq("workspace_id", ws.id).eq("kind", kind).neq("schedule", "none").order("created_at", { ascending: false }).limit(100),
     ),
   ]);
-  const schedules = (scheduleRows ?? []) as unknown as { id: string; keyword: string | null; niche: string | null; grid_size: number; schedule: string; next_run_at: string | null; active: boolean; funding: string; businesses: { name: string } | null }[];
-  const businesses: FormBusiness[] = ((bizRows ?? []) as { id: string; name: string; city: string | null; primary_category: string | null }[]).map((b) => ({ id: b.id, name: b.name, city: b.city, category: b.primary_category }));
-  const scans = (scanRows ?? []) as unknown as ScanRow[];
+  const schedules = (scheduleRows ?? []) as unknown as { id: string; keyword: string | null; niche: string | null; grid_size: number; skip_points: number[] | null; schedule: string; next_run_at: string | null; active: boolean; funding: string; businesses: { name: string } | null }[];
+  const businesses: FormBusiness[] = ((bizRows ?? []) as { id: string; name: string; city: string | null; primary_category: string | null; lat: number | null; lng: number | null }[]).map((b) => ({ id: b.id, name: b.name, city: b.city, category: b.primary_category, lat: b.lat, lng: b.lng }));
+  const scans = (scanRows ?? []) as unknown as (ScanRow & { skip_points?: number[] | null })[];
   const mock = isMockMode();
   const has = (p: string) => mock || keyRows.some((k) => k.provider === p && k.status === "valid");
   const keys = { dataforseo: has("dataforseo"), openai: has("openai"), perplexity: has("perplexity"), gemini: has("gemini") };
@@ -92,7 +93,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
             {schedules.map((t) => (
               <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-3 last:border-b-0">
                 <span className="flex min-w-0 flex-col gap-[2px]">
-                  <span className="truncate text-[15px] font-medium">{t.businesses?.name ?? "Business"} · “{t.niche ?? t.keyword}” · {t.grid_size}×{t.grid_size}</span>
+                  <span className="truncate text-[15px] font-medium">{t.businesses?.name ?? "Business"} · “{t.niche ?? t.keyword}” · {t.grid_size}×{t.grid_size}{t.skip_points?.length ? `, ${t.skip_points.length} skipped` : ""}</span>
                   <span className="text-[13px] text-dim">
                     {t.schedule} · {t.funding === "byok" ? "on your keys" : "included scans"} · {t.active ? <>next run <LocalTime iso={t.next_run_at} /></> : "paused"}
                   </span>
@@ -113,7 +114,9 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
         ) : (
           <ul className="m-0 flex list-none flex-col p-0">
             {scans.map((s) => {
-              const sum = s.summary as { points_mentioned?: number; avg_rank?: number | null; top3_points?: number; points_done?: number };
+              const sum = s.summary as { points?: number; points_mentioned?: number; avg_rank?: number | null; top3_points?: number; points_done?: number };
+              // Points actually checked: the summary's count once finished, else the grid minus skipped points.
+              const active = sum.points ?? s.grid_size * s.grid_size - (s.skip_points?.length ?? 0);
               return (
                 <li key={s.id} className="border-b border-line last:border-b-0">
                   <Link href={`/app/${copy.path}/${s.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3 no-underline">
@@ -121,7 +124,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
                       <span className="truncate text-[15px] font-medium text-fg">{s.businesses?.name ?? "Business"} · “{s.niche ?? s.keyword}”</span>
                       <span className="text-[13px] text-dim">
                         {s.grid_size}×{s.grid_size} · <LocalTime iso={s.created_at} /> ·{" "}
-                        {kind === "ai" ? `named at ${sum.points_mentioned ?? 0}/${s.grid_size * s.grid_size} points` : `avg rank ${sum.avg_rank ?? "—"} · top-3 at ${sum.top3_points ?? 0}/${sum.points_done ?? s.grid_size * s.grid_size}`}
+                        {kind === "ai" ? `named at ${sum.points_mentioned ?? 0}/${active} points` : `avg rank ${sum.avg_rank ?? "—"} · top-3 at ${sum.top3_points ?? 0}/${sum.points_done ?? active}`}
                       </span>
                     </span>
                     <span className="flex items-center gap-3">

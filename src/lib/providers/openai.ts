@@ -1,3 +1,4 @@
+import { normalizeCountry } from "@/lib/countries";
 import { OPENAI } from "@/lib/pricing-constants";
 import { providerFetch } from "./http";
 import { MODELS } from "./models";
@@ -52,7 +53,9 @@ export const OPENAI_SEARCHES_PER_ANSWER = 1;
 export async function askOpenAi(key: string, prompt: string, geo: GeoContext, timeoutMs = 60_000): Promise<AiAnswer> {
   const model = MODELS.openai();
   const user_location: Record<string, string> = { type: "approximate" };
-  if (geo.country) user_location.country = geo.country;
+  // "two-letter ISO country code". Sent for every supported country; left out when unknown (OpenAI then assumes the US).
+  const country = normalizeCountry(geo.country);
+  if (country) user_location.country = country;
   if (geo.region) user_location.region = geo.region;
   if (geo.city) user_location.city = geo.city;
   const json = await providerFetch<ResponsesOutput>("https://api.openai.com/v1/responses", {

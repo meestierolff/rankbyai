@@ -1,3 +1,4 @@
+import { normalizeCountry } from "@/lib/countries";
 import { PERPLEXITY } from "@/lib/pricing-constants";
 import { providerFetch } from "./http";
 import { MODELS } from "./models";
@@ -51,8 +52,9 @@ export function parsePerplexityResponse(json: AgentOutput) {
 export async function askPerplexity(key: string, prompt: string, geo: GeoContext, timeoutMs = 60_000): Promise<AiAnswer> {
   const model = MODELS.perplexity();
   const user_location: Record<string, string | number> = {};
-  if (geo.country) {
-    user_location.country = geo.country;
+  const country = normalizeCountry(geo.country);
+  if (country) {
+    user_location.country = country;
     if (geo.region) user_location.region = geo.region;
     if (geo.city) user_location.city = geo.city;
     // latitude/longitude are only accepted together with a country

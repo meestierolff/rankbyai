@@ -83,9 +83,12 @@ export const AI_SAMPLE_EST_USD = {
 } as const;
 
 export const AI_GRID_SIZES = [1, 3, 5] as const;
-export const MAPS_GRID_SIZES = [3, 5, 7, 9] as const;
+/** Points per side of a Maps grid. Credits for the large ones follow from the per-point price (src/lib/cost/credits.ts). */
+export const MAPS_GRID_SIZES = [3, 5, 7, 9, 11, 13, 15] as const;
 export type AiGridSize = (typeof AI_GRID_SIZES)[number];
 export type MapsGridSize = (typeof MAPS_GRID_SIZES)[number];
+/** "3×3 to 15×15": the Maps grid sizes, for copy. */
+export const MAPS_GRID_RANGE = `${MAPS_GRID_SIZES[0]}×${MAPS_GRID_SIZES[0]} to ${MAPS_GRID_SIZES[MAPS_GRID_SIZES.length - 1]}×${MAPS_GRID_SIZES[MAPS_GRID_SIZES.length - 1]}`;
 
 /** Published fair-use limits (never reduced for existing buyers). */
 export const FAIR_USE = { businesses: 1000, scheduledQueries: 2000, apiKeys: 5 } as const;
@@ -158,7 +161,10 @@ export const PACKS = {
 } as const;
 export type PackKey = keyof typeof PACKS;
 
-/** Credits per action (brief 10.3). */
+/**
+ * Credits per action (brief 10.3). A Maps grid costs at least `maps_grid`; a large grid costs more,
+ * by the rule in src/lib/cost/credits.ts (scanCreditsFor), which every credit figure goes through.
+ */
 export const CREDIT_COST = {
   ai_grid_1: 1,
   ai_grid_3: 1,

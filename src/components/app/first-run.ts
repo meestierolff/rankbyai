@@ -1,4 +1,5 @@
-import { CREDIT_COST, DATAFORSEO_MAPS_PER_POINT } from "@/lib/pricing-constants";
+import { scanCreditsFor } from "@/lib/cost/credits";
+import { DATAFORSEO_MAPS_PER_POINT } from "@/lib/pricing-constants";
 
 /*
  * First-run and funding rules for the signed-in app. Pure functions of plain values (no database,
@@ -11,10 +12,12 @@ import { CREDIT_COST, DATAFORSEO_MAPS_PER_POINT } from "@/lib/pricing-constants"
 
 export type FundingChoice = "byok" | "credits";
 
-/** Credits one scan costs. Same table and same rule as creditsFor() in lib/cost-guard (server-only). */
-export function scanCredits(kind: "ai" | "maps", grid: number): number {
-  if (kind === "maps") return CREDIT_COST.maps_grid;
-  return grid === 5 ? CREDIT_COST.ai_grid_5 : grid === 3 ? CREDIT_COST.ai_grid_3 : CREDIT_COST.ai_grid_1;
+/**
+ * Credits one scan costs, with `skipped` grid points switched off. The same rule as creditsFor() in
+ * lib/cost-guard (server-only), at the default per-credit cap: lib/cost/credits scanCreditsFor.
+ */
+export function scanCredits(kind: "ai" | "maps", grid: number, skipped = 0): number {
+  return scanCreditsFor(kind, grid, skipped);
 }
 
 export interface FundingFacts {

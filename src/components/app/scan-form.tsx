@@ -5,9 +5,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ctaClass } from "@/components/brand/primitives";
 import { Segmented } from "@/components/brand/segmented";
 import { track } from "@/lib/analytics";
-import { ENGINE_LABEL, ENGINES, type Engine } from "@/lib/pricing-constants";
+import { AI_GRID_SIZES, ENGINE_LABEL, ENGINES, MAPS_GRID_SIZES, type Engine } from "@/lib/pricing-constants";
 import { DEFAULT_PROMPT_TEMPLATE } from "@/lib/scans/prompt";
+import { skippedLine } from "@/lib/scans/skip";
 import { creditsBlocker, creditsLeft, defaultFunding, plural, scanCredits, type FundingChoice } from "./first-run";
+import { GridPicker } from "./grid-picker";
 import type { IncludedScans } from "./included";
 import { inputClass, labelClass } from "./ui";
 
@@ -16,9 +18,15 @@ export interface FormBusiness {
   name: string;
   city: string | null;
   category: string | null;
+  /** The listing's location: the grid's centre. Lets the point picker show the grid on the map. */
+  lat?: number | null;
+  lng?: number | null;
 }
 
 interface Estimate {
+  /** Points that will be checked and points skipped, as the server counted them. */
+  points?: number;
+  skipped?: number;
   totalUsd: number;
   highUsd: number;
   credits: number;
@@ -57,10 +65,14 @@ export function ScanForm({
   const [funding, setFunding] = useState<FundingChoice>(firstFunding);
   const [engines, setEngines] = useState<Engine[]>(() => enginesFor(firstFunding));
   const [grid, setGrid] = useState<number>(firstGrid);
+  // Grid points the user switched off (idx = row × n + col). Cleared when the grid or the business changes.
+  const [skip, setSkip] = useState<number[]>([]);
   const [radius, setRadius] = useState(2);
   const [mode, setMode] = useState<"standard" | "priority" | "live">("priority");
   const [repeat, setRepeat] = useState<"none" | "weekly" | "monthly">("none");
   const [estimate, setEstimate] = useState<Estimate | null>(null);
+  // The grid size and number of skipped points the request behind `estimate` carried.
+  const [estimateFor, setEstimateFor] = useState({ grid: firstGrid, skip: 0 });
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const seq = useRef(0);
@@ -68,7 +80,14 @@ export function ScanForm({
   const usable = (e: Engine) => (funding === "credits" ? included.engines.includes(e) : keys[e]);
   const activeEngines = engines.filter(usable);
   const engineKey = activeEngines.join(",");
-  const cost = scanCredits(kind, grid);
+  const business = businesses.find((b) => b.id === businessId) ?? null;
+  const center = business?.lat != null && business?.lng != null ? { lat: business.lat, lng: business.lng } : null;
+  // The estimate on screen is for another grid or skip list while a new one is being estimated.
+  const estimateStale = !!estimate && (estimateFor.grid !== grid || estimateFor.skip !== skip.length);
+  // Fail closed: if the server's estimate does not count the skipped points, running would check
+  // (and charge for) the whole grid.
+  const skipIgnored = !!estimate && !estimateStale && skip.length > 0 && estimate.skipped !== skip.length;
+  const cost = estimate && !estimateStale && !skipIgnored ? estimate.credits : scanCredits(kind, grid, skip.length);
   // Said next to the form, before submit: the server would answer the same after it.
   const blocker = funding === "credits" ? creditsBlocker({ credits, cost, includedOpen }) : null;
   const canUseCredits = creditsBlocker({ credits, cost, includedOpen }) === null;
@@ -83,26 +102,29 @@ export function ScanForm({
   const body = useCallback(
     (confirm: boolean) => ({
       business_id: businessId, kind, keyword, grid_size: grid, radius_miles: radius, funding, confirm,
+      ...(skip.length ? { skip_points: skip } : {}),
       ...(kind === "ai" ? { engines: engineKey ? engineKey.split(",") : [], prompt_template: template === DEFAULT_PROMPT_TEMPLATE ? null : template } : { mode }),
     }),
-    [businessId, kind, keyword, grid, radius, funding, mode, template, engineKey],
+    [businessId, kind, keyword, grid, skip, radius, funding, mode, template, engineKey],
   );
 
   // Live estimate: ask the server (no confirm) whenever the setup changes.
   useEffect(() => {
     if (!businessId || keyword.trim().length < 2 || (kind === "ai" && !engineKey)) return;
     const my = ++seq.current;
+    const sent = body(false);
     const t = setTimeout(async () => {
-      const res = await fetch("/api/scans", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body(false)) });
+      const res = await fetch("/api/scans", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sent) });
       const json = (await res.json().catch(() => ({}))) as { estimate?: Estimate; error?: string; message?: string };
       if (my !== seq.current) return;
       setEstimate(json.estimate ?? null);
+      setEstimateFor({ grid: sent.grid_size, skip: Array.isArray(sent.skip_points) ? sent.skip_points.length : 0 });
       setProblem(json.error === "confirmation_required" ? null : (json.message ?? "Could not estimate this scan."));
     }, 350);
     return () => clearTimeout(t);
   }, [body, businessId, keyword, kind, engineKey]);
 
-  const ready = !!businessId && keyword.trim().length >= 2 && (kind === "maps" || activeEngines.length > 0);
+  const ready = !!businessId && keyword.trim().length >= 2 && (kind === "maps" || activeEngines.length > 0) && !estimateStale && !skipIgnored;
 
   const run = async () => {
     setBusy(true);
@@ -136,6 +158,7 @@ export function ScanForm({
             value={businessId}
             onChange={(e) => {
               setBusinessId(e.target.value);
+              setSkip([]); // skipped points belong to one business's surroundings
               const b = businesses.find((x) => x.id === e.target.value);
               if (b?.category && !keyword) setKeyword(b.category.toLowerCase());
             }}
@@ -181,8 +204,13 @@ export function ScanForm({
           <div className="flex min-w-0 flex-col gap-[6px]">
             <span className={labelClass}>Grid</span>
             <Segmented
-              label="Grid size" value={grid} onChange={setGrid}
-              options={(kind === "ai" ? [1, 3, 5] : [3, 5, 7, 9]).map((n) => ({ value: n, label: `${n}×${n}` }))}
+              label="Grid size" value={grid}
+              onChange={(n) => {
+                setGrid(n);
+                setSkip([]); // a point number means a different place on another grid size
+              }}
+              columns={kind === "maps" ? 4 : undefined}
+              options={(kind === "ai" ? AI_GRID_SIZES : MAPS_GRID_SIZES).map((n) => ({ value: n as number, label: `${n}×${n}` }))}
             />
           </div>
           <div className="flex min-w-0 flex-col gap-[6px]">
@@ -193,6 +221,17 @@ export function ScanForm({
             />
           </div>
         </div>
+
+        {grid > 1 ? (
+          <details className="rounded-xl border border-border bg-inset px-4 py-3">
+            <summary className="text-[14px] font-medium">
+              Skip points <span className="font-normal text-dim">· {skip.length ? skippedLine(grid, skip.length) : "all points checked"}</span>
+            </summary>
+            <div className="mt-3">
+              <GridPicker n={grid} skip={skip} onChange={setSkip} center={center} radiusMiles={radius} />
+            </div>
+          </details>
+        ) : null}
 
         {kind === "maps" ? (
           <div className="flex flex-col gap-[6px]">
@@ -212,7 +251,7 @@ export function ScanForm({
           />
           {repeat !== "none" ? (
             <span className="text-[13px] text-dim">
-              Runs now, then every {repeat === "weekly" ? "week" : "month"} at about the same cost per run{kind === "maps" ? " (scheduled Maps runs use the cheaper Standard queue)" : ""}. Pause or delete it any time under Schedules.
+              Runs now, then every {repeat === "weekly" ? "week" : "month"} at about the same cost per run{kind === "maps" ? " (scheduled Maps runs use the cheaper Standard queue)" : ""}.{skip.length ? ` The ${plural(skip.length, "skipped point")} stay skipped on every run.` : ""} Pause or delete it any time under Schedules.
             </span>
           ) : null}
         </div>
@@ -248,6 +287,7 @@ export function ScanForm({
               </span>
               <span className="text-[15px] text-muted-foreground">{funding === "credits" ? (estimate.credits === 1 ? "credit" : "credits") : "on your keys"}</span>
             </div>
+            {estimate.skipped ? <p className="m-0 text-[13px] text-dim">{skippedLine(grid, estimate.skipped)}: not looked up and not charged.</p> : null}
             <ul className="m-0 flex list-none flex-col gap-2 p-0 text-[14px]">
               {estimate.lines.map((l) => (
                 <li key={l.label} className="flex justify-between gap-3 text-muted-foreground">
@@ -266,6 +306,11 @@ export function ScanForm({
           <p className="m-0 text-[15px] text-muted-foreground">Fill in the setup to see the cost.</p>
         )}
         {problem ? <p role="alert" className="m-0 text-[14px] text-danger">{problem}</p> : null}
+        {skipIgnored ? (
+          <p role="alert" className="m-0 text-[14px] text-danger">
+            The server did not count your skipped points, so this run would check the whole grid. It is blocked; reload the page and try again, or choose Skip none.
+          </p>
+        ) : null}
         <button type="button" onClick={run} disabled={!ready || busy || locked || !estimate || !!blocker} aria-busy={busy} className={ctaClass("block", "cursor-pointer border-0 text-[16px]")}>
           <span>{busy ? "Starting…" : locked ? "Needs lifetime access" : kind === "ai" ? "Run AI check" : "Run Maps grid"}</span>
           <span aria-hidden>→</span>

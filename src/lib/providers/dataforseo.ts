@@ -1,3 +1,4 @@
+import { COUNTRIES, languageCodeFor, locationCodeFor } from "@/lib/countries";
 import { DATAFORSEO_BUSINESS_INFO_PER_CALL, DATAFORSEO_MAPS_PER_POINT, type MapsMode } from "@/lib/pricing-constants";
 import { providerFetch } from "./http";
 import { ProviderError, type ValidationResult } from "./types";
@@ -92,6 +93,8 @@ export interface MapsTaskSpec {
   keyword: string;
   lat: number;
   lng: number;
+  /** ISO code of the business's country: sets the results language (English when unknown). */
+  country?: string | null;
   tag: string;
   pingbackUrl?: string;
 }
@@ -106,7 +109,7 @@ export async function postMapsTasks(creds: DfsCreds, specs: MapsTaskSpec[], mode
       body: specs.map((s) => ({
         keyword: s.keyword,
         location_coordinate: coord(s.lat, s.lng),
-        language_code: "en",
+        language_code: languageCodeFor(s.country),
         depth: 20,
         priority: mode === "priority" ? 2 : 1,
         tag: s.tag,
@@ -125,8 +128,11 @@ export async function postMapsTasks(creds: DfsCreds, specs: MapsTaskSpec[], mode
   });
 }
 
-/** One live Maps lookup (about 6 seconds). */
-export async function mapsLive(creds: DfsCreds, spec: { keyword: string; lat?: number; lng?: number; locationCode?: number; depth?: number }): Promise<{ items: MapsItem[]; costUsd: number }> {
+/**
+ * One live Maps lookup (about 6 seconds). At a coordinate, or across a whole country. `country` sets the
+ * results language and, without a coordinate, the country searched (an explicit `locationCode` wins).
+ */
+export async function mapsLive(creds: DfsCreds, spec: { keyword: string; lat?: number; lng?: number; country?: string | null; locationCode?: number; depth?: number }): Promise<{ items: MapsItem[]; costUsd: number }> {
   const env = assertOk(
     await providerFetch<DfsEnvelope<{ items?: RawMapsItem[] }>>(`${BASE}/serp/google/maps/live/advanced`, {
       provider: "dataforseo",
@@ -134,8 +140,8 @@ export async function mapsLive(creds: DfsCreds, spec: { keyword: string; lat?: n
       body: [
         {
           keyword: spec.keyword,
-          ...(spec.lat != null && spec.lng != null ? { location_coordinate: coord(spec.lat, spec.lng), search_places: false } : { location_code: spec.locationCode ?? 2840 }),
-          language_code: "en",
+          ...(spec.lat != null && spec.lng != null ? { location_coordinate: coord(spec.lat, spec.lng), search_places: false } : { location_code: spec.locationCode ?? locationCodeFor(spec.country) }),
+          language_code: languageCodeFor(spec.country),
           depth: spec.depth ?? 20,
         },
       ],
@@ -254,15 +260,15 @@ export function parseBusinessInfo(it: RawBusinessInfo | null | undefined): Busin
   };
 }
 
-/** Google Business Profile details for the audit (live). */
-export async function businessInfoLive(creds: DfsCreds, ref: { cid?: string | null; placeId?: string | null; keyword?: string; locationCode?: number }): Promise<{ info: BusinessInfo | null; costUsd: number }> {
+/** Google Business Profile details for the audit (live). `country` sets the location and language of the lookup. */
+export async function businessInfoLive(creds: DfsCreds, ref: { cid?: string | null; placeId?: string | null; keyword?: string; country?: string | null; locationCode?: number }): Promise<{ info: BusinessInfo | null; costUsd: number }> {
   const keyword = ref.cid ? `cid:${ref.cid}` : ref.placeId ? `place_id:${ref.placeId}` : ref.keyword;
   if (!keyword) throw new ProviderError("dataforseo", "bad_request", "A cid, place_id or keyword is required.");
   const env = assertOk(
     await providerFetch<DfsEnvelope<{ items?: RawBusinessInfo[] }>>(`${BASE}/business_data/google/my_business_info/live`, {
       provider: "dataforseo",
       headers: auth(creds),
-      body: [{ keyword, location_code: ref.locationCode ?? 2840, language_code: "en" }],
+      body: [{ keyword, location_code: ref.locationCode ?? locationCodeFor(ref.country), language_code: languageCodeFor(ref.country) }],
       timeoutMs: 60_000,
       retries: 1,
     }),
@@ -272,5 +278,8 @@ export async function businessInfoLive(creds: DfsCreds, ref: { cid?: string | nu
   return { info: parseBusinessInfo(task.result?.[0]?.items?.[0]), costUsd: task.cost ?? env.cost ?? DATAFORSEO_BUSINESS_INFO_PER_CALL };
 }
 
-/** DataForSEO country location codes for the markets we serve. */
-export const LOCATION_CODES: Record<string, number> = { US: 2840, GB: 2826, CA: 2124, AU: 2036, IE: 2372, NZ: 2554 };
+/**
+ * @deprecated Use `locationCodeFor` from "@/lib/countries". Country → DataForSEO location code for every
+ * country in the table; kept because src/lib/scans/engine.ts still imports it.
+ */
+export const LOCATION_CODES: Record<string, number> = Object.fromEntries(COUNTRIES.map((c) => [c.code, c.locationCode]));

@@ -63,7 +63,8 @@ describe("estimate before, actual after", () => {
     const other = await createTestUser("other");
     expect(await createScan(base(AI_3, { workspaceId: other.workspaceId }))).toMatchObject({ ok: false, error: "business_not_found" });
     expect(await createScan(base({ kind: "ai", grid: 7, engines: ["openai"] } as unknown as ScanSpec))).toMatchObject({ ok: false, error: "invalid_spec" });
-    expect(await createScan(base({ kind: "maps", grid: 11, mode: "live" } as unknown as ScanSpec))).toMatchObject({ ok: false, error: "invalid_spec" });
+    expect(await createScan(base({ kind: "maps", grid: 17, mode: "live" } as unknown as ScanSpec))).toMatchObject({ ok: false, error: "invalid_spec" });
+    expect(await createScan(base({ kind: "maps", grid: 15, mode: "live" }, { confirm: false }))).toMatchObject({ ok: false, error: "confirmation_required" });
   });
 });
 

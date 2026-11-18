@@ -2,7 +2,11 @@ import type { Engine } from "@/lib/pricing-constants";
 import { namesMatch, normalizeName } from "./match";
 import { domainOf } from "./parse";
 
-/** Scan metrics (brief 7.2, 7.3). Pure functions over stored rows, so every number can be traced back. */
+/**
+ * Scan metrics (brief 7.2, 7.3). Pure functions over stored rows, so every number can be traced back.
+ * Points the user skipped are not part of any metric: `points` counts the active points only and
+ * `points_skipped` says how many were left out.
+ */
 
 export interface AiSampleRow {
   point_idx: number;
@@ -16,7 +20,9 @@ export interface AiSampleRow {
 }
 
 export interface AiSummary {
+  /** Active grid points (skipped points excluded). */
   points: number;
+  points_skipped: number;
   samples_total: number;
   samples_done: number;
   samples_failed: number;
@@ -36,7 +42,10 @@ export interface AiSummary {
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const round = (v: number | null, d = 3) => (v == null ? null : Math.round(v * 10 ** d) / 10 ** d);
 
-export function summarizeAi(samples: AiSampleRow[], points: number): AiSummary {
+/** `gridPoints` is n × n; `skip` the idx of the points the user skipped (they never have samples). */
+export function summarizeAi(allSamples: AiSampleRow[], gridPoints: number, skip: readonly number[] = []): AiSummary {
+  const skipped = new Set(skip);
+  const samples = skipped.size ? allSamples.filter((s) => !skipped.has(s.point_idx)) : allSamples;
   const done = samples.filter((s) => s.status === "done");
   const engines: AiSummary["engines"] = {};
   for (const s of samples) {
@@ -88,7 +97,8 @@ export function summarizeAi(samples: AiSampleRow[], points: number): AiSummary {
   }
 
   return {
-    points,
+    points: Math.max(0, gridPoints - skipped.size),
+    points_skipped: skipped.size,
     samples_total: samples.length,
     samples_done: done.length,
     samples_failed: samples.filter((s) => s.status === "failed" || s.status === "skipped").length,
@@ -109,13 +119,15 @@ export function summarizeAi(samples: AiSampleRow[], points: number): AiSummary {
 
 export interface MapsPointRow {
   idx: number;
-  status: "pending" | "posted" | "done" | "failed";
+  status: "pending" | "posted" | "done" | "failed" | "skipped";
   rank: number | null;
   top: { rank: number; name: string; cid?: string | null; rating?: number | null; reviews?: number | null }[] | null;
 }
 
 export interface MapsSummary {
+  /** Active grid points (skipped points excluded). */
   points: number;
+  points_skipped: number;
   points_done: number;
   points_failed: number;
   /** Average rank; a point where the business is outside the top 20 counts as 21. */
@@ -132,7 +144,8 @@ export interface MapsSummary {
 
 export const NOT_RANKED = 21;
 
-export function summarizeMaps(pointRows: MapsPointRow[], businessName: string): MapsSummary {
+export function summarizeMaps(allRows: MapsPointRow[], businessName: string): MapsSummary {
+  const pointRows = allRows.filter((p) => p.status !== "skipped");
   const done = pointRows.filter((p) => p.status === "done");
   const ranks = done.map((p) => p.rank ?? NOT_RANKED);
   const top3 = done.filter((p) => p.rank != null && p.rank <= 3).length;
@@ -153,6 +166,7 @@ export function summarizeMaps(pointRows: MapsPointRow[], businessName: string): 
   }
   return {
     points: pointRows.length,
+    points_skipped: allRows.length - pointRows.length,
     points_done: done.length,
     points_failed: pointRows.filter((p) => p.status === "failed").length,
     avg_rank: round(avg(ranks), 1),

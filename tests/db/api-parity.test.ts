@@ -489,10 +489,10 @@ describe("MCP: protocol, schemas and the new tools (official MCP client)", () =>
       expect(props(name).limit, name).toMatchObject({ type: "integer", minimum: 1, maximum: 200, default: 50 });
       expect(props(name).offset, name).toMatchObject({ type: "integer", minimum: 0, maximum: 100000, default: 0 });
     }
-    expect(props("estimate_scan").grid_size).toMatchObject({ enum: [1, 3, 5, 7, 9], default: 3 });
-    expect(props("estimate_scan").grid_size.description).toContain("AI scans: 1, 3 or 5. Maps scans: 3, 5, 7 or 9.");
+    expect(props("estimate_scan").grid_size).toMatchObject({ enum: [1, 3, 5, 7, 9, 11, 13, 15], default: 3 });
+    expect(props("estimate_scan").grid_size.description).toContain("AI scans: 1, 3 or 5. Maps scans: 3, 5, 7, 9, 11, 13 or 15.");
     expect(props("run_ai_scan").grid_size).toMatchObject({ enum: [1, 3, 5] });
-    expect(props("run_maps_scan").grid_size).toMatchObject({ enum: [3, 5, 7, 9] });
+    expect(props("run_maps_scan").grid_size).toMatchObject({ enum: [3, 5, 7, 9, 11, 13, 15] });
     for (const name of ["estimate_scan", "run_ai_scan", "run_maps_scan"]) expect(props(name).grid_size, name).not.toHaveProperty("minimum");
     expect(props("add_business").address).toMatchObject({ type: "string", maxLength: 400 });
     expect(props("add_business").lat).toMatchObject({ minimum: -90, maximum: 90 });

@@ -11,7 +11,9 @@ import { DATAFORSEO_MAPS_PER_POINT, FAIR_USE, LLM_FIX_KIT_BUDGET_USD } from "@/l
 import { createBatch, discover, estimateBatch, processBatch, resolveRows, type BatchRow } from "@/lib/prospects/batch";
 import { compareAi, compareHeadline, compareMaps, type AiCompareSample, type MapsComparePoint } from "@/lib/scans/compare";
 import { createScan, processScan } from "@/lib/scans/engine";
+import { MAX_POINT_IDX } from "@/lib/scans/skip";
 import { ENGINES } from "@/lib/pricing-constants";
+import { COUNTRY_CODES, DEFAULT_COUNTRY } from "@/lib/countries";
 
 /**
  * The public API's operations (brief 7.8). REST routes and MCP tools both call these, so the two
@@ -70,7 +72,7 @@ export async function listBusinesses(c: ApiCaller, q: { limit?: unknown; offset?
 export const AddBusiness = z.object({
   name: z.string().trim().min(1).max(300),
   city: z.string().trim().min(1).max(120).optional(),
-  country: z.enum(["US", "GB", "CA", "AU", "IE", "NZ"]).default("US"),
+  country: z.enum(COUNTRY_CODES).default(DEFAULT_COUNTRY),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   address: z.string().max(400).optional(),
@@ -174,6 +176,8 @@ export const CreateScan = z.object({
   radius_miles: z.number().positive().max(50).default(2),
   engines: z.array(z.enum(["openai", "perplexity", "gemini"])).min(1).max(3).optional(),
   mode: z.enum(["standard", "priority", "live"]).default("priority"),
+  /** Grid points not to check. Range, repeats and "at least one point stays active" are checked against grid_size (lib/scans/skip). */
+  skip_points: z.array(z.number().int().min(0).max(MAX_POINT_IDX)).max(MAX_POINT_IDX).optional(),
   funding: z.enum(["byok", "credits"]).default("byok"),
   confirm: z.boolean().default(false),
 });
@@ -190,7 +194,7 @@ export async function createScanOp(c: ApiCaller, input: unknown, defer: Defer): 
     engines = ENGINES.filter((e) => !!creds[e]);
     if (!engines.length) return fail(400, "missing_key", "No AI engine key is available. Add a key in Settings → API keys, or use \"funding\": \"credits\".");
   }
-  const spec = (b.kind === "ai" ? { kind: "ai", grid: b.grid_size, engines } : { kind: "maps", grid: b.grid_size, mode: b.mode }) as ScanSpec;
+  const spec = (b.kind === "ai" ? { kind: "ai", grid: b.grid_size, engines, skip: b.skip_points } : { kind: "maps", grid: b.grid_size, mode: b.mode, skip: b.skip_points }) as ScanSpec;
   const r = await createScan({ workspaceId: c.workspaceId, plan: c.plan, businessId: b.business_id, spec, keyword, promptTemplate: b.prompt_template, radiusMiles: b.radius_miles, funding: b.funding, confirm: b.confirm });
   if (!r.ok) {
     if (r.error === "confirmation_required") return needsConfirm(r.estimate, "scan");
@@ -200,7 +204,7 @@ export async function createScanOp(c: ApiCaller, input: unknown, defer: Defer): 
   return ok({ scan_id: r.scanId, status: "queued", estimate: r.estimate }, 202);
 }
 
-const SCAN_COLS = "id, business_id, kind, keyword, niche, engines, grid_size, radius_miles, mode, funding, status, credits_used, est_cost_usd, actual_cost_usd, summary, error, created_at, finished_at";
+const SCAN_COLS = "id, business_id, kind, keyword, niche, engines, grid_size, skip_points, radius_miles, mode, funding, status, credits_used, est_cost_usd, actual_cost_usd, summary, error, created_at, finished_at";
 
 const ListScans = z.object({ ...Page, business_id: z.uuid().optional(), kind: z.enum(["ai", "maps"]).optional(), status: z.enum(["queued", "running", "done", "partial", "failed"]).optional() });
 
@@ -345,7 +349,7 @@ export async function getFixKit(c: ApiCaller, id: string, q: { confirm?: unknown
 export const CreateProspects = z.object({
   niche: z.string().trim().min(2).max(80),
   city: z.string().trim().min(2).max(120),
-  country: z.enum(["US", "GB", "CA", "AU", "IE", "NZ"]).default("US"),
+  country: z.enum(COUNTRY_CODES).default(DEFAULT_COUNTRY),
   /** How many reports to build, taken from the businesses outside the top 3. */
   max_reports: z.number().int().min(1).max(50).default(10),
   funding: z.enum(["byok", "credits"]).default("byok"),

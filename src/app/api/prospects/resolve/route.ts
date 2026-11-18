@@ -1,13 +1,19 @@
 import { z } from "zod";
 import { err, json, withSession } from "@/lib/api";
 import { logHouseSpend } from "@/lib/cost-guard";
+import { DEFAULT_COUNTRY, isCountryCode } from "@/lib/countries";
 import { resolveRows } from "@/lib/prospects/batch";
 import { parseProspectCsv } from "@/lib/prospects/csv";
 import { guardLookup } from "@/lib/prospects/guard";
 
 export const maxDuration = 300;
 
-const Body = z.object({ csv: z.string().min(1).max(1_000_000), funding: z.enum(["byok", "credits"]).default("byok") });
+const Body = z.object({
+  csv: z.string().min(1).max(1_000_000),
+  funding: z.enum(["byok", "credits"]).default("byok"),
+  /** For rows without a country column. */
+  country: z.string().trim().toUpperCase().refine(isCountryCode).default(DEFAULT_COUNTRY),
+});
 
 /** CSV mode: parse the file, then look every row up on Google Maps. Unmatched rows come back as unresolved. */
 export async function POST(request: Request) {
@@ -19,7 +25,7 @@ export async function POST(request: Request) {
     const blocked = await guardLookup(ctx, "resolve", parsed.data.funding, file.rows.length * 2);
     if (blocked) return blocked;
     try {
-      const r = await resolveRows({ workspaceId: ctx.workspace.id, funding: parsed.data.funding, rows: file.rows });
+      const r = await resolveRows({ workspaceId: ctx.workspace.id, funding: parsed.data.funding, rows: file.rows, country: parsed.data.country });
       if (parsed.data.funding === "credits") await logHouseSpend("credits", null, { dataforseo: r.costUsd });
       return json({ resolved: r.resolved, unresolved: r.unresolved, problems: file.problems, rows: file.rows.length, cost_usd: r.costUsd });
     } catch (e) {

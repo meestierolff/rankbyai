@@ -1,6 +1,7 @@
 import "server-only";
 import { createAudit, processAudit, type StoredAuditInputs } from "@/lib/audit/run";
 import { estimateScan, houseBudgetCheck } from "@/lib/cost-guard";
+import { countryFromText, DEFAULT_COUNTRY } from "@/lib/countries";
 import { randomToken } from "@/lib/crypto";
 import { dbAdmin } from "@/lib/db/clients";
 import { resolveCredentials, type Funding } from "@/lib/keys";
@@ -8,7 +9,7 @@ import { isMockMode } from "@/lib/mock";
 import { CREDIT_COST, DATAFORSEO_BUSINESS_INFO_PER_CALL, DATAFORSEO_MAPS_PER_POINT, ENGINES, type Engine } from "@/lib/pricing-constants";
 import { mapsLive, type MapsItem } from "@/lib/providers/dataforseo";
 import { mockMapsItems } from "@/lib/providers/mock-data";
-import { createScan, locationCodeFor, processScan } from "@/lib/scans/engine";
+import { createScan, processScan } from "@/lib/scans/engine";
 import { namesMatch } from "@/lib/scans/match";
 import type { AiSummary, MapsSummary } from "@/lib/scans/summary";
 import type { CsvRow } from "./csv";
@@ -80,12 +81,15 @@ export async function discover(input: { workspaceId: string; funding: BatchFundi
   }
   const creds = await resolveCredentials(input.workspaceId, input.funding);
   if (!creds.dataforseo) throw new Error("missing_key");
-  const r = await mapsLive(creds.dataforseo, { keyword: `${input.niche} in ${input.city}`, locationCode: locationCodeFor(input.country), depth: 100 });
+  const r = await mapsLive(creds.dataforseo, { keyword: `${input.niche} in ${input.city}`, country: input.country, depth: 100 });
   return { candidates: r.items.filter((i) => i.lat != null && i.lng != null).map(toCandidate), costUsd: r.costUsd };
 }
 
-/** CSV mode: look each row up on Google Maps. Rows that cannot be matched are returned as unresolved, never guessed. */
-export async function resolveRows(input: { workspaceId: string; funding: BatchFunding; rows: CsvRow[] }): Promise<{ resolved: Candidate[]; unresolved: { name: string; city: string; reason: string }[]; costUsd: number }> {
+/**
+ * CSV mode: look each row up on Google Maps. Rows that cannot be matched are returned as unresolved, never guessed.
+ * A row's own country column (code or English name) wins; rows without one use `country` (default US).
+ */
+export async function resolveRows(input: { workspaceId: string; funding: BatchFunding; rows: CsvRow[]; country?: string }): Promise<{ resolved: Candidate[]; unresolved: { name: string; city: string; reason: string }[]; costUsd: number }> {
   const creds = isMockMode() ? null : await resolveCredentials(input.workspaceId, input.funding);
   if (!isMockMode() && !creds?.dataforseo) throw new Error("missing_key");
   const resolved: Candidate[] = [];
@@ -95,18 +99,24 @@ export async function resolveRows(input: { workspaceId: string; funding: BatchFu
   const worker = async () => {
     while (next < input.rows.length) {
       const row = input.rows[next++];
+      const country = row.country.trim() ? countryFromText(row.country) : (countryFromText(input.country) ?? DEFAULT_COUNTRY);
+      if (!country) {
+        // Searching the wrong country would cost a lookup and match nothing useful.
+        unresolved.push({ name: row.name, city: row.city, reason: `“${row.country.trim().slice(0, 60)}” is not a country we can search. Use a two-letter code such as DE, or the English name.` });
+        continue;
+      }
       try {
         let items: MapsItem[];
         if (isMockMode()) {
           // Deterministic simulation: names containing "closed" are not on the map.
           items = /closed/i.test(row.name) ? [] : mockMapsItems(30.2672, -97.7431, { businessName: row.name, distance: 0 }).map((i) => (i.name === row.name ? { ...i, cid: `mock-csv-${row.name}`, city: row.city } : i));
         } else {
-          const r = await mapsLive(creds!.dataforseo!, { keyword: `${row.name} ${row.city}`, locationCode: locationCodeFor(row.country || "US"), depth: 20 });
+          const r = await mapsLive(creds!.dataforseo!, { keyword: `${row.name} ${row.city}`, country, depth: 20 });
           items = r.items;
           costUsd += r.costUsd;
         }
         const hit = (row.place_id ? items.find((i) => i.placeId === row.place_id) : null) ?? items.find((i) => namesMatch(i.name, row.name));
-        if (hit && hit.lat != null && hit.lng != null) resolved.push({ ...toCandidate(hit), website: hit.url ?? (row.website || null) ?? (hit.domain ? `https://${hit.domain}` : null), phone: hit.phone ?? (row.phone || null), rank: null });
+        if (hit && hit.lat != null && hit.lng != null) resolved.push({ ...toCandidate(hit), country: hit.country ?? country, website: hit.url ?? (row.website || null) ?? (hit.domain ? `https://${hit.domain}` : null), phone: hit.phone ?? (row.phone || null), rank: null });
         else unresolved.push({ name: row.name, city: row.city, reason: "No Google Maps listing with this name was found in this city." });
       } catch {
         unresolved.push({ name: row.name, city: row.city, reason: "The lookup failed. Try this row again." });

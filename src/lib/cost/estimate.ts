@@ -36,8 +36,9 @@ export interface AiGridEstimate {
   rangeUsd: { low: number; high: number };
 }
 
-export function estimateAiGrid(grid: AiGridSize, engines: readonly Engine[], opts?: { measured?: Partial<EngineRates>; geminiInsideFreeAllowance?: boolean }): AiGridEstimate {
-  const points = grid * grid;
+/** `skipped`: grid points the user switched off; only the active points are asked about. */
+export function estimateAiGrid(grid: AiGridSize, engines: readonly Engine[], opts?: { measured?: Partial<EngineRates>; geminiInsideFreeAllowance?: boolean; skipped?: number }): AiGridEstimate {
+  const points = Math.max(0, grid * grid - (opts?.skipped ?? 0));
   const inside = opts?.geminiInsideFreeAllowance ?? true;
   const rates = engineSampleRates({ geminiInsideFreeAllowance: inside, measured: opts?.measured });
   const perEngineUsd: Partial<Record<Engine, number>> = {};
@@ -51,8 +52,9 @@ export function estimateAiGrid(grid: AiGridSize, engines: readonly Engine[], opt
   return { points, samples: points * engines.length, perEngineUsd, totalUsd: total, rangeUsd: { low, high } };
 }
 
-export function estimateMapsGrid(grid: MapsGridSize, mode: MapsMode): { points: number; totalUsd: number } {
-  const points = grid * grid;
+/** `skipped`: grid points the user switched off; they are never looked up, so they cost nothing. */
+export function estimateMapsGrid(grid: MapsGridSize, mode: MapsMode, skipped = 0): { points: number; totalUsd: number } {
+  const points = Math.max(0, grid * grid - skipped);
   return { points, totalUsd: points * DATAFORSEO_MAPS_PER_POINT[mode] };
 }
 

@@ -8,10 +8,10 @@ import { ShareLinkCard } from "@/components/app/m3-controls";
 import { LocalTime } from "@/components/app/local-time";
 import { userRead } from "@/components/app/reads";
 import { EmptyState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatTile, StatusChip, fmtUsd } from "@/components/app/ui";
-import { aiCellColors, mapsCellColors, pointName } from "@/components/brand/grid";
+import { aiCellColors, mapsCellColors, pointName, skippedCell } from "@/components/brand/grid";
 import { requireSession } from "@/lib/auth";
 import { memberRead } from "@/lib/db/member-read";
-import { publicEnv } from "@/lib/env";
+import { linkDomainFor } from "@/lib/domains-server";
 import { combinedInsight, type AiSummary, type MapsSummary } from "@/lib/scans/summary";
 
 export const metadata: Metadata = { title: "Business" };
@@ -86,17 +86,18 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
     const mapsId = latestMaps.id;
     const data = await userRead("Maps grid points", (db) => db.from("scan_points").select("idx, row, col, lat, lng, rank, status").eq("scan_id", mapsId).order("idx"));
     mapsPts = ((data ?? []) as { idx: number; row: number; col: number; lat: number; lng: number; rank: number | null; status: string }[])
-      .filter((p) => p.status === "done")
-      .map((p) => ({ key: `m${p.idx}`, lat: p.lat, lng: p.lng, ...mapsCellColors(p.rank), title: `Maps point ${pointName(p.row, p.col)}: ${p.rank ? `rank #${p.rank}` : "not in the top 20"}` }));
+      .filter((p) => p.status === "done" || p.status === "skipped")
+      .map((p) => p.status === "skipped" ? { key: `m${p.idx}`, lat: p.lat, lng: p.lng, ...skippedCell(pointName(p.row, p.col)) } : ({ key: `m${p.idx}`, lat: p.lat, lng: p.lng, ...mapsCellColors(p.rank), title: `Maps point ${pointName(p.row, p.col)}: ${p.rank ? `rank #${p.rank}` : "not in the top 20"}` }));
   }
   if (latestAi) {
     const aiId = latestAi.id;
     const [pts, smp] = await Promise.all([
-      userRead("AI grid points", (db) => db.from("scan_points").select("idx, row, col, lat, lng").eq("scan_id", aiId).order("idx")),
+      userRead("AI grid points", (db) => db.from("scan_points").select("idx, row, col, lat, lng, status").eq("scan_id", aiId).order("idx")),
       userRead("AI answers", (db) => db.from("ai_samples").select("point_idx, status, mentioned, mention_position").eq("scan_id", aiId)),
     ]);
     const samples = (smp ?? []) as { point_idx: number; status: string; mentioned: boolean | null; mention_position: number | null }[];
-    aiPts = ((pts ?? []) as { idx: number; row: number; col: number; lat: number; lng: number }[]).map((p) => {
+    aiPts = ((pts ?? []) as { idx: number; row: number; col: number; lat: number; lng: number; status: string }[]).map((p) => {
+      if (p.status === "skipped") return { key: `a${p.idx}`, lat: p.lat, lng: p.lng, ...skippedCell(pointName(p.row, p.col)) };
       const done = samples.filter((s) => s.point_idx === p.idx && s.status === "done");
       const hits = done.filter((s) => s.mentioned);
       const best = hits.length ? Math.min(...hits.map((s) => s.mention_position ?? 5)) : null;
@@ -143,7 +144,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
       </Panel>
 
       <Panel title="Client report (live share link)" className="mt-6">
-        <ShareLinkCard businessId={b.id} slug={share?.share_slug ?? null} origin={publicEnv.siteUrl} locked={ctx.workspace.plan !== "lifetime"} />
+        <ShareLinkCard businessId={b.id} slug={share?.share_slug ?? null} domain={await linkDomainFor(wsId)} locked={ctx.workspace.plan !== "lifetime"} />
       </Panel>
 
       <Panel title="Scans" className="mt-6">

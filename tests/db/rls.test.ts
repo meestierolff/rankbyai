@@ -14,6 +14,7 @@ const PRIVATE_TABLES = [
   "scans", "scan_points", "ai_samples", "audits", "audit_findings", "fix_kits", "prospect_batches", "reports",
   "orders", "entitlements", "credit_ledger", "ladder_lock", "ladder_holds", "stripe_events", "api_keys",
   "free_checks", "spend_log", "jobs", "rate_limits", "geo_cache", "removal_requests", "feature_request_votes",
+  "workspace_domains",
 ];
 
 let a: TestUser;
@@ -73,6 +74,8 @@ beforeAll(async () => {
   await ins("removal_requests", { business_name: "X", email: "x@example.com" });
   const fr = await ins("feature_requests", { workspace_id: a.workspaceId, title: "Apple Maps" });
   await admin.from("feature_request_votes").insert({ request_id: fr.id, user_id: a.id });
+  // Random hostname: resetData() does not truncate this table; the row goes with Alice's workspace.
+  await ins("workspace_domains", { workspace_id: a.workspaceId, hostname: `reports-${randomUUID().slice(0, 8)}.alice-agency.com`, status: "active" });
 });
 
 afterAll(async () => {
@@ -214,6 +217,19 @@ describe("members cannot grant themselves anything", () => {
     }
   });
 
+  it("cannot add, change or remove a custom domain directly (server-only writes)", async () => {
+    const own = await a.client.from("workspace_domains").insert({ workspace_id: a.workspaceId, hostname: `x-${randomUUID().slice(0, 8)}.alice-agency.com` });
+    expect(own.error).not.toBeNull();
+    const hijack = await b.client.from("workspace_domains").insert({ workspace_id: b.workspaceId, hostname: `y-${randomUUID().slice(0, 8)}.bob-agency.com`, status: "active" });
+    expect(hijack.error).not.toBeNull();
+    const upd = await a.client.from("workspace_domains").update({ status: "active", hostname: "evil.example.com" }).eq("workspace_id", a.workspaceId);
+    expect(upd.error).not.toBeNull();
+    const del = await a.client.from("workspace_domains").delete().eq("workspace_id", a.workspaceId);
+    expect(del.error).not.toBeNull();
+    const rows = await sql<{ n: number }>("select count(*)::int as n from public.workspace_domains where workspace_id = $1", [a.workspaceId]);
+    expect(rows[0].n).toBe(1);
+  });
+
   it("cannot write scans or reports directly", async () => {
     const scan = await a.client.from("scans").insert({
       workspace_id: a.workspaceId, business_id: businessId, kind: "ai", grid_size: 3, radius_miles: 2,
@@ -227,7 +243,7 @@ describe("members cannot grant themselves anything", () => {
 
 describe("members can use what they own", () => {
   it("Alice reads her own workspace data", async () => {
-    for (const t of ["businesses", "clients", "scans", "scan_points", "ai_samples", "audits", "audit_findings", "reports", "orders", "credit_ledger"]) {
+    for (const t of ["businesses", "clients", "scans", "scan_points", "ai_samples", "audits", "audit_findings", "reports", "orders", "credit_ledger", "workspace_domains"]) {
       const { data, error } = await a.client.from(t).select("*");
       expect(error, t).toBeNull();
       expect((data ?? []).length, t).toBeGreaterThan(0);
@@ -260,7 +276,7 @@ describe("a signed-in request without an identity", () => {
   // an error the server can retry, never a quiet empty result that looks like "no data yet".
   it("is refused with RB001 instead of returning nothing", async () => {
     const nobody = rawClient(await signToken({ role: "authenticated" })); // no "sub"
-    for (const table of ["workspaces", "profiles", "businesses", "scans", "workspace_members"]) {
+    for (const table of ["workspaces", "profiles", "businesses", "scans", "workspace_members", "workspace_domains"]) {
       const { data, error } = await nobody.from(table).select("*").limit(1);
       expect(data, table).toBeNull();
       expect(error?.code, table).toBe("RB001");

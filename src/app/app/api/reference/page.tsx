@@ -19,6 +19,9 @@ export default async function Page() {
       <p className="mt-0 mb-5 max-w-[760px] text-[14px] leading-normal text-muted-foreground">
         Base URL <code className="font-mono text-fg">{publicEnv.siteUrl}/api/v1</code>. Send your key as <code className="font-mono text-fg">Authorization: Bearer rbai_live_…</code>. Requests that cost money answer with <code className="font-mono text-fg">confirm_required</code> and an estimate until you send <code className="font-mono text-fg">confirm: true</code>. Limit: 60 requests a minute per key; the <code className="font-mono text-fg">X-RateLimit-Remaining</code> and <code className="font-mono text-fg">X-RateLimit-Reset</code> headers show where a key stands. Call the API from a server or a script: its endpoints send no CORS headers.
       </p>
+      <p className="mt-0 mb-5 max-w-[760px] text-[14px] leading-normal text-muted-foreground">
+        Scans take <code className="font-mono text-fg">skip_points</code>: the <code className="font-mono text-fg">idx</code> of grid points not to check (<code className="font-mono text-fg">row × grid_size + col</code>, row 0 in the north). Skipped points are not looked up, cost nothing and are left out of every metric; at least one point must stay active.
+      </p>
       <ApiReference siteUrl={publicEnv.siteUrl} />
     </>
   );

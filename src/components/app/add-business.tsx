@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { ctaClass, secondaryClass } from "@/components/brand/primitives";
+import { COUNTRY_OPTION_GROUPS, countryLanguageNote, DEFAULT_COUNTRY } from "@/lib/countries";
 import { DATAFORSEO_MAPS_PER_POINT } from "@/lib/pricing-constants";
 import { inputClass, labelClass } from "./ui";
 
@@ -36,6 +37,9 @@ export function AddBusiness({ disabled, disabledReason }: { disabled?: boolean; 
   const [results, setResults] = useState<Listing[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
+  const [country, setCountry] = useState(DEFAULT_COUNTRY);
+  // The country the shown results were searched in: saved with a listing that has no country of its own.
+  const [searchedCountry, setSearchedCountry] = useState(DEFAULT_COUNTRY);
   // Stays pending until the new business page has loaded, so "Adding…" never flips back early.
   const [opening, startOpening] = useTransition();
 
@@ -48,7 +52,8 @@ export function AddBusiness({ disabled, disabledReason }: { disabled?: boolean; 
     setBusy(true);
     setError(null);
     setResults(null);
-    const params = new URLSearchParams({ q: String(form.get("q") ?? ""), city: String(form.get("city") ?? ""), country: String(form.get("country") ?? "US") });
+    const params = new URLSearchParams({ q: String(form.get("q") ?? ""), city: String(form.get("city") ?? ""), country });
+    setSearchedCountry(country);
     try {
       const res = await fetch(`/api/businesses/search?${params}`);
       const json = (await res.json().catch(() => ({}))) as { results?: Listing[]; message?: string };
@@ -70,7 +75,7 @@ export function AddBusiness({ disabled, disabledReason }: { disabled?: boolean; 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: l.name, cid: l.cid, place_id: l.placeId, address: l.address, city: l.city, region: l.region, country: l.country,
+          name: l.name, cid: l.cid, place_id: l.placeId, address: l.address, city: l.city, region: l.region, country: l.country ?? searchedCountry,
           lat: l.lat, lng: l.lng, website: l.url ?? (l.domain ? `https://${l.domain}` : null), phone: l.phone,
           primary_category: l.category, rating: l.rating, reviews_count: l.reviews,
         }),
@@ -95,7 +100,7 @@ export function AddBusiness({ disabled, disabledReason }: { disabled?: boolean; 
 
   return (
     <div className="flex flex-col gap-4">
-      <form onSubmit={search} aria-busy={busy} className="grid grid-cols-1 items-end gap-3 md:grid-cols-[2fr_1.4fr_auto_auto]">
+      <form onSubmit={search} aria-busy={busy} className="grid grid-cols-1 items-end gap-3 md:grid-cols-[2fr_1.4fr_minmax(0,1.2fr)_auto]">
         <label className="flex min-w-0 flex-col gap-[6px]">
           <span className={labelClass}>Business name</span>
           <input name="q" required minLength={2} maxLength={120} placeholder="Northgate Family Dental" className={inputClass} disabled={disabled} enterKeyHint="search" />
@@ -106,13 +111,12 @@ export function AddBusiness({ disabled, disabledReason }: { disabled?: boolean; 
         </label>
         <label className="flex min-w-0 flex-col gap-[6px]">
           <span className={labelClass}>Country</span>
-          <select name="country" defaultValue="US" className={inputClass} disabled={disabled}>
-            <option value="US">United States</option>
-            <option value="GB">United Kingdom</option>
-            <option value="CA">Canada</option>
-            <option value="AU">Australia</option>
-            <option value="IE">Ireland</option>
-            <option value="NZ">New Zealand</option>
+          <select name="country" value={country} onChange={(e) => setCountry(e.target.value)} className={`${inputClass} min-w-0`} disabled={disabled}>
+            {COUNTRY_OPTION_GROUPS.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </optgroup>
+            ))}
           </select>
         </label>
         <button type="submit" disabled={disabled || busy} aria-busy={busy} className={ctaClass("sm", "h-[42px] min-w-[104px] cursor-pointer justify-center border-0")}>
@@ -126,6 +130,7 @@ export function AddBusiness({ disabled, disabledReason }: { disabled?: boolean; 
             ? "Searching Google Maps. This takes a few seconds."
             : `One live Google Maps lookup on your DataForSEO key: $${DATAFORSEO_MAPS_PER_POINT.live.toFixed(3)} per search.`}
       </p>
+      {countryLanguageNote(country) ? <p className="m-0 text-[13px] text-dim">{countryLanguageNote(country)}</p> : null}
       {error ? <p role="alert" className="m-0 text-[14px] text-danger">{error}</p> : null}
       {results ? (
         results.length === 0 ? (

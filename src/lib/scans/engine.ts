@@ -1,11 +1,12 @@
 import "server-only";
 import { createHmac } from "node:crypto";
 import { creditsFor, estimateScan, houseBudgetCheck, houseCapUsd, logHouseSpend, runningScanCount, validateSpec, BYOK_MAX_RUNNING_SCANS, type Estimate, type HouseFunding, type ScanSpec } from "@/lib/cost-guard";
+import { withinCap } from "@/lib/cost/credits";
 import { dataforseoPingbackEnv, publicEnv } from "@/lib/env";
 import { resolveCredentials, type Funding } from "@/lib/keys";
 import { isMockMode } from "@/lib/mock";
 import { AI_SAMPLE_EST_USD, DATAFORSEO_MAPS_PER_POINT, ENGINE_LABEL, GEMINI, LLM_PARSE_BUDGET_USD, type Engine, type MapsMode } from "@/lib/pricing-constants";
-import { getMapsTask, LOCATION_CODES, mapsLive, postMapsTasks, type MapsItem } from "@/lib/providers/dataforseo";
+import { getMapsTask, mapsLive, postMapsTasks, type MapsItem } from "@/lib/providers/dataforseo";
 import { askGemini } from "@/lib/providers/gemini";
 import { mockAiAnswer, mockMapsItems, type MockCtx } from "@/lib/providers/mock-data";
 import { askOpenAi, openAiJson } from "@/lib/providers/openai";
@@ -18,13 +19,15 @@ import { findInMaps, mentionedInText, namesMatch, positionInNames, type Business
 import { PARSE_INSTRUCTIONS, PARSE_SCHEMA, parseNamedBusinesses } from "./parse";
 import { fetchPlaces, labelPoints } from "./places";
 import { DEFAULT_PROMPT_TEMPLATE, buildPrompt, validateTemplate } from "./prompt";
+import { normalizeSkip } from "./skip";
 import { summarizeAi, summarizeMaps, type AiSampleRow, type MapsPointRow } from "./summary";
 
 /**
  * Scan engine (brief 7.2, 7.3, 10.2).
  *
  * createScan  — validates, estimates, charges credits (house funding) and writes the scan, its
- *               grid points and (for AI) one pending sample per point per engine.
+ *               grid points and (for AI) one pending sample per active point per engine. Points the
+ *               user skipped get a row with status 'skipped' and nothing else: no sample, no task.
  * processScan — does the work. Idempotent and resumable: it claims a short lease, processes whatever
  *               is still pending, and can be called again (after a timeout, from a status poll, from a
  *               DataForSEO pingback or from cron) until nothing is pending. Then it finalises.
@@ -79,10 +82,17 @@ const WORST_CASE_SAMPLE_USD: Record<Engine, number> = {
 
 export async function createScan(input: CreateScanInput): Promise<CreateScanResult> {
   const admin = dbAdmin();
-  const { spec } = input;
+  let { spec } = input;
 
+  // A scheduled run keeps the points its schedule skips, unless the caller sends its own list.
+  if (input.trackedQueryId && spec.skip === undefined) {
+    const { data: tq } = await admin.from("tracked_queries").select("skip_points").eq("id", input.trackedQueryId).maybeSingle<{ skip_points: number[] | null }>();
+    if (tq?.skip_points?.length) spec = { ...spec, skip: tq.skip_points };
+  }
   const specError = validateSpec(spec);
   if (specError) return fail(400, "invalid_spec", specError);
+  const skip = normalizeSkip(spec.skip);
+  spec = { ...spec, skip };
   const keyword = input.keyword.trim();
   if (keyword.length < 2 || keyword.length > 120) return fail(400, "invalid_keyword", "Enter a service or keyword (2–120 characters).");
   if (!(input.radiusMiles > 0 && input.radiusMiles <= 50)) return fail(400, "invalid_radius", "The radius must be between 0.1 and 50 miles.");
@@ -125,6 +135,7 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
 
   const center = { lat: business.lat, lng: business.lng };
   const points = buildGrid(center, spec.grid, input.radiusMiles);
+  const skipped = new Set(skip);
   const mode: MapsMode = spec.kind === "maps" ? spec.mode : "standard";
 
   const { data: scan, error } = await admin
@@ -139,6 +150,7 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
       prompt_template: template,
       engines: spec.kind === "ai" ? spec.engines : [],
       grid_size: spec.grid,
+      skip_points: skip,
       radius_miles: input.radiusMiles,
       center_lat: center.lat,
       center_lng: center.lng,
@@ -164,10 +176,15 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
   let labels: (string | null)[] = points.map(() => null);
   if (spec.kind === "ai") labels = labelPoints(points, await fetchPlaces(center, input.radiusMiles));
 
-  await admin.from("scan_points").insert(points.map((p, i) => ({ scan_id: scan.id, idx: p.idx, row: p.row, col: p.col, lat: p.lat, lng: p.lng, label: labels[i], status: spec.kind === "ai" ? "done" : "pending" })));
+  // Skipped points are stored (so results can show them as not checked) but get no sample and no task.
+  await admin.from("scan_points").insert(points.map((p, i) => ({
+    scan_id: scan.id, idx: p.idx, row: p.row, col: p.col, lat: p.lat, lng: p.lng, label: labels[i],
+    status: skipped.has(p.idx) ? "skipped" : spec.kind === "ai" ? "done" : "pending",
+  })));
   if (spec.kind === "ai" && template) {
+    const engines = spec.engines;
     const rows = points.flatMap((p, i) =>
-      spec.engines.map((engine) => ({
+      skipped.has(p.idx) ? [] : engines.map((engine) => ({
         scan_id: scan.id,
         point_idx: p.idx,
         engine,
@@ -191,6 +208,8 @@ interface ScanRow {
   niche: string | null;
   engines: Engine[];
   grid_size: number;
+  /** idx of the points the user skipped (never sent to a vendor). */
+  skip_points: number[] | null;
   radius_miles: number;
   center_lat: number;
   center_lng: number;
@@ -205,6 +224,8 @@ interface ScanRow {
 }
 
 const LEASE_SECONDS = 120;
+/** DataForSEO accepts at most 100 tasks per task_post request (lib/providers/dataforseo postMapsTasks). */
+const MAPS_TASKS_PER_POST = 100;
 
 /** Atomic claim in the database (see db/migrations/0002_claim_scan.sql). Null when another worker holds it. */
 async function claim(scanId: string): Promise<ScanRow | null> {
@@ -421,7 +442,7 @@ async function runMaps(scan: ScanRow, business: BusinessRow, creds: ProviderCred
     const pending = open.filter((p) => p.status === "pending").length;
     const { data: paidRows } = await admin.from("scan_points").select("cost_usd").eq("scan_id", scan.id).not("cost_usd", "is", null);
     const already = ((paidRows ?? []) as { cost_usd: number }[]).reduce((s, r) => s + Number(r.cost_usd), 0);
-    if (already + pending * DATAFORSEO_MAPS_PER_POINT[scan.mode] > houseCapUsd(scan.funding as HouseFunding, scan.credits_used)) {
+    if (!withinCap(already + pending * DATAFORSEO_MAPS_PER_POINT[scan.mode], houseCapUsd(scan.funding as HouseFunding, scan.credits_used))) {
       await admin.from("scan_points").update({ status: "failed", error: "Skipped: the cost cap for this included scan was reached." }).eq("scan_id", scan.id).eq("status", "pending");
       return;
     }
@@ -438,23 +459,32 @@ async function runMaps(scan: ScanRow, business: BusinessRow, creds: ProviderCred
   const dfs = creds.dataforseo;
 
   if (scan.mode === "live") {
+    // A large live grid (225 points, six at a time, about 6 s each) outlasts the lease: renew it, so
+    // a status poll does not start a second worker on the same points.
+    let lastBeat = Date.now();
     await pool(open.filter((p) => p.status === "pending"), 6, async (p) => {
       if (Date.now() > deadline) return;
       try {
-        const r = await mapsLive(dfs, { keyword, lat: p.lat, lng: p.lng });
+        const r = await mapsLive(dfs, { keyword, lat: p.lat, lng: p.lng, country: business.country });
         await storeMapsPoint(scan.id, p.idx, r.items, who, r.costUsd);
         perProvider.dataforseo = (perProvider.dataforseo ?? 0) + r.costUsd;
       } catch (err) {
         await admin.from("scan_points").update({ status: "failed", error: (err instanceof Error ? err.message : "Lookup failed").slice(0, 300) }).eq("scan_id", scan.id).eq("idx", p.idx);
       }
+      if (Date.now() - lastBeat > 30_000) {
+        lastBeat = Date.now();
+        await extendLease(scan.id);
+      }
     });
   } else {
     const toPost = open.filter((p) => p.status === "pending");
-    if (toPost.length) {
+    // DataForSEO takes at most MAPS_TASKS_PER_POST tasks per request; an 11×11 grid and up needs several.
+    for (let i = 0; i < toPost.length; i += MAPS_TASKS_PER_POST) {
+      const batch = toPost.slice(i, i + MAPS_TASKS_PER_POST);
       try {
-        const posted = await postMapsTasks(dfs, toPost.map((p) => {
+        const posted = await postMapsTasks(dfs, batch.map((p) => {
           const tag = `${scan.id}:${p.idx}`;
-          return { keyword, lat: p.lat, lng: p.lng, tag, pingbackUrl: pingbackUrl(tag) };
+          return { keyword, lat: p.lat, lng: p.lng, country: business.country, tag, pingbackUrl: pingbackUrl(tag) };
         }), scan.mode);
         for (const t of posted) {
           const idx = Number(t.tag.split(":")[1]);
@@ -462,8 +492,9 @@ async function runMaps(scan: ScanRow, business: BusinessRow, creds: ProviderCred
           perProvider.dataforseo = (perProvider.dataforseo ?? 0) + t.costUsd;
         }
       } catch (err) {
-        await admin.from("scan_points").update({ status: "failed", error: (err instanceof Error ? err.message : "Could not queue the scan").slice(0, 300) }).eq("scan_id", scan.id).eq("status", "pending");
+        await admin.from("scan_points").update({ status: "failed", error: (err instanceof Error ? err.message : "Could not queue the scan").slice(0, 300) }).eq("scan_id", scan.id).eq("status", "pending").in("idx", batch.map((p) => p.idx));
       }
+      await extendLease(scan.id);
     }
     // Collect results until the deadline; whatever is still queued is picked up by a pingback, a status poll or cron.
     const wait = scan.mode === "priority" ? 5_000 : 15_000;
@@ -516,7 +547,7 @@ async function finalizeIfComplete(scan: ScanRow, business: BusinessRow) {
     const { data } = await admin.from("ai_samples").select("point_idx, engine, status, mentioned, mention_position, named_businesses, sources, cost_usd").eq("scan_id", scan.id);
     const samples = (data ?? []) as AiSampleRow[];
     if (samples.some((s) => s.status === "pending")) return;
-    const summary = summarizeAi(samples, scan.grid_size * scan.grid_size);
+    const summary = summarizeAi(samples, scan.grid_size * scan.grid_size, scan.skip_points ?? []);
     const cost = samples.reduce((s, r) => s + Number(r.cost_usd ?? 0), 0);
     const status = summary.samples_done === 0 ? "failed" : summary.samples_done === summary.samples_total ? "done" : "partial";
     // Included scans: the credit is kept only if at least 80% of the samples completed.
@@ -531,6 +562,8 @@ async function finalizeIfComplete(scan: ScanRow, business: BusinessRow) {
   const { data } = await admin.from("scan_points").select("idx, status, rank, top, cost_usd").eq("scan_id", scan.id);
   const points = (data ?? []) as (MapsPointRow & { cost_usd: number | null })[];
   if (points.some((p) => p.status === "pending" || p.status === "posted")) return;
+  // Skipped points are not part of the result: `points` in the summary counts the active ones only,
+  // so the 80% refund rule and the done/partial status are measured against what was asked for.
   const summary = summarizeMaps(points, business.name);
   const cost = points.reduce((s, r) => s + Number(r.cost_usd ?? 0), 0);
   const status = summary.points_done === 0 ? "failed" : summary.points_failed === 0 ? "done" : "partial";
@@ -549,4 +582,5 @@ export async function findStalledScans(limit = 10): Promise<string[]> {
 }
 
 /** Country → DataForSEO location code (business search and prospect discovery). */
-export const locationCodeFor = (country: string | null | undefined) => LOCATION_CODES[(country ?? "US").toUpperCase()] ?? LOCATION_CODES.US;
+/** DataForSEO country location codes: one table for every country, in lib/countries. */
+export { locationCodeFor } from "@/lib/countries";

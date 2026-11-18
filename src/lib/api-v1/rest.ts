@@ -2,8 +2,8 @@ import "server-only";
 import { RATE_LIMIT_PER_MINUTE, verifyApiKey, withinRateLimit, type ApiCaller } from "@/lib/api-keys";
 import { dbAdmin } from "@/lib/db/clients";
 import { MissingEnvError } from "@/lib/env";
-import { publicEnv } from "@/lib/env-public";
 import * as core from "./core";
+import { reportOriginForAuthorisedWorkspace } from "@/lib/domains-origin";
 
 /**
  * REST front of the public API: Bearer key, 60 requests a minute per key, JSON in and out.
@@ -89,7 +89,7 @@ const ROUTES: Route[] = [
   { path: "audits/:id", GET: (x) => core.getAudit(x.c, x.id) },
   { path: "audits/:id/fix-kit", GET: (x) => core.getFixKit(x.c, x.id, x.q, { readOnly: x.head }) },
   { path: "prospects", GET: (x) => core.listProspectBatches(x.c, x.q), POST: async (x) => core.createProspectsOp(x.c, await x.body(), x.defer) },
-  { path: "prospects/:id", GET: (x) => core.getProspects(x.c, x.id, publicEnv.siteUrl, x.head ? undefined : x.defer) },
+  { path: "prospects/:id", GET: async (x) => core.getProspects(x.c, x.id, await reportOriginForAuthorisedWorkspace(x.c.workspaceId), x.head ? undefined : x.defer) },
   { path: "branding", GET: (x) => core.getBranding(x.c), PATCH: async (x) => core.updateBranding(x.c, await x.body()) },
   { path: "usage", GET: (x) => core.getUsage(x.c) },
 ];

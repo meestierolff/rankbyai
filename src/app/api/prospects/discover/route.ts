@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { err, json, withSession } from "@/lib/api";
+import { DEFAULT_COUNTRY, isCountryCode } from "@/lib/countries";
 import { discover } from "@/lib/prospects/batch";
 import { guardLookup } from "@/lib/prospects/guard";
 import { logHouseSpend } from "@/lib/cost-guard";
@@ -9,7 +10,7 @@ export const maxDuration = 90;
 const Body = z.object({
   niche: z.string().trim().min(2).max(80),
   city: z.string().trim().min(2).max(120),
-  country: z.enum(["US", "GB", "CA", "AU", "IE", "NZ"]).default("US"),
+  country: z.string().trim().toUpperCase().refine(isCountryCode).default(DEFAULT_COUNTRY),
   funding: z.enum(["byok", "credits"]).default("byok"),
 });
 
@@ -17,7 +18,10 @@ const Body = z.object({
 export async function POST(request: Request) {
   return withSession(async (ctx) => {
     const parsed = Body.safeParse(await request.json().catch(() => null));
-    if (!parsed.success) return err(400, "invalid_body", "Enter a service and a city.");
+    if (!parsed.success) {
+      const countryOnly = parsed.error.issues.every((i) => i.path[0] === "country");
+      return err(400, countryOnly ? "invalid_country" : "invalid_body", countryOnly ? "Choose a country from the list." : "Enter a service and a city.");
+    }
     const blocked = await guardLookup(ctx, "discover", parsed.data.funding);
     if (blocked) return blocked;
     try {

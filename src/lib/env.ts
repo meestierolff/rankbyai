@@ -154,6 +154,21 @@ export const turnstileEnv = group("turnstile", { TURNSTILE_SECRET_KEY: str }, ()
   TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
 }));
 
+/**
+ * Custom report domains: the server adds an agency's domain to the Vercel project through the
+ * Vercel REST API (lib/vercel-domains.ts). VERCEL_API_TOKEN is a secret and stays on the server;
+ * without all three, the settings page says custom domains are not switched on.
+ */
+export const vercelDomainsEnv = group(
+  "custom-domains",
+  { VERCEL_API_TOKEN: str, VERCEL_PROJECT_ID: str, VERCEL_TEAM_ID: str },
+  () => ({
+    VERCEL_API_TOKEN: process.env.VERCEL_API_TOKEN,
+    VERCEL_PROJECT_ID: process.env.VERCEL_PROJECT_ID,
+    VERCEL_TEAM_ID: process.env.VERCEL_TEAM_ID,
+  }),
+);
+
 /** Legal identity shown in the footer and legal pages. Placeholders are visibly marked, never invented. */
 export const legalEnv = {
   entityName: () => process.env.LEGAL_ENTITY_NAME || "",

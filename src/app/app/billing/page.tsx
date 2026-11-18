@@ -8,6 +8,7 @@ import { checkoutOpen, packsOpen } from "@/lib/availability";
 import { requireSession } from "@/lib/auth";
 import { fmtPrice, formatClosesAt } from "@/lib/ladder";
 import { fetchOfferFresh } from "@/lib/offer";
+import { largerMapsGridsText, largestOneCreditMapsGrid } from "@/lib/cost/credits";
 import { CREDIT_COST, PACKS, REFUND_DAYS } from "@/lib/pricing-constants";
 import { getCreditBalance, getOrders } from "@/lib/workspace-data";
 import { BuyLifetimeButton, BuyPackButton, RefundButton } from "./billing-client";
@@ -92,7 +93,7 @@ export default async function BillingPage() {
             </p>
           ) : null}
           <p className="m-0 text-[13px] leading-normal text-dim">
-            1 credit = one 3×3 AI grid on 3 engines, one Maps grid up to 9×9, or one audit. A prospect report uses {CREDIT_COST.prospect_report}; a 5×5 AI grid uses {CREDIT_COST.ai_grid_5}.
+            1 credit = one 3×3 AI grid on 3 engines, one Maps grid up to {largestOneCreditMapsGrid()}, or one audit{largerMapsGridsText() ? `; ${largerMapsGridsText()}` : ""}. A prospect report uses {CREDIT_COST.prospect_report}; a 5×5 AI grid uses {CREDIT_COST.ai_grid_5}. Skipped grid points are not counted.
             {lifetime ? "" : " Packs require lifetime access."}
           </p>
         </div>

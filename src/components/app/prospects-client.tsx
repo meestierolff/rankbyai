@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ctaClass, secondaryClass } from "@/components/brand/primitives";
 import { Segmented } from "@/components/brand/segmented";
 import { track } from "@/lib/analytics";
+import { COUNTRY_OPTION_GROUPS, countryLanguageNote, DEFAULT_COUNTRY } from "@/lib/countries";
 import type { BatchRow, Candidate } from "@/lib/prospects/batch";
 import { StatusChip, inputClass, labelClass } from "./ui";
 import { CREDIT_COST } from "@/lib/pricing-constants";
@@ -13,7 +14,6 @@ import { plural } from "./first-run";
 
 const money = (v: number) => "$" + (v < 1 ? v.toFixed(3) : v.toFixed(2));
 const post = (url: string, body: unknown) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-const COUNTRIES = [["US", "United States"], ["GB", "United Kingdom"], ["CA", "Canada"], ["AU", "Australia"], ["IE", "Ireland"], ["NZ", "New Zealand"]] as const;
 const keyOf = (c: Candidate, i: number) => c.cid ?? c.place_id ?? `${c.name}:${i}`;
 
 interface Estimate { reports: number; perReportUsd: number; totalUsd: number; credits: number; lines: { label: string; usd: number }[] }
@@ -24,7 +24,7 @@ export function ProspectFinder({ credits, locked, hasDataForSeo }: { credits: nu
   const [mode, setMode] = useState<"search" | "csv">("search");
   const [niche, setNiche] = useState("");
   const [city, setCity] = useState("");
-  const [country, setCountry] = useState<(typeof COUNTRIES)[number][0]>("US");
+  const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const [funding, setFunding] = useState<"byok" | "credits">(hasDataForSeo ? "byok" : "credits");
   const [csv, setCsv] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
@@ -62,7 +62,7 @@ export function ProspectFinder({ credits, locked, hasDataForSeo }: { credits: nu
     setBusy("find");
     setProblem(null);
     reset();
-    const res = mode === "search" ? await post("/api/prospects/discover", { niche, city, country, funding }) : await post("/api/prospects/resolve", { csv, funding });
+    const res = mode === "search" ? await post("/api/prospects/discover", { niche, city, country, funding }) : await post("/api/prospects/resolve", { csv, funding, country });
     const json = (await res.json().catch(() => ({}))) as { candidates?: Candidate[]; resolved?: Candidate[]; unresolved?: typeof unresolved; problems?: typeof rowProblems; message?: string };
     setBusy(null);
     if (!res.ok) {
@@ -120,14 +120,21 @@ export function ProspectFinder({ credits, locked, hasDataForSeo }: { credits: nu
               />
             </label>
           )}
-          <label className="flex flex-col gap-[6px]">
-            <span className={labelClass}>Country</span>
-            <select value={country} onChange={(e) => setCountry(e.target.value as typeof country)} className={inputClass}>{COUNTRIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          <label className="flex min-w-0 flex-col gap-[6px]">
+            <span className={labelClass}>{mode === "csv" ? "Country for rows without one" : "Country"}</span>
+            <select value={country} onChange={(e) => setCountry(e.target.value)} className={`${inputClass} min-w-0`}>
+              {COUNTRY_OPTION_GROUPS.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </optgroup>
+              ))}
+            </select>
+            {countryLanguageNote(country) ? <span className="text-[13px] text-dim">{countryLanguageNote(country)}</span> : null}
           </label>
         </div>
         {mode === "csv" ? (
           <p className="m-0 text-[13px] leading-normal text-dim">
-            Columns: <span className="font-mono">name, address, city, region, country, website, phone, place_id</span>. Name and city are required. Up to 200 rows.{fileName ? ` Loaded: ${fileName}.` : ""}
+            Columns: <span className="font-mono">name, address, city, region, country, website, phone, place_id</span>. Name and city are required. Country takes a two-letter code (DE) or the English name (Germany). Up to 200 rows.{fileName ? ` Loaded: ${fileName}.` : ""}
           </p>
         ) : null}
         <div className="flex flex-col gap-[6px]">

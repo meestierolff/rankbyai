@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { track } from "@/lib/analytics";
 import { calculateYearlyDataCost, usd0, usd2, usdSmart } from "@/lib/cost/estimate";
 import { fmtPrice } from "@/lib/ladder";
-import { COMPETITORS, COMPETITOR_PRICES_DATE, ENGINE_LABEL, ENGINES, GEMINI, type AiGridSize, type Engine, type MapsGridSize } from "@/lib/pricing-constants";
+import { COMPETITORS, COMPETITOR_PRICES_DATE, ENGINE_LABEL, ENGINES, GEMINI, MAPS_GRID_SIZES, type AiGridSize, type Engine, type MapsGridSize } from "@/lib/pricing-constants";
 import { cn } from "@/lib/utils";
 import { Bezel } from "./lp";
 import { useOffer } from "./offer-context";
@@ -94,7 +94,7 @@ export function Calculator() {
 
           <Field label="Add a Maps grid (scheduled)">
             <Segmented label="Maps grid size" value={mapsGrid} onChange={(v) => { setMapsGrid(v); changed("maps_grid"); }}
-              options={[{ value: 0 as const, label: "None" }, { value: 5 as const, label: "5×5" }, { value: 7 as const, label: "7×7" }, { value: 9 as const, label: "9×9" }]} />
+              options={[{ value: 0 as MapsGridSize | 0, label: "None" }, ...MAPS_GRID_SIZES.filter((n) => n >= 5).map((n) => ({ value: n as MapsGridSize | 0, label: `${n}×${n}` }))]} />
           </Field>
 
           <label className="flex cursor-pointer items-start gap-[10px] text-[12.5px] leading-[1.55] text-lp-dim">

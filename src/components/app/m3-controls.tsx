@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { track } from "@/lib/analytics";
 import { useState } from "react";
 import { ctaClass, secondaryClass } from "@/components/brand/primitives";
+import { reportUrl, type WorkspaceDomain } from "@/lib/domains";
 import { inputClass, labelClass } from "./ui";
 
 const smallBtn = "cursor-pointer rounded-[8px] border border-border-strong bg-transparent px-[10px] py-[5px] text-[13px] font-medium text-fg hover:bg-line disabled:opacity-50";
@@ -26,13 +27,16 @@ export function ScheduleActions({ id, active }: { id: string; active: boolean })
   );
 }
 
-/** The business's live share link: create, copy, regenerate, revoke. */
-export function ShareLinkCard({ businessId, slug, origin, locked }: { businessId: string; slug: string | null; origin: string; locked: boolean }) {
+/**
+ * The business's live share link: create, copy, regenerate, revoke. `domain` is the workspace's
+ * custom report domain: the link uses it once it is active, otherwise the main site.
+ */
+export function ShareLinkCard({ businessId, slug, domain, locked }: { businessId: string; slug: string | null; domain: WorkspaceDomain | null; locked: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const url = slug ? `${origin}/r/${slug}` : null;
+  const url = slug ? reportUrl(slug, domain) : null;
 
   const call = async (method: "POST" | "DELETE") => {
     setBusy(true);

@@ -1,5 +1,6 @@
 import "server-only";
 import { houseBudgetCheck, logHouseSpend } from "@/lib/cost-guard";
+import { DEFAULT_COUNTRY, normalizeCountry } from "@/lib/countries";
 import { hashIdentifier, randomToken } from "@/lib/crypto";
 import { costEnv } from "@/lib/env";
 import { resolveCredentials } from "@/lib/keys";
@@ -7,7 +8,7 @@ import { isMockMode } from "@/lib/mock";
 import { ENGINES } from "@/lib/pricing-constants";
 import { mapsLive, type MapsItem } from "@/lib/providers/dataforseo";
 import { mockBusinessSearch, mockMapsItems } from "@/lib/providers/mock-data";
-import { createScan, locationCodeFor, processScan } from "@/lib/scans/engine";
+import { createScan, processScan } from "@/lib/scans/engine";
 import { findInMaps } from "@/lib/scans/match";
 import { dbAdmin } from "@/lib/db/clients";
 
@@ -22,6 +23,27 @@ const DISPOSABLE = new Set([
 ]);
 
 export const isDisposableEmail = (email: string) => DISPOSABLE.has(email.split("@")[1]?.toLowerCase() ?? "");
+
+/**
+ * The country chosen in step 1 travels to step 2 (after Google sign-in) in a short-lived cookie tied to
+ * the check's id: the free_checks table has no country column. Without the cookie (another browser,
+ * cookies cleared) the check runs in the United States, as it did before countries could be chosen.
+ */
+const COUNTRY_COOKIE = "rbai_fc_country";
+
+export function freeCheckCountryCookie(freeCheckId: string, country: string, secure: boolean): string {
+  return `${COUNTRY_COOKIE}=${freeCheckId}.${country}; Path=/api/free-check; Max-Age=${7 * 86_400}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+}
+
+export function countryFromFreeCheckCookie(cookieHeader: string | null, freeCheckId: string): string | null {
+  for (const part of (cookieHeader ?? "").split(";")) {
+    const [name, value] = part.trim().split("=", 2);
+    if (name !== COUNTRY_COOKIE || !value) continue;
+    const dot = value.lastIndexOf(".");
+    if (value.slice(0, dot) === freeCheckId) return normalizeCountry(value.slice(dot + 1));
+  }
+  return null;
+}
 
 export type FreeCheckStart =
   | { ok: true; id: string }
@@ -53,9 +75,13 @@ export type FreeCheckRun =
   | { ok: true; slug: string }
   | { ok: false; status: number; error: string; message: string; queued?: boolean };
 
-/** Runs the check for a signed-in, email-verified user. Idempotent: a finished check returns its report. */
-export async function runFreeCheck(input: { freeCheckId: string; userEmail: string; workspaceId: string; country?: string }): Promise<FreeCheckRun> {
+/**
+ * Runs the check for a signed-in, email-verified user. Idempotent: a finished check returns its report.
+ * `country` is the country the visitor chose in step 1 (ISO code); unknown or missing → the United States.
+ */
+export async function runFreeCheck(input: { freeCheckId: string; userEmail: string; workspaceId: string; country?: string | null }): Promise<FreeCheckRun> {
   const admin = dbAdmin();
+  const country = normalizeCountry(input.country) ?? DEFAULT_COUNTRY;
   const env = costEnv.get();
   const emailHash = hashIdentifier(input.userEmail);
   let { data: fc } = await admin.from("free_checks").select("*").eq("id", input.freeCheckId).maybeSingle();
@@ -113,7 +139,7 @@ export async function runFreeCheck(input: { freeCheckId: string; userEmail: stri
     let listings: MapsItem[];
     if (mock) listings = mockBusinessSearch(fc.business_name);
     else {
-      const r = await mapsLive(creds.dataforseo!, { keyword, locationCode: locationCodeFor(input.country), depth: 20 });
+      const r = await mapsLive(creds.dataforseo!, { keyword, country, depth: 20 });
       listings = r.items;
       spend.dataforseo = (spend.dataforseo ?? 0) + r.costUsd;
     }
@@ -122,7 +148,7 @@ export async function runFreeCheck(input: { freeCheckId: string; userEmail: stri
 
     const { data: business, error: bErr } = await admin.from("businesses").insert({
       workspace_id: input.workspaceId, name: listing.name, cid: listing.cid, place_id: listing.placeId, address: listing.address, city: listing.city ?? fc.city,
-      region: listing.region, country: listing.country ?? input.country ?? "US", lat: listing.lat, lng: listing.lng,
+      region: listing.region, country: listing.country ?? country, lat: listing.lat, lng: listing.lng,
       website: listing.url ?? (listing.domain ? `https://${listing.domain}` : null), phone: listing.phone, primary_category: listing.category,
       rating: listing.rating, reviews_count: listing.reviews, source: "search",
     }).select("id").single();
@@ -134,7 +160,7 @@ export async function runFreeCheck(input: { freeCheckId: string; userEmail: stri
     try {
       if (mock) mapsItems = mockMapsItems(listing.lat!, listing.lng!, { businessName: listing.name, distance: 0 });
       else {
-        const r = await mapsLive(creds.dataforseo!, { keyword: service, lat: listing.lat!, lng: listing.lng! });
+        const r = await mapsLive(creds.dataforseo!, { keyword: service, lat: listing.lat!, lng: listing.lng!, country: listing.country ?? country });
         mapsItems = r.items;
         spend.dataforseo = (spend.dataforseo ?? 0) + r.costUsd;
       }

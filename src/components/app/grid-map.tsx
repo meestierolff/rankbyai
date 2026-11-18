@@ -15,6 +15,20 @@ export interface MapPoint {
   selected?: boolean;
   /** Smaller markers for a background layer (combined view). */
   small?: boolean;
+  /** A point that was not checked: a dashed ring instead of a filled marker. */
+  skipped?: boolean;
+  /** Marker diameter in px; overrides the default (34, or 22 when small). Dense grids need smaller markers. */
+  size?: number;
+  /** Makes the marker a toggle button (aria-pressed), e.g. a point the user can switch off. */
+  pressed?: boolean;
+}
+
+/** Marker diameter that keeps an n×n grid readable on the map without markers covering each other. */
+export function markerSizeFor(n: number): number {
+  if (n >= 15) return 18;
+  if (n >= 13) return 20;
+  if (n >= 9) return 22;
+  return 34;
 }
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/dark";
@@ -100,14 +114,18 @@ export function GridMap({ center, points, onSelect, radiusMiles, className }: {
         markers.current.set(p.key, mk);
       }
       const b = mk.getElement() as HTMLButtonElement;
-      const size = p.small ? 22 : 34;
+      const size = p.size ?? (p.small ? 22 : 34);
       b.setAttribute("aria-label", p.title);
+      if (p.pressed !== undefined) b.setAttribute("aria-pressed", String(p.pressed));
+      else b.removeAttribute("aria-pressed");
       b.title = p.title;
       b.textContent = p.label;
       Object.assign(b.style, {
-        width: `${size}px`, height: `${size}px`, borderRadius: "50%", border: "0", padding: "0", cursor: onSelectRef.current ? "pointer" : "default",
-        background: p.bg, color: p.fg, font: `600 ${p.small ? 10 : 12}px var(--font-mono)`, display: "grid", placeItems: "center",
-        boxShadow: p.selected ? "0 0 0 2px var(--rb-inset), 0 0 0 4px var(--rb-fg)" : "0 1px 4px rgba(0,0,0,.6)", zIndex: p.selected ? "3" : p.small ? "1" : "2",
+        width: `${size}px`, height: `${size}px`, borderRadius: "50%", padding: "0", cursor: onSelectRef.current ? "pointer" : "default",
+        // A skipped point keeps a dark fill so its dashed ring stays visible over any map tile.
+        border: p.skipped ? "1.5px dashed var(--rb-fg-2)" : "0",
+        background: p.skipped ? "rgba(10,10,10,.55)" : p.bg, color: p.fg, font: `600 ${size <= 22 ? (size <= 18 ? 9 : 10) : 12}px var(--font-mono)`, display: "grid", placeItems: "center",
+        boxShadow: p.selected ? "0 0 0 2px var(--rb-inset), 0 0 0 4px var(--rb-fg)" : p.skipped ? "none" : "0 1px 4px rgba(0,0,0,.6)", zIndex: p.selected ? "3" : p.small || p.skipped ? "1" : "2",
         opacity: p.small ? "0.92" : "1",
       });
     }

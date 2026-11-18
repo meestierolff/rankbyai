@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Script from "next/script";
 import { useState } from "react";
 import { track } from "@/lib/analytics";
+import { COUNTRY_OPTION_GROUPS, countryLanguageNote, DEFAULT_COUNTRY } from "@/lib/countries";
 import { creamClass, LpEyebrow } from "./lp";
 
 // 16px on a phone (a smaller size makes iOS zoom the page on focus), the design's 15px from there up.
@@ -16,6 +17,7 @@ const FAILED = "Something went wrong. Try again.";
 export function FreeCheck({ turnstileSiteKey, open = true }: { turnstileSiteKey: string; open?: boolean }) {
   const [state, setState] = useState<"idle" | "busy">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const router = useRouter();
 
   return (
@@ -28,7 +30,7 @@ export function FreeCheck({ turnstileSiteKey, open = true }: { turnstileSiteKey:
               Does AI recommend this business? Check one point, free.
             </h2>
             <p className="mt-4 mb-0 text-[15.5px] leading-[1.6] text-lp-muted">
-              Enter a business and its city. We ask three AI assistants who they recommend at the business&apos;s own location and look up its Google
+              Enter a business, its city and its country. We ask three AI assistants who they recommend at the business&apos;s own location and look up its Google
               Maps rank there. One check per Google account. No card.
             </p>
           </div>
@@ -44,7 +46,7 @@ export function FreeCheck({ turnstileSiteKey, open = true }: { turnstileSiteKey:
                 const res = await fetch("/api/free-check", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ business_name: fd.get("business_name"), city: fd.get("city"), turnstile_token: fd.get("cf-turnstile-response") ?? undefined }),
+                  body: JSON.stringify({ business_name: fd.get("business_name"), city: fd.get("city"), country, turnstile_token: fd.get("cf-turnstile-response") ?? undefined }),
                 });
                 const json = (await res.json().catch(() => ({}))) as { message?: string; next?: string };
                 if (res.ok && json.next) {
@@ -68,6 +70,17 @@ export function FreeCheck({ turnstileSiteKey, open = true }: { turnstileSiteKey:
               <span className="sr-only">City</span>
               <input name="city" required minLength={2} maxLength={120} placeholder="City" className={field} />
             </label>
+            <label className="block">
+              <span className="sr-only">Country</span>
+              <select name="country" value={country} onChange={(e) => setCountry(e.target.value)} className={`${field} min-w-0 cursor-pointer`}>
+                {COUNTRY_OPTION_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            {countryLanguageNote(country) ? <p className="m-0 text-[12.5px] leading-[1.55] text-lp-dim">{countryLanguageNote(country)}</p> : null}
             {turnstileSiteKey ? (
               <>
                 <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="lazyOnload" />

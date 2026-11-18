@@ -2,6 +2,7 @@
 
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { track } from "@/lib/analytics";
+import { MAPS_GRID_RANGE } from "@/lib/pricing-constants";
 import { cn } from "@/lib/utils";
 import { AiVisibilityPreview, AuditPreview, MapsGridPreview, ProspectsPreview } from "./feature-mocks";
 import { Bezel, LpSampleTag } from "./lp";
@@ -25,9 +26,10 @@ const TOOLS = [
   {
     key: "maps", n: "02", label: "Maps Grid", title: "Maps Grid Tracker", url: "rankbyai.live/app/maps-grid",
     headline: "Your Google Maps rank on the same map.",
-    desc: "The classic geo-grid, from 3×3 to 9×9, next to the AI grid for the same business. See where you are top 3 on Maps but missing from AI answers.",
+    desc: `The classic geo-grid, from ${MAPS_GRID_RANGE}, next to the AI grid for the same business. See where you are top 3 on Maps but missing from AI answers.`,
     bullets: [
-      "Grids from 3×3 to 9×9 with your own radius",
+      `Grids from ${MAPS_GRID_RANGE} with your own radius`,
+      "Skip points you do not track, such as water or a park: they are not looked up",
       "Top 20 results at any pin, with you highlighted",
       "Competitor overlay: recolor the grid by any rival's rank",
       "Average rank, top-3 share and Share of Local Voice",

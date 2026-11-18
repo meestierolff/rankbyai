@@ -4,14 +4,15 @@ import Link from "next/link";
 import { useRef, type ReactNode } from "react";
 import { usd0, usdSmart } from "@/lib/cost/estimate";
 import { fmtPrice, formatClosesAt, heatFor } from "@/lib/ladder";
-import { COMPETITORS, COMPETITOR_PRICES_DATE, CREDIT_COST, FAIR_USE, PACKS, REFUND_DAYS, SCENARIO } from "@/lib/pricing-constants";
+import { largerMapsGridsText, largestOneCreditMapsGrid } from "@/lib/cost/credits";
+import { COMPETITORS, COMPETITOR_PRICES_DATE, CREDIT_COST, FAIR_USE, MAPS_GRID_RANGE, PACKS, REFUND_DAYS, SCENARIO } from "@/lib/pricing-constants";
 import { cn } from "@/lib/utils";
 import { Bezel, CreamLink } from "./lp";
 import { BUY_HREF, useOffer, useOfferWatch, type LiveOffer } from "./offer-context";
 
 const INCLUDED = [
   "AI Visibility Tracker: unlimited businesses, prompts and schedules, grids up to 5×5",
-  "Maps Grid Tracker up to 9×9",
+  `Maps Grid Tracker, ${MAPS_GRID_RANGE}, skip the points you do not track`,
   "Unlimited scans on your own keys (no caps from us)",
   "Local AI Audit + Fix Kit",
   "Prospect Reports with white-label links and PDFs",
@@ -176,7 +177,8 @@ export function Pricing({ scenarioYearUsd, packsOpen = false }: { scenarioYearUs
           ))}
         </div>
         <p className="mt-4 mb-0 text-[12.5px] leading-[1.6] text-lp-dim">
-          1 scan credit = one 3×3 AI grid on 3 engines, one Maps grid up to 9×9, or one audit. A prospect report uses {CREDIT_COST.prospect_report}. A
+          1 scan credit = one 3×3 AI grid on 3 engines, one Maps grid up to {largestOneCreditMapsGrid()}, or one audit
+          {largerMapsGridsText() ? `; ${largerMapsGridsText()}` : ""}. A prospect report uses {CREDIT_COST.prospect_report}. A
           5×5 AI grid uses {CREDIT_COST.ai_grid_5}.
         </p>
       </div>

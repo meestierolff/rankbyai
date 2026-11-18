@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { MAPS_WORST_CASE_PER_POINT_USD, mapsCredits, mapsRunUsd, scanCreditsFor, withinCap } from "@/lib/cost/credits";
 import { calculateYearlyDataCost, estimateAiGrid, estimateMapsGrid, scenarioYearlyDataCost } from "@/lib/cost/estimate";
 import { priceCentsForSale } from "@/lib/ladder";
 import {
+  AI_GRID_SIZES,
   AI_SAMPLE_EST_USD,
   CREDIT_COST,
   DATAFORSEO_BUSINESS_INFO_PER_CALL,
@@ -11,6 +13,7 @@ import {
   LLM_FIX_KIT_BUDGET_USD,
   LOCAL_FALCON_STARTER_CREDITS_PER_YEAR,
   LLM_PARSE_BUDGET_USD,
+  MAPS_GRID_SIZES,
   PACKS,
   SCENARIO,
   stripeFeeUsd,
@@ -45,6 +48,21 @@ describe("vendor price constants", () => {
     expect(estimateMapsGrid(9, "standard").totalUsd).toBeCloseTo(0.049, 3);
     expect(estimateMapsGrid(9, "priority").totalUsd).toBeCloseTo(0.097, 3);
     expect(estimateMapsGrid(9, "live").totalUsd).toBeCloseTo(0.162, 3);
+    expect(estimateMapsGrid(11, "live").totalUsd).toBeCloseTo(0.242, 3);
+    expect(estimateMapsGrid(13, "live").totalUsd).toBeCloseTo(0.338, 3);
+    expect(estimateMapsGrid(15, "standard").totalUsd).toBeCloseTo(0.135, 3);
+    expect(estimateMapsGrid(15, "priority").totalUsd).toBeCloseTo(0.27, 3);
+    expect(estimateMapsGrid(15, "live").totalUsd).toBeCloseTo(0.45, 3);
+  });
+
+  it("skipped points are not estimated: only the active points cost money", () => {
+    expect(estimateMapsGrid(15, "live", 25)).toEqual({ points: 200, totalUsd: 200 * DATAFORSEO_MAPS_PER_POINT.live });
+    expect(estimateMapsGrid(7, "standard", 48).points).toBe(1);
+    const full = estimateAiGrid(5, ENGINES);
+    const part = estimateAiGrid(5, ENGINES, { skipped: 10 });
+    expect(part.points).toBe(15);
+    expect(part.samples).toBe(45);
+    expect(part.totalUsd).toBeCloseTo((full.totalUsd * 15) / 25, 9);
   });
 
   it("prices a year of monthly 3×3 AI checks plus a 7×7 Maps grid for 30 prompts at about $62", () => {
@@ -122,6 +140,57 @@ describe("every sale is priced above its delivery cost (brief non-negotiable 2)"
     // Prospect report = Maps 5×5 standard + AI 3×3 on 3 engines + quick audit, for 2 credits
     const prospect = estimateMapsGrid(5, "standard").totalUsd + estimateAiGrid(3, ENGINES, { geminiInsideFreeAllowance: false }).totalUsd + 0.06;
     expect(prospect).toBeLessThanOrEqual(CREDIT_COST.prospect_report * cap);
+  });
+
+  it("every Maps grid, every number of skipped points, every queue: its credits cover the house cost", () => {
+    // credits × the per-credit cap must cover the vendor cost of the active points in the dearest queue,
+    // compared exactly as the engine's house-cap check compares them (lib/scans/engine runMaps).
+    const cap = DEFAULT_COST_MAX_PER_CREDIT_USD;
+    let checked = 0;
+    for (const n of MAPS_GRID_SIZES) {
+      for (let skipped = 0; skipped < n * n; skipped++) {
+        const active = n * n - skipped;
+        const credits = scanCreditsFor("maps", n, skipped);
+        expect(credits).toBe(mapsCredits(active));
+        for (const mode of ["standard", "priority", "live"] as const) {
+          expect(withinCap(mapsRunUsd(active, mode), credits * cap), `${n}×${n}, ${skipped} skipped, ${mode}: ${credits} credits`).toBe(true);
+          expect(withinCap(estimateMapsGrid(n, mode, skipped).totalUsd, credits * cap)).toBe(true);
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBe(3 * MAPS_GRID_SIZES.reduce((s, n) => s + n * n, 0));
+    // Never more credits than needed: one credit fewer would not cover the dearest queue.
+    for (const n of MAPS_GRID_SIZES) {
+      const credits = scanCreditsFor("maps", n);
+      if (credits > CREDIT_COST.maps_grid) expect(withinCap(mapsRunUsd(n * n, "live"), (credits - 1) * cap)).toBe(false);
+    }
+    expect(MAPS_WORST_CASE_PER_POINT_USD).toBe(DATAFORSEO_MAPS_PER_POINT.live);
+  });
+
+  it("Maps grids 3×3 to 9×9 keep their one-credit price; the larger grids cost what they need", () => {
+    for (const n of [3, 5, 7, 9] as const) expect(scanCreditsFor("maps", n), `${n}×${n}`).toBe(CREDIT_COST.maps_grid);
+    expect(scanCreditsFor("maps", 11)).toBe(1); // 121 × $0.002 = $0.242
+    expect(scanCreditsFor("maps", 13)).toBe(2); // 169 × $0.002 = $0.338
+    expect(scanCreditsFor("maps", 15)).toBe(2); // 225 × $0.002 = $0.45
+    expect(scanCreditsFor("maps", 15, 75)).toBe(1); // 150 active points × $0.002 = $0.30, exactly one credit
+    expect(scanCreditsFor("maps", 15, 74)).toBe(2);
+    // A lower runtime cap (COST_MAX_PER_CREDIT_USD) raises the credits so the cap still covers the run.
+    expect(scanCreditsFor("maps", 11, 0, 0.2)).toBe(2);
+    expect(withinCap(mapsRunUsd(121, "live"), scanCreditsFor("maps", 11, 0, 0.2) * 0.2)).toBe(true);
+  });
+
+  it("AI grids keep the brief's credit table; skipping points never makes a check dearer", () => {
+    expect(AI_GRID_SIZES.map((n) => scanCreditsFor("ai", n))).toEqual([CREDIT_COST.ai_grid_1, CREDIT_COST.ai_grid_3, CREDIT_COST.ai_grid_5]);
+    const cap = DEFAULT_COST_MAX_PER_CREDIT_USD;
+    for (const n of AI_GRID_SIZES) {
+      for (let skipped = 0; skipped < n * n; skipped++) {
+        const credits = scanCreditsFor("ai", n, skipped);
+        expect(credits).toBeLessThanOrEqual(scanCreditsFor("ai", n));
+        // The high estimate (Gemini beyond its free allowance) of the active points fits the cap.
+        expect(estimateAiGrid(n, ENGINES, { geminiInsideFreeAllowance: false, skipped }).totalUsd).toBeLessThanOrEqual(credits * cap);
+      }
+    }
   });
 
   it("an included-scan audit with its Fix Kit costs us less than its one credit, even at twice the estimate", () => {

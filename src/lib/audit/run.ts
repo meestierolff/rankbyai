@@ -7,7 +7,7 @@ import { CREDIT_COST, DATAFORSEO_BUSINESS_INFO_PER_CALL, DATAFORSEO_MAPS_PER_POI
 import { businessInfoLive, mapsLive, type BusinessInfo } from "@/lib/providers/dataforseo";
 import { mockAreas, mockBusinessInfo, mockMapsItems, mockSiteHtml } from "@/lib/providers/mock-data";
 import type { ProviderCredentials } from "@/lib/providers/types";
-import { createScan, locationCodeFor, processScan, type BusinessRow } from "@/lib/scans/engine";
+import { createScan, processScan, type BusinessRow } from "@/lib/scans/engine";
 import { namesMatch, normalizeName } from "@/lib/scans/match";
 import { fetchPlaces } from "@/lib/scans/places";
 import { CATEGORY_LABEL, runChecks, scoreAudit, type AuditInputs, type CheckResult } from "./checks";
@@ -165,7 +165,7 @@ async function gatherMaps(business: BusinessRow, service: string, creds: Provide
       const items = mockMapsItems(business.lat, business.lng, { businessName: business.name, distance: 0 });
       return { competitors: topCompetitors([items.map((i) => ({ ...i, place_id: i.placeId }))], business), scanId: null, keyword: service };
     }
-    const r = await mapsLive(creds.dataforseo!, { keyword: service, lat: business.lat, lng: business.lng });
+    const r = await mapsLive(creds.dataforseo!, { keyword: service, lat: business.lat, lng: business.lng, country: business.country });
     spend.dataforseo = (spend.dataforseo ?? 0) + r.costUsd;
     return { competitors: topCompetitors([r.items.map((i) => ({ ...i, place_id: i.placeId }))], business), scanId: null, keyword: service };
   } catch {
@@ -176,7 +176,7 @@ async function gatherMaps(business: BusinessRow, service: string, creds: Provide
 async function profileOf(ref: { name: string; cid: string | null; placeId?: string | null; city?: string | null; country?: string | null }, creds: ProviderCredentials, spend: Record<string, number>, mock: { isTarget: boolean; index: number }): Promise<BusinessInfo | null> {
   if (isMockMode()) return mockBusinessInfo(ref.name, mock.isTarget, mock.index);
   try {
-    const r = await businessInfoLive(creds.dataforseo!, { cid: ref.cid, placeId: ref.placeId, keyword: [ref.name, ref.city].filter(Boolean).join(" "), locationCode: locationCodeFor(ref.country) });
+    const r = await businessInfoLive(creds.dataforseo!, { cid: ref.cid, placeId: ref.placeId, keyword: [ref.name, ref.city].filter(Boolean).join(" "), country: ref.country });
     spend.dataforseo = (spend.dataforseo ?? 0) + r.costUsd;
     return r.info;
   } catch {

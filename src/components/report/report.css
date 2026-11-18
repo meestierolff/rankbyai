@@ -1,0 +1,77 @@
+/*
+ * Report page extras that utility classes cannot express: print on white paper.
+ * (Plain CSS on purpose: this project's CSS pipeline treats *.module.css as global CSS.)
+ * The screen design is dark; printers drop dark backgrounds, so print switches to dark text on white.
+ * Data dots and bars (.rb-data) keep their colours (print-color-adjust), because the colour is the data.
+ */
+.rb-report {
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  .rb-report {
+    background: #ffffff !important;
+    color: #111111 !important;
+    /* Paper versions of the dark-theme tokens the data dots and the mark use. */
+    --rb-none: #d9d9d9;
+    --rb-well: #eeeeee;
+    --rb-track: #e6e6e6;
+    --lp-fg: #111111;
+  }
+  .rb-report *:not(.rb-data):not([role="img"]) {
+    color: #111111 !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    border-color: #d4d4d4 !important;
+  }
+  /* The audit score ring draws its arc as a background. */
+  .rb-report [role="img"] {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .rb-report [role="img"] > div:not(.rb-data) {
+    background-color: #ffffff !important;
+  }
+  /* The business, highlighted inside quoted answers. */
+  .rb-report mark:not(.rb-data):not([role="img"]) {
+    background-color: #e3f5e9 !important;
+    color: #1d6b38 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  /* Priority badges keep their colour. */
+  .rb-report span.bg-red:not(.rb-data):not([role="img"]),
+  .rb-report span.bg-orange:not(.rb-data):not([role="img"]),
+  .rb-report span.bg-amber:not(.rb-data):not([role="img"]) {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .rb-report span.bg-red:not(.rb-data):not([role="img"]) {
+    background-color: var(--rb-red) !important;
+    color: #ffffff !important;
+  }
+  .rb-report span.bg-orange:not(.rb-data):not([role="img"]) {
+    background-color: var(--rb-orange) !important;
+  }
+  .rb-report span.bg-amber:not(.rb-data):not([role="img"]) {
+    background-color: var(--rb-amber) !important;
+  }
+  .rb-report .rb-data {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .rb-report article,
+  .rb-report li {
+    break-inside: avoid;
+  }
+  /* Print the whole quoted answer, not only its first lines. */
+  .rb-report-more::details-content {
+    content-visibility: visible !important;
+    display: block !important;
+  }
+}

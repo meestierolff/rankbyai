@@ -1,13 +1,15 @@
 import { z } from "zod";
 import { isAuthConfigured } from "@/lib/auth-neon/server";
 import { isDatabaseConfigured } from "@/lib/db/clients";
-import { startFreeCheck } from "@/lib/free-check";
+import { DEFAULT_COUNTRY, isCountryCode } from "@/lib/countries";
+import { freeCheckCountryCookie, startFreeCheck } from "@/lib/free-check";
 import { clientIp } from "@/lib/request";
 import { verifyTurnstile } from "@/lib/turnstile";
 
 const Body = z.object({
   business_name: z.string().trim().min(2).max(120),
   city: z.string().trim().min(2).max(120),
+  country: z.string().trim().toUpperCase().refine(isCountryCode).default(DEFAULT_COUNTRY),
   turnstile_token: z.string().optional(),
 });
 
@@ -17,7 +19,7 @@ const Body = z.object({
  */
 export async function POST(request: Request) {
   const parsed = Body.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "invalid_body", message: "Enter the business name and its city." }, { status: 400 });
+  if (!parsed.success) return Response.json({ error: "invalid_body", message: "Enter the business name and its city, and choose its country." }, { status: 400 });
   if (!isDatabaseConfigured() || !isAuthConfigured()) {
     return Response.json({ error: "not_configured", message: "Free checks are not available on this deployment yet." }, { status: 503 });
   }
@@ -33,5 +35,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "not_configured", message: "Free checks are not available right now." }, { status: 503 });
   }
   if (!started.ok) return Response.json({ error: started.error, message: started.message }, { status: started.status });
-  return Response.json({ ok: true, next: `/free-check/run?fc=${started.id}` });
+  const secure = new URL(request.url).protocol === "https:";
+  return Response.json({ ok: true, next: `/free-check/run?fc=${started.id}` }, { headers: { "Set-Cookie": freeCheckCountryCookie(started.id, parsed.data.country, secure) } });
 }

@@ -1,6 +1,6 @@
 import { err, sessionRead, withSession } from "@/lib/api";
 import { captureServer } from "@/lib/analytics-server";
-import { publicEnv } from "@/lib/env";
+import { reportOriginFor } from "@/lib/domains-server";
 import { pdfFileName, renderReportPdf } from "@/lib/pdf/report-pdf";
 import { getReportView } from "@/lib/reports";
 
@@ -15,7 +15,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     if (!own) return err(404, "not_found", "Unknown report.");
     const view = await getReportView(slug);
     if (!view) return err(404, "not_found", "Unknown report.");
-    const pdf = await renderReportPdf(view, `${publicEnv.siteUrl}/r/${slug}`);
+    // The link and QR code inside point at the workspace's own report domain when it has an active one.
+    const pdf = await renderReportPdf(view, `${await reportOriginFor(ctx.workspace.id)}/r/${slug}`);
     await captureServer("pdf_downloaded", ctx.workspace.id, { kind: view.kind });
     return new Response(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${pdfFileName(view.business.name)}"`, "Cache-Control": "no-store" } });
   });

@@ -32,7 +32,8 @@ export function ProspectFinder({ credits, locked, hasDataForSeo }: { credits: nu
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [unresolved, setUnresolved] = useState<{ name: string; city: string; reason: string }[]>([]);
   const [rowProblems, setRowProblems] = useState<{ row: number; message: string }[]>([]);
-  const [estimate, setEstimate] = useState<Estimate | null>(null);
+  // An estimate holds the selection it was computed for; a stale one is never shown beside a new selection.
+  const [estimateFor, setEstimate] = useState<{ key: string; value: Estimate } | null>(null);
   const [busy, setBusy] = useState<"find" | "create" | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const seq = useRef(0);
@@ -40,16 +41,20 @@ export function ProspectFinder({ credits, locked, hasDataForSeo }: { credits: nu
   const chosen = useMemo(() => (candidates ?? []).filter((c, i) => selected.has(keyOf(c, i))), [candidates, selected]);
   const body = (confirm: boolean) => ({ mode, niche, city: mode === "search" ? city : null, country, candidates: chosen, funding, confirm });
   const chosenKey = chosen.map((c) => c.cid ?? c.name).join("|");
+  const estimateKey = [chosenKey, niche.trim(), funding, mode, city, country].join("¦");
+  const estimate = estimateFor?.key === estimateKey ? estimateFor.value : null;
+  const estimating = !estimate && chosen.length > 0 && niche.trim().length >= 2;
 
   // Estimate for the current selection (the server computes it; nothing is created without confirm).
   useEffect(() => {
     if (!chosen.length || niche.trim().length < 2) return;
     const my = ++seq.current;
+    const key = estimateKey;
     const t = setTimeout(async () => {
       const res = await post("/api/prospects", body(false));
       const json = (await res.json().catch(() => ({}))) as { estimate?: Estimate; error?: string; message?: string };
       if (my !== seq.current) return;
-      setEstimate(json.estimate ?? null);
+      setEstimate(json.estimate ? { key, value: json.estimate } : null);
       setProblem(json.error === "confirmation_required" ? null : (json.message ?? "Could not estimate this batch."));
     }, 400);
     return () => clearTimeout(t);
@@ -218,7 +223,7 @@ export function ProspectFinder({ credits, locked, hasDataForSeo }: { credits: nu
                     Each report: Google Maps 5×5 grid, AI 3×3 grid, a quick audit and a factual opener. {funding === "credits" ? "The API cost is ours; a report that fails gives its credits back." : "Your vendors bill you."} The Maps grid uses the cheaper standard queue, so a batch takes about 5 to 10 minutes.
                   </p>
                 </>
-              ) : <p className="m-0 text-[15px] text-muted-foreground">Select businesses and enter the service to see the cost.</p>}
+              ) : <p className="m-0 text-[15px] text-muted-foreground">{estimating && !problem ? `Working out the cost of ${chosen.length} ${chosen.length === 1 ? "report" : "reports"}…` : "Select businesses and enter the service to see the cost."}</p>}
               {problem ? <p role="alert" className="m-0 text-[14px] text-danger">{problem}</p> : null}
               <button type="button" onClick={create} disabled={!chosen.length || !estimate || busy !== null || locked} className={ctaClass("block", "cursor-pointer border-0 text-[16px]")}>
                 <span>{busy === "create" ? "Starting…" : `Create ${chosen.length} prospect ${chosen.length === 1 ? "report" : "reports"}`}</span><span aria-hidden>→</span>

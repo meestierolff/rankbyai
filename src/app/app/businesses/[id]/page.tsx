@@ -4,12 +4,14 @@ import { notFound } from "next/navigation";
 import { CombinedView } from "@/components/app/combined-view";
 import type { MapPoint } from "@/components/app/grid-map";
 import { ShareLinkCard } from "@/components/app/m3-controls";
-import { EmptyState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatTile, StatusChip, fmtDateTime, fmtUsd } from "@/components/app/ui";
+import { LocalTime } from "@/components/app/local-time";
+import { userRead } from "@/components/app/reads";
+import { EmptyState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatTile, StatusChip, fmtUsd } from "@/components/app/ui";
 import { aiCellColors, mapsCellColors, pointName } from "@/components/brand/grid";
 import { requireSession } from "@/lib/auth";
+import { memberRead } from "@/lib/db/member-read";
 import { publicEnv } from "@/lib/env";
 import { combinedInsight, type AiSummary, type MapsSummary } from "@/lib/scans/summary";
-import { currentUserDb } from "@/lib/db/session";
 
 export const metadata: Metadata = { title: "Business" };
 
@@ -26,22 +28,50 @@ interface ScanLite {
   created_at: string;
 }
 
+interface BusinessRow {
+  id: string;
+  name: string;
+  primary_category: string | null;
+  address: string | null;
+  city: string | null;
+  region: string | null;
+  rating: number | null;
+  reviews_count: number | null;
+  website: string | null;
+  phone: string | null;
+  lat: number;
+  lng: number;
+}
+
 export default async function BusinessPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireSession("/app/businesses");
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const db = await currentUserDb();
-  const { data: b } = await db.from("businesses").select("*").eq("id", id).eq("workspace_id", ctx.workspace.id).maybeSingle();
+  const wsId = ctx.workspace.id;
+  // Every read below that can carry the workspace filter does, and goes through memberRead: a
+  // failed read throws (error state), and only "no such row in this workspace" is a 404.
+  const { data: found } = await memberRead("Business", wsId, (db) =>
+    db.from("businesses").select("id, name, primary_category, address, city, region, rating, reviews_count, website, phone, lat, lng").eq("id", id).eq("workspace_id", wsId).maybeSingle(),
+  );
+  const b = found as BusinessRow | null;
   if (!b) notFound();
 
-  const { data: scanRows } = await db
-    .from("scans")
-    .select("id, kind, grid_size, radius_miles, status, keyword, niche, summary, actual_cost_usd, created_at")
-    .eq("business_id", id)
-    .order("created_at", { ascending: false })
-    .limit(30);
+  const [{ data: scanRows }, { data: shareRows }] = await Promise.all([
+    memberRead("Scans of this business", wsId, (db) =>
+      db
+        .from("scans")
+        .select("id, kind, grid_size, radius_miles, status, keyword, niche, summary, actual_cost_usd, created_at")
+        .eq("workspace_id", wsId)
+        .eq("business_id", id)
+        .order("created_at", { ascending: false })
+        .limit(30),
+    ),
+    memberRead("Share link", wsId, (db) =>
+      db.from("reports").select("share_slug").eq("workspace_id", wsId).eq("business_id", id).eq("kind", "share").eq("revoked", false).order("created_at", { ascending: false }).limit(1),
+    ),
+  ]);
   const scans = (scanRows ?? []) as ScanLite[];
-  const { data: share } = await db.from("reports").select("share_slug").eq("business_id", id).eq("kind", "share").eq("revoked", false).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const share = ((shareRows ?? []) as { share_slug: string }[])[0] ?? null;
   const usable = (s: ScanLite) => s.status === "done" || s.status === "partial";
   const latestMaps = scans.find((s) => s.kind === "maps" && usable(s)) ?? null;
   const latestAi = scans.find((s) => s.kind === "ai" && usable(s)) ?? null;
@@ -49,15 +79,20 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
   let mapsPts: MapPoint[] | null = null;
   let aiPts: MapPoint[] | null = null;
   if (latestMaps) {
-    const { data } = await db.from("scan_points").select("idx, row, col, lat, lng, rank, status").eq("scan_id", latestMaps.id).order("idx");
+    // scan_points and ai_samples have no workspace_id column: signed-in read under row-level
+    // security, throwing on failure (see components/app/reads). The scan ids come from the
+    // workspace-filtered read above.
+    const mapsId = latestMaps.id;
+    const data = await userRead("Maps grid points", (db) => db.from("scan_points").select("idx, row, col, lat, lng, rank, status").eq("scan_id", mapsId).order("idx"));
     mapsPts = ((data ?? []) as { idx: number; row: number; col: number; lat: number; lng: number; rank: number | null; status: string }[])
       .filter((p) => p.status === "done")
       .map((p) => ({ key: `m${p.idx}`, lat: p.lat, lng: p.lng, ...mapsCellColors(p.rank), title: `Maps point ${pointName(p.row, p.col)}: ${p.rank ? `rank #${p.rank}` : "not in the top 20"}` }));
   }
   if (latestAi) {
-    const [{ data: pts }, { data: smp }] = await Promise.all([
-      db.from("scan_points").select("idx, row, col, lat, lng").eq("scan_id", latestAi.id).order("idx"),
-      db.from("ai_samples").select("point_idx, status, mentioned, mention_position").eq("scan_id", latestAi.id),
+    const aiId = latestAi.id;
+    const [pts, smp] = await Promise.all([
+      userRead("AI grid points", (db) => db.from("scan_points").select("idx, row, col, lat, lng").eq("scan_id", aiId).order("idx")),
+      userRead("AI answers", (db) => db.from("ai_samples").select("point_idx, status, mentioned, mention_position").eq("scan_id", aiId)),
     ]);
     const samples = (smp ?? []) as { point_idx: number; status: string; mentioned: boolean | null; mention_position: number | null }[];
     aiPts = ((pts ?? []) as { idx: number; row: number; col: number; lat: number; lng: number }[]).map((p) => {
@@ -85,7 +120,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
       />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-4">
         <StatTile label="Google rating" value={b.rating != null ? `${Number(b.rating).toFixed(1)}★` : "—"} hint={b.reviews_count != null ? `${b.reviews_count} reviews when added` : undefined} />
-        <StatTile label="AI: points named" value={aiSum ? `${aiSum.points_mentioned ?? 0}/${aiSum.points ?? 0}` : "—"} hint={latestAi ? `Latest AI check, ${fmtDateTime(latestAi.created_at)}` : "No AI check yet"} />
+        <StatTile label="AI: points named" value={aiSum ? `${aiSum.points_mentioned ?? 0}/${aiSum.points ?? 0}` : "—"} hint={latestAi ? <>Latest AI check, <LocalTime iso={latestAi.created_at} /></> : "No AI check yet"} />
         <StatTile label="Maps: average rank" value={mapsSum?.avg_rank ?? "—"} hint={latestMaps ? `Top-3 at ${mapsSum?.top3_points ?? 0}/${mapsSum?.points_done ?? 0} points` : "No Maps grid yet"} />
         <StatTile label="Website" value={<span className="text-[15px] font-normal">{b.website ? new URL(b.website).hostname.replace(/^www\./, "") : "—"}</span>} hint={b.phone ?? undefined} />
       </div>
@@ -120,7 +155,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
                 <Link href={`/app/${s.kind === "ai" ? "ai-visibility" : "maps-grid"}/${s.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3 no-underline">
                   <span className="flex flex-col gap-[2px]">
                     <span className="text-[15px] font-medium text-fg">{s.kind === "ai" ? "AI grid" : "Maps grid"} {s.grid_size}×{s.grid_size} · “{s.niche ?? s.keyword}”</span>
-                    <span className="text-[13px] text-dim">{fmtDateTime(s.created_at)}</span>
+                    <LocalTime iso={s.created_at} className="text-[13px] text-dim" />
                   </span>
                   <span className="flex items-center gap-3">
                     <span className="font-mono text-[13px] text-muted-foreground">{fmtUsd(s.actual_cost_usd, 3)}</span>

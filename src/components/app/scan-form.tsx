@@ -7,6 +7,8 @@ import { Segmented } from "@/components/brand/segmented";
 import { track } from "@/lib/analytics";
 import { ENGINE_LABEL, ENGINES, type Engine } from "@/lib/pricing-constants";
 import { DEFAULT_PROMPT_TEMPLATE } from "@/lib/scans/prompt";
+import { creditsBlocker, creditsLeft, defaultFunding, plural, scanCredits, type FundingChoice } from "./first-run";
+import type { IncludedScans } from "./included";
 import { inputClass, labelClass } from "./ui";
 
 export interface FormBusiness {
@@ -28,23 +30,33 @@ const money = (v: number) => "$" + (v < 1 ? v.toFixed(3) : v.toFixed(2));
 
 /** Scan setup: pick, see the estimate, confirm. The server recomputes everything; nothing here is trusted. */
 export function ScanForm({
-  kind, businesses, keys, credits, locked, defaultBusinessId,
+  kind, businesses, keys, credits, included, locked, defaultBusinessId,
 }: {
   kind: "ai" | "maps";
   businesses: FormBusiness[];
   keys: Record<"dataforseo" | Engine, boolean>;
   credits: number;
+  /** Which of our own keys are in place, i.e. what included scans can run today. */
+  included: IncludedScans;
   locked: boolean;
   defaultBusinessId?: string;
 }) {
   const router = useRouter();
   const first = businesses.find((b) => b.id === defaultBusinessId) ?? businesses[0];
+  const ownKeys = kind === "maps" ? keys.dataforseo : ENGINES.some((e) => keys[e]);
+  const includedOpen = kind === "maps" ? included.dataforseo : included.engines.length > 0;
+  const firstGrid = kind === "ai" ? 3 : 7;
+  // Open on what this workspace can actually run: its own keys, or included scans when it has
+  // credits and no keys.
+  const firstFunding = defaultFunding({ ownKeys, credits, cost: scanCredits(kind, firstGrid), includedOpen });
+  const enginesFor = (f: FundingChoice) => ENGINES.filter((e) => (f === "credits" ? included.engines.includes(e) : keys[e]));
+
   const [businessId, setBusinessId] = useState(first?.id ?? "");
   const [keyword, setKeyword] = useState(first?.category ? first.category.toLowerCase() : "");
   const [template, setTemplate] = useState(DEFAULT_PROMPT_TEMPLATE);
-  const [funding, setFunding] = useState<"byok" | "credits">("byok");
-  const [engines, setEngines] = useState<Engine[]>(ENGINES.filter((e) => keys[e]));
-  const [grid, setGrid] = useState<number>(kind === "ai" ? 3 : 7);
+  const [funding, setFunding] = useState<FundingChoice>(firstFunding);
+  const [engines, setEngines] = useState<Engine[]>(() => enginesFor(firstFunding));
+  const [grid, setGrid] = useState<number>(firstGrid);
   const [radius, setRadius] = useState(2);
   const [mode, setMode] = useState<"standard" | "priority" | "live">("priority");
   const [repeat, setRepeat] = useState<"none" | "weekly" | "monthly">("none");
@@ -53,9 +65,20 @@ export function ScanForm({
   const [busy, setBusy] = useState(false);
   const seq = useRef(0);
 
-  const usable = (e: Engine) => funding === "credits" || keys[e];
+  const usable = (e: Engine) => (funding === "credits" ? included.engines.includes(e) : keys[e]);
   const activeEngines = engines.filter(usable);
   const engineKey = activeEngines.join(",");
+  const cost = scanCredits(kind, grid);
+  // Said next to the form, before submit: the server would answer the same after it.
+  const blocker = funding === "credits" ? creditsBlocker({ credits, cost, includedOpen }) : null;
+  const canUseCredits = creditsBlocker({ credits, cost, includedOpen }) === null;
+
+  const pickFunding = (f: FundingChoice) => {
+    setFunding(f);
+    // Keep the engine choice when it still works; otherwise select what this funding can run.
+    const can = enginesFor(f);
+    setEngines((cur) => (cur.some((e) => can.includes(e)) ? cur : can));
+  };
 
   const body = useCallback(
     (confirm: boolean) => ({
@@ -102,11 +125,11 @@ export function ScanForm({
   };
 
   if (businesses.length === 0) return null;
-  const noByokForKind = kind === "maps" ? !keys.dataforseo : !ENGINES.some((e) => keys[e]);
+  const what = kind === "ai" ? "check" : "grid";
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.3fr_1fr]">
-      <div className="flex flex-col gap-5">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <div className="flex min-w-0 flex-col gap-5">
         <label className="flex flex-col gap-[6px]">
           <span className={labelClass}>Business</span>
           <select
@@ -138,9 +161,13 @@ export function ScanForm({
                 label="AI engines"
                 value={activeEngines}
                 onChange={(v) => setEngines((cur) => (cur.includes(v) ? cur.filter((e) => e !== v) : [...cur, v]))}
-                options={ENGINES.map((e) => ({ value: e, label: ENGINE_LABEL[e].short, disabled: !usable(e), title: usable(e) ? ENGINE_LABEL[e].api : "Add a key or use included scans" }))}
+                options={ENGINES.map((e) => ({
+                  value: e, label: ENGINE_LABEL[e].short, disabled: !usable(e),
+                  title: usable(e) ? ENGINE_LABEL[e].api : funding === "credits" ? "Not available on included scans today" : "Add a key or use included scans",
+                }))}
               />
-              {funding === "byok" && ENGINES.some((e) => !keys[e]) ? <span className="text-[13px] text-dim">Greyed-out engines have no key. Add a key or use included scans.</span> : null}
+              {funding === "byok" && ENGINES.some((e) => !keys[e]) ? <span className="text-[13px] text-dim">Greyed-out engines have no key. Add a key{canUseCredits ? " or use included scans" : " in Settings → API keys"}.</span> : null}
+              {funding === "credits" && includedOpen && ENGINES.some((e) => !included.engines.includes(e)) ? <span className="text-[13px] text-dim">Greyed-out engines are not available on included scans today.</span> : null}
             </div>
             <details className="rounded-xl border border-border bg-inset px-4 py-3">
               <summary className="text-[14px] font-medium">Prompt</summary>
@@ -151,14 +178,14 @@ export function ScanForm({
         ) : null}
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <div className="flex flex-col gap-[6px]">
+          <div className="flex min-w-0 flex-col gap-[6px]">
             <span className={labelClass}>Grid</span>
             <Segmented
               label="Grid size" value={grid} onChange={setGrid}
               options={(kind === "ai" ? [1, 3, 5] : [3, 5, 7, 9]).map((n) => ({ value: n, label: `${n}×${n}` }))}
             />
           </div>
-          <div className="flex flex-col gap-[6px]">
+          <div className="flex min-w-0 flex-col gap-[6px]">
             <span className={labelClass}>Radius</span>
             <Segmented
               label="Radius" value={radius} onChange={setRadius}
@@ -192,19 +219,30 @@ export function ScanForm({
 
         <div className="flex flex-col gap-[6px]">
           <span className={labelClass}>Paid with</span>
+          {/* Short labels: the balance is in the line below, so a large number can never cut the label off. */}
           <Segmented
-            label="Funding" value={funding} onChange={setFunding}
-            options={[{ value: "byok" as const, label: "My own keys" }, { value: "credits" as const, label: `Included scans (${credits} left)` }]}
+            label="Funding" value={funding} onChange={pickFunding}
+            options={[{ value: "byok" as const, label: "My own keys" }, { value: "credits" as const, label: "Included scans" }]}
           />
-          {funding === "byok" && noByokForKind ? <span className="text-[13px] text-amber">No key for this scan yet. Add one in Settings → API keys, or use included scans.</span> : null}
+          {funding === "credits" ? (
+            blocker ? <span className="text-[13px] text-amber">{blocker}</span> : (
+              <span className="text-[13px] text-dim">This {what} costs {plural(cost, "credit")}. You have {creditsLeft(credits)}. The API cost is ours.</span>
+            )
+          ) : !ownKeys ? (
+            <span className="text-[13px] text-amber">
+              No key for this scan yet. Add one in Settings → API keys{canUseCredits ? `, or use included scans (${plural(credits, "credit")} left)` : ""}.
+            </span>
+          ) : (
+            <span className="text-[13px] text-dim">Your vendors bill you at their rates.{credits > 0 ? ` You also have ${creditsLeft(credits)}.` : ""}</span>
+          )}
         </div>
       </div>
 
-      <aside className="flex h-fit flex-col gap-4 rounded-2xl border border-border bg-inset p-5" aria-live="polite">
-        <span className="text-[13px] tracking-[0.05em] text-dim uppercase">Estimate before you run</span>
+      <aside className="flex h-fit min-w-0 flex-col gap-4 rounded-[14px] border border-border bg-inset p-5" aria-live="polite">
+        <span className="font-mono text-[11.5px] tracking-[0.08em] text-dim uppercase">Estimate before you run</span>
         {estimate ? (
           <>
-            <div className="flex items-baseline gap-2">
+            <div className="flex flex-wrap items-baseline gap-2">
               <span className="font-mono text-[40px] leading-none font-semibold tracking-[-0.03em]">
                 {funding === "credits" ? estimate.credits : `≈ ${money(estimate.totalUsd)}`}
               </span>
@@ -228,7 +266,7 @@ export function ScanForm({
           <p className="m-0 text-[15px] text-muted-foreground">Fill in the setup to see the cost.</p>
         )}
         {problem ? <p role="alert" className="m-0 text-[14px] text-danger">{problem}</p> : null}
-        <button type="button" onClick={run} disabled={!ready || busy || locked || !estimate} className={ctaClass("block", "cursor-pointer border-0 text-[16px]")}>
+        <button type="button" onClick={run} disabled={!ready || busy || locked || !estimate || !!blocker} aria-busy={busy} className={ctaClass("block", "cursor-pointer border-0 text-[16px]")}>
           <span>{busy ? "Starting…" : locked ? "Needs lifetime access" : kind === "ai" ? "Run AI check" : "Run Maps grid"}</span>
           <span aria-hidden>→</span>
         </button>

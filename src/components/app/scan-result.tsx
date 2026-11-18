@@ -9,7 +9,8 @@ import { track } from "@/lib/analytics";
 import { ENGINE_LABEL, type Engine } from "@/lib/pricing-constants";
 import { cn } from "@/lib/utils";
 import type { MapPoint } from "./grid-map";
-import { ErrorState, StatTile, StatusChip, fmtDateTime, fmtUsd } from "./ui";
+import { ErrorState, StatTile, StatusChip, fmtUsd } from "./ui";
+import { LocalTime } from "./local-time";
 
 const GridMap = dynamic(() => import("./grid-map").then((m) => m.GridMap), {
   ssr: false,
@@ -86,7 +87,7 @@ export function ScanResult({ scanId, businessName, initial }: { scanId: string; 
       <div className="flex flex-wrap items-center gap-3 text-[14px] text-muted-foreground">
         <StatusChip tone={statusTone(scan.status)}>{active ? "running" : scan.status}</StatusChip>
         <span>{scan.kind === "ai" ? "AI grid" : "Maps grid"} {scan.grid_size}×{scan.grid_size} · {Number(scan.radius_miles)} mi radius · “{scan.niche ?? scan.keyword}”</span>
-        <span>· {fmtDateTime(scan.created_at)}</span>
+        <span>· <LocalTime iso={scan.created_at} /></span>
         <span className="font-mono">
           · estimate {fmtUsd(scan.est_cost_usd, 3)} → actual {active ? "…" : fmtUsd(scan.actual_cost_usd, 3)}
           {scan.funding === "credits" ? ` (included scans, ${scan.credits_used} ${scan.credits_used === 1 ? "credit" : "credits"})` : scan.funding === "byok" ? " on your keys" : ""}

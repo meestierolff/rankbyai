@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EmptyState, PageHeader, Panel, StatTile, fmtDate, fmtDateTime, inputClass } from "@/components/app/ui";
-import { AiDisclaimer, ctaClass } from "@/components/brand/primitives";
+import { LocalTime } from "@/components/app/local-time";
+import { userRead } from "@/components/app/reads";
+import { EmptyState, PageHeader, Panel, StatTile, inputClass } from "@/components/app/ui";
+import { AiDisclaimer, ctaClass, secondaryClass } from "@/components/brand/primitives";
 import { DotGrid, aiCellColors, mapsCellColors, pointName, type CellView } from "@/components/brand/grid";
 import { requireSession } from "@/lib/auth";
+import { memberRead } from "@/lib/db/member-read";
 import { ENGINE_LABEL } from "@/lib/pricing-constants";
 import { compareAi, compareHeadline, compareMaps, type AiCompareSample, type MapsComparePoint } from "@/lib/scans/compare";
-import { currentUserDb } from "@/lib/db/session";
+import { ScanSelect } from "./scan-select";
 import { CompareViewed } from "./viewed";
 
 export const metadata: Metadata = { title: "Compare scans" };
@@ -36,46 +39,48 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   const ctx = await requireSession("/app/compare");
   const sp = await searchParams;
   const kind = sp.kind === "maps" ? "maps" : "ai";
-  const db = await currentUserDb();
+  const wsId = ctx.workspace.id;
 
-  const { data: bizRows } = await db.from("businesses").select("id, name").eq("workspace_id", ctx.workspace.id).order("name").limit(500);
+  // Workspace-filtered reads through memberRead: a failed read throws (error state) instead of
+  // looking like "no businesses" or "no scans". The business id comes from the URL, so the scans
+  // read carries the workspace filter itself as well.
+  const { data: bizRows } = await memberRead("Businesses", wsId, (db) => db.from("businesses").select("id, name").eq("workspace_id", wsId).order("name").limit(500));
   const businesses = (bizRows ?? []) as { id: string; name: string }[];
   const businessId = sp.business && uuid.test(sp.business) ? sp.business : businesses[0]?.id;
   const business = businesses.find((b) => b.id === businessId);
 
   const { data: scanRows } = businessId
-    ? await db.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at").eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60)
+    ? await memberRead("Scans to compare", wsId, (db) =>
+        db.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at").eq("workspace_id", wsId).eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60),
+      )
     : { data: [] };
   const scans = (scanRows ?? []) as ScanLite[];
   // Default: the latest scan (b) against the one before it (a).
   const b = scans.find((s) => s.id === sp.b) ?? scans[0];
   const a = scans.find((s) => s.id === sp.a && s.id !== b?.id) ?? scans.find((s) => s.id !== b?.id && new Date(s.created_at) <= new Date(b?.created_at ?? 0)) ?? scans.find((s) => s.id !== b?.id);
-  const label = (s: ScanLite) => `${fmtDateTime(s.created_at)} · ${s.grid_size}×${s.grid_size} · “${s.niche ?? s.keyword}”`;
   const base = `/app/${kind === "ai" ? "ai-visibility" : "maps-grid"}`;
+  // With nothing to compare yet, the empty state below holds the page's one primary action.
+  const ready = !!(business && a && b);
 
   const header = (
     <PageHeader
       title="Compare scans"
       description="Pick two scans of the same business. The earlier one is “before”, the later one “after”."
       actions={
-        <form method="get" className="flex flex-wrap items-end gap-2">
-          <label className="flex flex-col gap-1 text-[12px] text-dim">Type
+        <form method="get" className="flex max-w-full min-w-0 flex-wrap items-end gap-2">
+          <label className="flex min-w-0 flex-col gap-1 text-[12px] text-dim">Type
             <select name="kind" defaultValue={kind} className={`${inputClass} py-[7px] text-[13px]`}><option value="ai">AI grid</option><option value="maps">Maps grid</option></select>
           </label>
-          <label className="flex flex-col gap-1 text-[12px] text-dim">Business
+          <label className="flex min-w-0 flex-col gap-1 text-[12px] text-dim">Business
             <select name="business" defaultValue={businessId} className={`${inputClass} py-[7px] text-[13px]`}>{businesses.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
           </label>
           {scans.length >= 2 ? (
             <>
-              <label className="flex flex-col gap-1 text-[12px] text-dim">Before
-                <select name="a" defaultValue={a?.id} className={`${inputClass} py-[7px] text-[13px]`}>{scans.map((s) => <option key={s.id} value={s.id}>{label(s)}</option>)}</select>
-              </label>
-              <label className="flex flex-col gap-1 text-[12px] text-dim">After
-                <select name="b" defaultValue={b?.id} className={`${inputClass} py-[7px] text-[13px]`}>{scans.map((s) => <option key={s.id} value={s.id}>{label(s)}</option>)}</select>
-              </label>
+              <ScanSelect name="a" label="Before" defaultValue={a?.id} scans={scans} />
+              <ScanSelect name="b" label="After" defaultValue={b?.id} scans={scans} />
             </>
           ) : null}
-          <button type="submit" className={ctaClass("sm", "h-[36px] cursor-pointer border-0")}><span>Compare</span></button>
+          <button type="submit" className={ready ? ctaClass("sm", "h-[36px] cursor-pointer border-0") : secondaryClass("h-[36px] cursor-pointer")}><span>{ready ? "Compare" : "Show"}</span></button>
         </form>
       }
     />
@@ -95,7 +100,10 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   }
   // Order by date so "before" is always the older scan, whatever the selects said.
   const [before, after] = new Date(a.created_at) <= new Date(b.created_at) ? [a, b] : [b, a];
-  const { data: pointRows } = await db.from("scan_points").select("scan_id, idx, row, col, rank, status").in("scan_id", [before.id, after.id]).order("idx");
+  // scan_points and ai_samples have no workspace_id column, so they stay signed-in reads under
+  // row-level security that throw on failure (components/app/reads). Both scan ids come from the
+  // workspace-filtered read above.
+  const pointRows = await userRead("Grid points", (db) => db.from("scan_points").select("scan_id, idx, row, col, rank, status").in("scan_id", [before.id, after.id]).order("idx"));
   const pts = (pointRows ?? []) as { scan_id: string; idx: number; row: number; col: number; rank: number | null; status: string }[];
   const where = (idx: number) => {
     const p = pts.find((x) => x.scan_id === after.id && x.idx === idx);
@@ -105,7 +113,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   let body: React.ReactNode;
   let headline: string;
   if (kind === "ai") {
-    const { data: sampleRows } = await db.from("ai_samples").select("scan_id, point_idx, engine, status, mentioned, mention_position").in("scan_id", [before.id, after.id]);
+    const sampleRows = await userRead("AI answers", (db) => db.from("ai_samples").select("scan_id, point_idx, engine, status, mentioned, mention_position").in("scan_id", [before.id, after.id]));
     const all = (sampleRows ?? []) as (AiCompareSample & { scan_id: string })[];
     const sa = all.filter((s) => s.scan_id === before.id);
     const sb = all.filter((s) => s.scan_id === after.id);
@@ -127,8 +135,8 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
           ))}
         </div>
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Panel title={`Before · ${fmtDate(before.created_at)}`}><DotGrid n={before.grid_size} cells={grid(sa, before.grid_size)} fontPx={12} gapPx={7} /></Panel>
-          <Panel title={`After · ${fmtDate(after.created_at)}`}><DotGrid n={after.grid_size} cells={grid(sb, after.grid_size)} fontPx={12} gapPx={7} /></Panel>
+          <Panel title={<>Before · <LocalTime iso={before.created_at} /></>}><DotGrid n={before.grid_size} cells={grid(sa, before.grid_size)} fontPx={12} gapPx={7} /></Panel>
+          <Panel title={<>After · <LocalTime iso={after.created_at} /></>}><DotGrid n={after.grid_size} cells={grid(sb, after.grid_size)} fontPx={12} gapPx={7} /></Panel>
           <Panel title="Change per point">
             {c.samePoints ? (
               <>
@@ -156,8 +164,8 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
           {c.samePoints ? <StatTile label="Points improved" value={c.improved} hint={`${c.declined} declined · ${c.unchanged} unchanged`} tone={c.improved > c.declined ? "good" : undefined} /> : null}
         </div>
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Panel title={`Before · ${fmtDate(before.created_at)}`}><DotGrid n={before.grid_size} cells={grid(pa)} fontPx={before.grid_size >= 9 ? 9 : 11} gapPx={4} /></Panel>
-          <Panel title={`After · ${fmtDate(after.created_at)}`}><DotGrid n={after.grid_size} cells={grid(pb)} fontPx={after.grid_size >= 9 ? 9 : 11} gapPx={4} /></Panel>
+          <Panel title={<>Before · <LocalTime iso={before.created_at} /></>}><DotGrid n={before.grid_size} cells={grid(pa)} fontPx={before.grid_size >= 9 ? 9 : 11} gapPx={4} /></Panel>
+          <Panel title={<>After · <LocalTime iso={after.created_at} /></>}><DotGrid n={after.grid_size} cells={grid(pb)} fontPx={after.grid_size >= 9 ? 9 : 11} gapPx={4} /></Panel>
           <Panel title="Change per point">
             {c.samePoints ? (
               <>

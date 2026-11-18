@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ErrorState, PageHeader, Panel, StatTile, StatusChip, fmtDate, fmtUsd } from "@/components/app/ui";
+import { seatText } from "@/components/app/first-run";
+import { LocalTime } from "@/components/app/local-time";
+import { ErrorState, PageHeader, Panel, StatTile, StatusChip, fmtUsd } from "@/components/app/ui";
 import { LiveDot } from "@/components/brand/primitives";
 import { checkoutOpen, packsOpen } from "@/lib/availability";
 import { requireSession } from "@/lib/auth";
@@ -34,7 +36,7 @@ export default async function BillingPage() {
       ) : null}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-4">
-        <StatTile label="Plan" value={lifetime ? "Lifetime" : "Not purchased"} tone={lifetime ? "good" : undefined} hint={lifetime ? `Seat #${ws.lifetime_seat ?? "—"}` : "Look around with sample data"} />
+        <StatTile label="Plan" value={lifetime ? "Lifetime" : "Not purchased"} tone={lifetime ? "good" : undefined} hint={lifetime ? (seatText(ws.lifetime_seat) ?? "Paid once. No renewal.") : "Look around with sample data"} />
         <StatTile label="Included scan credits" value={credits} hint="Never expire" />
         <StatTile label="Refund window" value={`${REFUND_DAYS} days`} hint="No questions. From the purchase date." />
       </div>
@@ -107,7 +109,7 @@ export default async function BillingPage() {
                 <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-3 last:border-b-0">
                   <span className="flex flex-col">
                     <span className="text-[15px] font-medium">{PRODUCT_LABEL[o.product_key]}{o.ladder_seat ? ` · seat #${o.ladder_seat}` : ""}</span>
-                    <span className="text-[13px] text-dim">{fmtDate(o.created_at)} · {fmtUsd(o.amount_cents / 100)}{o.tax_cents ? ` + ${fmtUsd(o.tax_cents / 100)} tax` : ""}</span>
+                    <span className="text-[13px] text-dim"><LocalTime iso={o.created_at} mode="date" /> · {fmtUsd(o.amount_cents / 100)}{o.tax_cents ? ` + ${fmtUsd(o.tax_cents / 100)} tax` : ""}</span>
                   </span>
                   <span className="flex items-center gap-4">
                     {refundable ? <RefundButton orderId={o.id} /> : null}

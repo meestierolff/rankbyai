@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { ctaClass, secondaryClass } from "@/components/brand/primitives";
 import { DATAFORSEO_MAPS_PER_POINT } from "@/lib/pricing-constants";
 import { inputClass, labelClass } from "./ui";
@@ -24,58 +24,87 @@ interface Listing {
   reviews: number | null;
 }
 
-/** Search a Google listing by name, confirm it, save it. One live Maps lookup on the user's DataForSEO key. */
+const listingKey = (l: Listing) => (l.cid ?? l.name) + (l.address ?? "");
+
+/**
+ * Search a Google listing by name, confirm it, save it. One live Maps lookup on the user's
+ * DataForSEO key. Both steps take a few seconds, so each shows its busy state the moment it starts.
+ */
 export function AddBusiness({ disabled, disabledReason }: { disabled?: boolean; disabledReason?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Listing[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
+  // Stays pending until the new business page has loaded, so "Adding…" never flips back early.
+  const [opening, startOpening] = useTransition();
 
-  const search = async (form: FormData) => {
+  // A plain submit handler, not a form action: a form action runs inside a transition, which held
+  // back the "Searching…" state until the request had finished.
+  const search = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (disabled || busy) return;
+    const form = new FormData(e.currentTarget);
     setBusy(true);
     setError(null);
     setResults(null);
     const params = new URLSearchParams({ q: String(form.get("q") ?? ""), city: String(form.get("city") ?? ""), country: String(form.get("country") ?? "US") });
-    const res = await fetch(`/api/businesses/search?${params}`);
-    const json = (await res.json().catch(() => ({}))) as { results?: Listing[]; message?: string };
-    setBusy(false);
-    if (!res.ok) return setError(json.message ?? "The search failed.");
-    setResults(json.results ?? []);
+    try {
+      const res = await fetch(`/api/businesses/search?${params}`);
+      const json = (await res.json().catch(() => ({}))) as { results?: Listing[]; message?: string };
+      if (!res.ok) setError(json.message ?? "The search failed. Nothing was saved. Try again.");
+      else setResults(json.results ?? []);
+    } catch {
+      setError("The search could not reach the server. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const add = async (l: Listing) => {
     if (l.lat == null || l.lng == null) return setError("This listing has no map location, so a grid cannot be centred on it.");
-    setAdding(l.cid ?? l.name);
+    setAdding(listingKey(l));
     setError(null);
-    const res = await fetch("/api/businesses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: l.name, cid: l.cid, place_id: l.placeId, address: l.address, city: l.city, region: l.region, country: l.country,
-        lat: l.lat, lng: l.lng, website: l.url ?? (l.domain ? `https://${l.domain}` : null), phone: l.phone,
-        primary_category: l.category, rating: l.rating, reviews_count: l.reviews,
-      }),
-    });
-    const json = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
-    setAdding(null);
-    if (!res.ok || !json.id) return setError(json.message ?? "The business could not be saved.");
-    router.push(`/app/businesses/${json.id}`);
-    router.refresh();
+    try {
+      const res = await fetch("/api/businesses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: l.name, cid: l.cid, place_id: l.placeId, address: l.address, city: l.city, region: l.region, country: l.country,
+          lat: l.lat, lng: l.lng, website: l.url ?? (l.domain ? `https://${l.domain}` : null), phone: l.phone,
+          primary_category: l.category, rating: l.rating, reviews_count: l.reviews,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
+      if (!res.ok || !json.id) {
+        setAdding(null);
+        return setError(json.message ?? "The business could not be saved. Try again.");
+      }
+      const id = json.id;
+      startOpening(() => {
+        router.push(`/app/businesses/${id}`);
+        router.refresh();
+      });
+    } catch {
+      setAdding(null);
+      setError("The business could not be saved: the server could not be reached. Try again.");
+    }
   };
+
+  const addingNow = adding !== null || opening;
 
   return (
     <div className="flex flex-col gap-4">
-      <form action={search} className="grid grid-cols-1 items-end gap-3 md:grid-cols-[2fr_1.4fr_auto_auto]">
-        <label className="flex flex-col gap-[6px]">
+      <form onSubmit={search} aria-busy={busy} className="grid grid-cols-1 items-end gap-3 md:grid-cols-[2fr_1.4fr_auto_auto]">
+        <label className="flex min-w-0 flex-col gap-[6px]">
           <span className={labelClass}>Business name</span>
-          <input name="q" required minLength={2} maxLength={120} placeholder="Northgate Family Dental" className={inputClass} disabled={disabled} />
+          <input name="q" required minLength={2} maxLength={120} placeholder="Northgate Family Dental" className={inputClass} disabled={disabled} enterKeyHint="search" />
         </label>
-        <label className="flex flex-col gap-[6px]">
+        <label className="flex min-w-0 flex-col gap-[6px]">
           <span className={labelClass}>City</span>
-          <input name="city" maxLength={120} placeholder="Austin, TX" className={inputClass} disabled={disabled} />
+          <input name="city" maxLength={120} placeholder="Austin, TX" className={inputClass} disabled={disabled} enterKeyHint="search" />
         </label>
-        <label className="flex flex-col gap-[6px]">
+        <label className="flex min-w-0 flex-col gap-[6px]">
           <span className={labelClass}>Country</span>
           <select name="country" defaultValue="US" className={inputClass} disabled={disabled}>
             <option value="US">United States</option>
@@ -86,35 +115,43 @@ export function AddBusiness({ disabled, disabledReason }: { disabled?: boolean; 
             <option value="NZ">New Zealand</option>
           </select>
         </label>
-        <button type="submit" disabled={disabled || busy} className={ctaClass("sm", "h-[42px] cursor-pointer justify-center border-0")}>
+        <button type="submit" disabled={disabled || busy} aria-busy={busy} className={ctaClass("sm", "h-[42px] min-w-[104px] cursor-pointer justify-center border-0")}>
           <span>{busy ? "Searching…" : "Search"}</span>
         </button>
       </form>
-      <p className="m-0 text-[13px] text-dim">
-        {disabled ? disabledReason : `One live Google Maps lookup on your DataForSEO key: $${DATAFORSEO_MAPS_PER_POINT.live.toFixed(3)} per search.`}
+      <p className="m-0 text-[13px] text-dim" aria-live="polite">
+        {disabled
+          ? disabledReason
+          : busy
+            ? "Searching Google Maps. This takes a few seconds."
+            : `One live Google Maps lookup on your DataForSEO key: $${DATAFORSEO_MAPS_PER_POINT.live.toFixed(3)} per search.`}
       </p>
       {error ? <p role="alert" className="m-0 text-[14px] text-danger">{error}</p> : null}
       {results ? (
         results.length === 0 ? (
           <p className="m-0 text-[15px] text-muted-foreground">No listing found. Try the exact name from Google Maps, plus the city.</p>
         ) : (
-          <ul className="m-0 flex list-none flex-col gap-2 p-0" aria-label="Search results">
-            {results.map((l) => (
-              <li key={(l.cid ?? l.name) + (l.address ?? "")} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-inset px-4 py-3">
-                <span className="flex min-w-0 flex-col gap-[2px]">
-                  <span className="text-[15px] font-medium">{l.name}</span>
-                  <span className="truncate text-[13px] text-dim">
-                    {[l.address, l.category, l.rating != null ? `${l.rating}★ (${l.reviews ?? 0})` : null].filter(Boolean).join(" · ")}
+          <ul className="m-0 flex list-none flex-col gap-2 p-0" aria-label="Search results" aria-busy={addingNow}>
+            {results.map((l) => {
+              const mine = adding === listingKey(l);
+              return (
+                <li key={listingKey(l)} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-inset px-4 py-3">
+                  <span className="flex min-w-0 flex-col gap-[2px]">
+                    <span className="text-[15px] font-medium">{l.name}</span>
+                    <span className="truncate text-[13px] text-dim">
+                      {[l.address, l.category, l.rating != null ? `${l.rating}★ (${l.reviews ?? 0})` : null].filter(Boolean).join(" · ")}
+                    </span>
                   </span>
-                </span>
-                <button type="button" disabled={adding !== null} onClick={() => add(l)} className={secondaryClass("cursor-pointer bg-transparent")}>
-                  {adding === (l.cid ?? l.name) ? "Adding…" : "This is it"}
-                </button>
-              </li>
-            ))}
+                  <button type="button" disabled={addingNow} aria-busy={mine} onClick={() => add(l)} className={secondaryClass("cursor-pointer bg-transparent")}>
+                    {mine ? "Adding…" : "This is it"}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )
       ) : null}
+      {addingNow ? <p className="m-0 text-[13px] text-dim" aria-live="polite">Saving the business and opening its page.</p> : null}
     </div>
   );
 }

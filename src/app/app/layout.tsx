@@ -14,8 +14,10 @@ export const metadata: Metadata = { title: { default: "App", template: "%s | Ran
 
 async function Authed({ children }: { children: React.ReactNode }) {
   const ctx = await requireSession("/app");
+  const lifetime = ctx.workspace.plan === "lifetime";
   return (
-    <AppShell ctx={ctx} banner={<>{ctx.workspace.plan === "locked" ? <LockedBanner /> : null}<EarlyAccessBanner /></>}>
+    // The early-access note is for people who have not bought yet; a lifetime workspace never sees it in the app.
+    <AppShell ctx={ctx} banner={lifetime ? null : <>{ctx.workspace.plan === "locked" ? <LockedBanner /> : null}<EarlyAccessBanner /></>}>
       {children}
     </AppShell>
   );

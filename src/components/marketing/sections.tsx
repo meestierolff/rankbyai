@@ -120,8 +120,8 @@ export function FeatureRows() {
           vendor&apos;s price. We never sit between you and the bill, so we never cap your usage or charge you for it.
         </FeatureRow>
         <FeatureRow title="Hand it to your AI agent" links={<LpTextLink href="/docs/api">Read the API docs</LpTextLink>} visual={<TerminalVisual />}>
-          Every feature is in the REST API and the MCP server. Connect Claude, Cursor, ChatGPT or your own scripts and let the agent run checks,
-          audits and prospect reports. Paid actions show the estimate first and need an explicit confirm.
+          Businesses, AI and Maps scans, audits, Fix Kits, prospect reports and branding are all in the REST API and the MCP server. Connect
+          Claude, Cursor, ChatGPT or your own scripts and let the agent run them. Paid actions show the estimate first and need an explicit confirm.
         </FeatureRow>
       </div>
     </section>

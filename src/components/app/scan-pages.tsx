@@ -3,13 +3,15 @@ import { notFound } from "next/navigation";
 import { AiGridMock, MapsGridMock } from "@/components/marketing/feature-mocks";
 import { SampleTag } from "@/components/brand/primitives";
 import type { SessionContext } from "@/lib/auth";
+import { memberRead } from "@/lib/db/member-read";
 import { isMockMode } from "@/lib/mock";
-import { currentUserDb } from "@/lib/db/session";
 import { getCreditBalance, getKeyStatuses, type ScanRow } from "@/lib/workspace-data";
+import { includedScans } from "./included";
+import { LocalTime } from "./local-time";
 import { ScheduleActions } from "./m3-controls";
 import { ScanForm, type FormBusiness } from "./scan-form";
 import { ScanResult } from "./scan-result";
-import { EmptyState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatusChip, fmtDateTime, fmtUsd } from "./ui";
+import { EmptyState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatusChip, fmtUsd } from "./ui";
 
 /* Server-side page bodies shared by the AI Visibility and Maps Grid sections. */
 
@@ -32,20 +34,26 @@ const COPY = {
 
 export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionContext; kind: "ai" | "maps"; businessId?: string }) {
   const copy = COPY[kind];
-  const db = await currentUserDb();
   const ws = ctx.workspace;
-  const [{ data: bizRows }, keyRows, credits, { data: scanRows }, { data: scheduleRows }] = await Promise.all([
-    db.from("businesses").select("id, name, city, primary_category").eq("workspace_id", ws.id).not("lat", "is", null).order("created_at", { ascending: false }).limit(500),
+  // Every read is filtered by the session's workspace id and goes through memberRead: a failed
+  // read throws (the page's error state shows) instead of looking like "Add a business first".
+  const [{ data: bizRows }, keyRows, credits, included, { data: scanRows }, { data: scheduleRows }] = await Promise.all([
+    memberRead("Businesses", ws.id, (db) => db.from("businesses").select("id, name, city, primary_category").eq("workspace_id", ws.id).not("lat", "is", null).order("created_at", { ascending: false }).limit(500)),
     getKeyStatuses(ws.id),
     getCreditBalance(ws.id),
-    db
-      .from("scans")
-      .select("id, business_id, kind, grid_size, status, funding, keyword, niche, engines, est_cost_usd, actual_cost_usd, summary, created_at, finished_at, businesses(name)")
-      .eq("workspace_id", ws.id)
-      .eq("kind", kind)
-      .order("created_at", { ascending: false })
-      .limit(50),
-    db.from("tracked_queries").select("id, business_id, keyword, niche, grid_size, schedule, next_run_at, active, funding, businesses(name)").eq("workspace_id", ws.id).eq("kind", kind).neq("schedule", "none").order("created_at", { ascending: false }).limit(100),
+    includedScans(ws.id),
+    memberRead("Scan history", ws.id, (db) =>
+      db
+        .from("scans")
+        .select("id, business_id, kind, grid_size, status, funding, keyword, niche, engines, est_cost_usd, actual_cost_usd, summary, created_at, finished_at, businesses(name)")
+        .eq("workspace_id", ws.id)
+        .eq("kind", kind)
+        .order("created_at", { ascending: false })
+        .limit(50),
+    ),
+    memberRead("Schedules", ws.id, (db) =>
+      db.from("tracked_queries").select("id, business_id, keyword, niche, grid_size, schedule, next_run_at, active, funding, businesses(name)").eq("workspace_id", ws.id).eq("kind", kind).neq("schedule", "none").order("created_at", { ascending: false }).limit(100),
+    ),
   ]);
   const schedules = (scheduleRows ?? []) as unknown as { id: string; keyword: string | null; niche: string | null; grid_size: number; schedule: string; next_run_at: string | null; active: boolean; funding: string; businesses: { name: string } | null }[];
   const businesses: FormBusiness[] = ((bizRows ?? []) as { id: string; name: string; city: string | null; primary_category: string | null }[]).map((b) => ({ id: b.id, name: b.name, city: b.city, category: b.primary_category }));
@@ -61,8 +69,8 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
 
       {locked ? (
         <div className="mb-6 flex flex-col gap-3">
-          <span className="flex items-center gap-2 text-[13px] text-dim"><SampleTag /> A preview of this screen with fictional data. Real scans need lifetime access.</span>
-          <div className="overflow-hidden rounded-2xl border border-border bg-bg-alt p-[clamp(12px,2vw,24px)] pb-0">{kind === "ai" ? <AiGridMock /> : <MapsGridMock />}</div>
+          <span className="flex flex-wrap items-center gap-2 text-[13px] text-dim"><SampleTag /> A preview of this screen with fictional data. Real scans need lifetime access.</span>
+          <div className="overflow-hidden rounded-[14px] border border-border bg-bg-alt p-[clamp(12px,2vw,24px)] pb-0">{kind === "ai" ? <AiGridMock /> : <MapsGridMock />}</div>
         </div>
       ) : null}
 
@@ -74,7 +82,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
         />
       ) : (
         <Panel title={copy.run}>
-          <ScanForm kind={kind} businesses={businesses} keys={keys} credits={credits} locked={locked} defaultBusinessId={businessId} />
+          <ScanForm kind={kind} businesses={businesses} keys={keys} credits={credits} included={included} locked={locked} defaultBusinessId={businessId} />
         </Panel>
       )}
 
@@ -86,7 +94,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
                 <span className="flex min-w-0 flex-col gap-[2px]">
                   <span className="truncate text-[15px] font-medium">{t.businesses?.name ?? "Business"} · “{t.niche ?? t.keyword}” · {t.grid_size}×{t.grid_size}</span>
                   <span className="text-[13px] text-dim">
-                    {t.schedule} · {t.funding === "byok" ? "on your keys" : "included scans"} · {t.active ? `next run ${t.next_run_at ? fmtDateTime(t.next_run_at) : "—"}` : "paused"}
+                    {t.schedule} · {t.funding === "byok" ? "on your keys" : "included scans"} · {t.active ? <>next run <LocalTime iso={t.next_run_at} /></> : "paused"}
                   </span>
                 </span>
                 <span className="flex items-center gap-3">
@@ -112,7 +120,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
                     <span className="flex min-w-0 flex-col gap-[2px]">
                       <span className="truncate text-[15px] font-medium text-fg">{s.businesses?.name ?? "Business"} · “{s.niche ?? s.keyword}”</span>
                       <span className="text-[13px] text-dim">
-                        {s.grid_size}×{s.grid_size} · {fmtDateTime(s.created_at)} ·{" "}
+                        {s.grid_size}×{s.grid_size} · <LocalTime iso={s.created_at} /> ·{" "}
                         {kind === "ai" ? `named at ${sum.points_mentioned ?? 0}/${s.grid_size * s.grid_size} points` : `avg rank ${sum.avg_rank ?? "—"} · top-3 at ${sum.top3_points ?? 0}/${sum.points_done ?? s.grid_size * s.grid_size}`}
                       </span>
                     </span>
@@ -134,11 +142,16 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
 export async function ScanDetailPage({ ctx, kind, scanId }: { ctx: SessionContext; kind: "ai" | "maps"; scanId: string }) {
   const copy = COPY[kind];
   if (!/^[0-9a-f-]{36}$/.test(scanId)) notFound();
-  const db = await currentUserDb();
-  const { data: scan } = await db.from("scans").select("id, kind, business_id, tracked_query_id, businesses(id, name)").eq("id", scanId).eq("workspace_id", ctx.workspace.id).maybeSingle();
+  const wsId = ctx.workspace.id;
+  // The scan is fetched by id AND by the session's workspace id; a failed read throws, and only
+  // "no such scan in this workspace" is a 404.
+  const { data: found } = await memberRead("Scan", wsId, (db) => db.from("scans").select("id, kind, business_id, tracked_query_id, businesses(id, name)").eq("id", scanId).eq("workspace_id", wsId).maybeSingle());
+  const scan = found as unknown as { id: string; kind: string; business_id: string; businesses: { id: string; name: string } | { id: string; name: string }[] | null } | null;
   if (!scan || scan.kind !== kind) notFound();
   const business = (Array.isArray(scan.businesses) ? scan.businesses[0] : scan.businesses) as { id: string; name: string } | null;
-  const { data: siblings } = await db.from("scans").select("id, grid_size, keyword, niche, status, created_at").eq("business_id", scan.business_id).eq("kind", kind).order("created_at", { ascending: false }).limit(12);
+  const { data: siblings } = await memberRead("Other scans of this business", wsId, (db) =>
+    db.from("scans").select("id, grid_size, keyword, niche, status, created_at").eq("workspace_id", wsId).eq("business_id", scan.business_id).eq("kind", kind).order("created_at", { ascending: false }).limit(12),
+  );
   const history = (siblings ?? []) as { id: string; grid_size: number; keyword: string | null; niche: string | null; status: string; created_at: string }[];
   return (
     <>
@@ -161,9 +174,9 @@ export async function ScanDetailPage({ ctx, kind, scanId }: { ctx: SessionContex
               key={h.id}
               href={`/app/${copy.path}/${h.id}`}
               aria-current={h.id === scan.id ? "page" : undefined}
-              className={`rounded-full border px-3 py-1 no-underline ${h.id === scan.id ? "border-fg bg-fg text-bg" : "border-border-strong text-muted-foreground hover:text-fg"}`}
+              className={`rounded-full border px-3 py-1 no-underline ${h.id === scan.id ? "border-fg bg-fg text-[#0b0b0b]" : "border-border-strong text-muted-foreground hover:text-fg"}`}
             >
-              {new Date(h.created_at).toLocaleDateString("en-US", { day: "numeric", month: "short" })} · {h.grid_size}×{h.grid_size}
+              <LocalTime iso={h.created_at} mode="day" /> · {h.grid_size}×{h.grid_size}
             </Link>
           ))}
         </nav>

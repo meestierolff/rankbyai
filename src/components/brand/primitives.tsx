@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 import { AI_DISCLAIMER_TEXT } from "@/lib/copy";
 import { cn } from "@/lib/utils";
-import { Logo } from "./logo";
+import { LogoLockup } from "./logo";
 
 /* Brand primitives shared by the marketing site, the app, share pages and legal pages.
    Every value comes from the design tokens (src/styles/tokens.css). */
@@ -47,15 +47,19 @@ export function LiveDot({ className }: { className?: string }) {
 }
 
 const ctaSizes = {
-  sm: "px-[14px] py-[9px] text-[15px] rounded-[9px] gap-2",
-  md: "px-[18px] py-3 text-[16px] rounded-[10px] gap-2",
-  lg: "px-[26px] py-[17px] text-[18px] rounded-xl gap-[10px]",
-  block: "p-[18px] text-[18px] rounded-xl gap-[10px] w-full justify-center",
+  sm: "px-[14px] py-[9px] text-[14.5px] font-medium rounded-[9px] gap-2",
+  md: "px-[18px] py-3 text-[16px] font-semibold rounded-[10px] gap-2",
+  lg: "px-7 py-[17px] text-[18px] font-semibold rounded-xl gap-3",
+  block: "p-[17px] text-[18px] font-semibold rounded-xl gap-3 w-full justify-center",
 } as const;
 
+/**
+ * Primary button: the cream button of the landing page (same sizes as `creamClass` there).
+ * One per screen. Works on links and real buttons.
+ */
 export const ctaClass = (size: keyof typeof ctaSizes = "lg", className?: string) =>
   cn(
-    "inline-flex items-center bg-fg font-semibold text-bg no-underline transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60",
+    "lp-cream inline-flex items-center text-center no-underline transition-[filter] hover:brightness-[1.04] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:brightness-100",
     ctaSizes[size],
     className,
   );
@@ -72,9 +76,10 @@ export function CtaLink({
   );
 }
 
+/** Secondary button: the outline button of the landing page. */
 export const secondaryClass = (className?: string) =>
   cn(
-    "inline-flex items-center gap-2 rounded-[10px] border border-border-strong px-[14px] py-[9px] text-[14px] font-medium text-fg no-underline transition-colors hover:bg-line disabled:opacity-50",
+    "inline-flex items-center gap-2 rounded-[9px] border border-border-heavy bg-[#0b0b0b] px-[14px] py-[9px] text-[14.5px] font-medium text-fg no-underline transition-colors hover:border-[#555555] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border-heavy",
     className,
   );
 
@@ -131,7 +136,7 @@ export function ScoreRing({ score, size = 120, label = true }: { score: number; 
       role="img"
       aria-label={`Score ${score} out of 100`}
       className="grid shrink-0 place-items-center rounded-full"
-      style={{ width: size, height: size, background: `conic-gradient(${scoreColor(score)} 0 ${pct}%, var(--rb-border) ${pct}% 100%)` }}
+      style={{ width: size, height: size, background: `conic-gradient(${scoreColor(score)} 0 ${pct}%, var(--rb-track) ${pct}% 100%)` }}
     >
       <div className="flex items-baseline justify-center rounded-full bg-surface" style={{ width: inner, height: inner, paddingTop: inner * 0.31 }}>
         <span className="font-mono leading-none font-semibold" style={{ fontSize: Math.round(size * 0.3) }}>{score}</span>
@@ -164,16 +169,15 @@ export const MOCK_NAV = ["Dashboard", "Businesses", "AI Visibility", "Maps Grid"
 export function MockSidebar({ active }: { active: (typeof MOCK_NAV)[number] }) {
   return (
     <div className="hidden w-[170px] shrink-0 flex-col gap-[2px] border-r border-line px-[10px] py-4 sm:flex" aria-hidden>
-      <span className="flex items-center gap-2 px-[10px] pt-[2px] pb-3 text-[15px] font-semibold">
-        <Logo height={18} />
-        <span>rankbyai<span className="text-dim">.live</span></span>
+      <span className="px-[10px] pt-[2px] pb-3">
+        <LogoLockup height={16} size="sm" />
       </span>
       {MOCK_NAV.map((l) => (
-        <span key={l} className={cn("rounded-lg px-[10px] py-2 text-[14px]", l === active ? "bg-line text-fg" : "text-[#9a9a9a]")}>
+        <span key={l} className={cn("rounded-lg px-[10px] py-2 text-[14px]", l === active ? "bg-[#1c1c1c] text-fg" : "text-[#9a9a9a]")}>
           {l}
         </span>
       ))}
-      <span className="px-[10px] pt-[14px] pb-1 text-[12px] text-faint">Developers</span>
+      <span className="px-[10px] pt-[14px] pb-1 text-[12px] text-dim">Developers</span>
       <span className="px-[10px] py-2 text-[14px] text-[#9a9a9a]">API &amp; MCP</span>
     </div>
   );

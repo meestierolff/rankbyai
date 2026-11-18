@@ -9,7 +9,8 @@ import { currentUserDb } from "@/lib/db/session";
 import { isMockMode } from "@/lib/mock";
 import { getCreditBalance, getKeyStatuses } from "@/lib/workspace-data";
 import { AuditForm, AuditProgress, FixKitPanel, PagePlanEditor, ReviewMath, type KitView } from "./audit-client";
-import { EmptyState, ErrorState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatusChip, fmtDate, fmtDateTime, fmtUsd } from "./ui";
+import { EmptyState, ErrorState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatusChip, fmtUsd } from "./ui";
+import { LocalTime } from "./local-time";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -62,7 +63,7 @@ export async function AuditIndexPage({ ctx, businessId }: { ctx: SessionContext;
                     <td className="px-3 py-3 font-mono" style={a.score != null ? { color: scoreColor(a.score) } : undefined}>{a.score ?? "—"}</td>
                     <td className="px-3 py-3 font-mono text-muted-foreground">{a.status === "done" ? `${a.checks_ran} of ${a.checks_total}` : "—"}</td>
                     <td className="px-3 py-3"><StatusChip tone={a.status === "done" ? "good" : a.status === "failed" ? "bad" : "warn"}>{a.status}</StatusChip></td>
-                    <td className="px-3 py-3 text-muted-foreground">{fmtDate(a.created_at)}</td>
+                    <td className="px-3 py-3 text-muted-foreground"><LocalTime iso={a.created_at} mode="date" /></td>
                   </tr>
                 ))}
               </tbody>
@@ -168,11 +169,11 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
                 <span className="text-[13px] tracking-[0.05em] text-dim uppercase">Local AI Audit score</span>
                 {delta != null ? (
                   <span className="font-mono text-[15px]" style={{ color: delta > 0 ? "var(--rb-g1)" : delta < 0 ? "var(--rb-orange)" : undefined }}>
-                    {delta > 0 ? `▲ ${delta}` : delta < 0 ? `▼ ${Math.abs(delta)}` : "No change"} <span className="text-dim">since {fmtDate(previous!.created_at)}</span>
+                    {delta > 0 ? `▲ ${delta}` : delta < 0 ? `▼ ${Math.abs(delta)}` : "No change"} <span className="text-dim">since <LocalTime iso={previous!.created_at} mode="date" /></span>
                   </span>
                 ) : <span className="text-[14px] text-dim">First audit of this business</span>}
                 <span className="text-[14px] text-muted-foreground">{ranPct}% of checks ran ({audit.checks_ran} of {audit.checks_total})</span>
-                <span className="text-[13px] text-dim">Service: {inputs.service} · {fmtDateTime(audit.finished_at ?? audit.created_at)}</span>
+                <span className="text-[13px] text-dim">Service: {inputs.service} · <LocalTime iso={audit.finished_at ?? audit.created_at} /></span>
               </div>
             </div>
             <ul className="m-0 grid min-w-[280px] flex-1 list-none grid-cols-1 gap-x-8 gap-y-3 p-0 sm:grid-cols-2">
@@ -194,7 +195,7 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
             </ul>
           </div>
           <p className="mt-5 mb-0 text-[13px] leading-normal text-dim">
-            The score is the weighted share of checks that passed, counting only checks that could run. It describes what we could read on {fmtDate(audit.created_at)}; it is not a ranking prediction.
+            The score is the weighted share of checks that passed, counting only checks that could run. It describes what we could read on <LocalTime iso={audit.created_at} mode="date" />; it is not a ranking prediction.
             {inputs.mock ? " This audit ran on simulated vendor data (development mode)." : ""}
           </p>
         </Panel>
@@ -233,7 +234,7 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
                 </tbody>
               </table>
             </div>
-            <p className="mt-3 mb-0 text-[13px] text-dim">Competitors are the businesses that hold the top three Google Maps places most often around this business{inputs.mapsKeyword ? ` for “${inputs.mapsKeyword}”` : " in its latest Maps grid"}. Figures are from their Google profiles on {fmtDate(audit.created_at)}.</p>
+            <p className="mt-3 mb-0 text-[13px] text-dim">Competitors are the businesses that hold the top three Google Maps places most often around this business{inputs.mapsKeyword ? ` for “${inputs.mapsKeyword}”` : " in its latest Maps grid"}. Figures are from their Google profiles on <LocalTime iso={audit.created_at} mode="date" />.</p>
           </Panel>
         ) : null}
 

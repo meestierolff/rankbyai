@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ctaClass, secondaryClass } from "@/components/brand/primitives";
-import { StatusChip, fmtDate, inputClass, labelClass } from "./ui";
+import { LocalTime } from "./local-time";
+import { StatusChip, inputClass, labelClass } from "./ui";
 
 export interface KeyRow { id: string; name: string; prefix: string; last_used_at: string | null; revoked_at: string | null; created_at: string }
 
@@ -60,7 +61,7 @@ export function ApiKeys({ keys, canManage, locked, limit }: { keys: KeyRow[]; ca
         </div>
       ) : null}
 
-      {keys.length === 0 ? <p className="m-0 text-[15px] text-muted-foreground">No API keys yet.</p> : (
+      {keys.length === 0 ? <p className="m-0 text-[15px] text-muted-foreground">No API keys yet. {canManage ? "Name one below to create it." : ""}</p> : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] border-collapse text-left text-[14px]">
             <thead><tr className="text-[13px] text-dim">{["Name", "Key", "Last used", "Created", "Status", ""].map((h, i) => <th key={i} scope="col" className="border-b border-line px-3 py-2 font-medium first:pl-0">{h}</th>)}</tr></thead>
@@ -69,8 +70,8 @@ export function ApiKeys({ keys, canManage, locked, limit }: { keys: KeyRow[]; ca
                 <tr key={k.id} className="border-b border-line last:border-0">
                   <td className="px-3 py-3 pl-0 font-medium">{k.name}</td>
                   <td className="px-3 py-3 font-mono text-muted-foreground">{k.prefix}…</td>
-                  <td className="px-3 py-3 text-muted-foreground">{k.last_used_at ? fmtDate(k.last_used_at) : "never"}</td>
-                  <td className="px-3 py-3 text-muted-foreground">{fmtDate(k.created_at)}</td>
+                  <td className="px-3 py-3 text-muted-foreground">{k.last_used_at ? <LocalTime iso={k.last_used_at} mode="date" /> : "never"}</td>
+                  <td className="px-3 py-3 text-muted-foreground"><LocalTime iso={k.created_at} mode="date" /></td>
                   <td className="px-3 py-3"><StatusChip tone={k.revoked_at ? "idle" : "good"}>{k.revoked_at ? "revoked" : "active"}</StatusChip></td>
                   <td className="px-3 py-3 text-right">{!k.revoked_at && canManage ? <button type="button" onClick={() => revoke(k.id)} className="cursor-pointer rounded-[8px] border border-danger/50 bg-transparent px-[10px] py-[5px] text-[13px] font-medium text-danger">Revoke</button> : null}</td>
                 </tr>

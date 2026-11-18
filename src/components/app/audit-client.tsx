@@ -7,6 +7,8 @@ import { Segmented } from "@/components/brand/segmented";
 import { pageMath, reviewTarget } from "@/lib/audit/math";
 import { track } from "@/lib/analytics";
 import { inputClass, labelClass } from "./ui";
+import { CREDIT_COST } from "@/lib/pricing-constants";
+import { plural } from "./first-run";
 
 const money = (v: number) => "$" + (v < 1 ? v.toFixed(3) : v.toFixed(2));
 const post = (url: string, body: unknown, method = "POST") => fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -90,8 +92,9 @@ export function AuditForm({ businesses, credits, locked, hasDataForSeo, defaultB
           <span className={labelClass}>Paid with</span>
           <Segmented
             label="Funding" value={funding} onChange={setFunding}
-            options={[{ value: "byok" as const, label: "My own keys" }, { value: "credits" as const, label: `Included scans (${credits} left)` }]}
+            options={[{ value: "byok" as const, label: "My own keys" }, { value: "credits" as const, label: "Included scans" }]}
           />
+          {funding === "credits" ? <span className="text-[13px] text-dim">An audit uses {plural(CREDIT_COST.audit, "credit")}. You have {credits} left.</span> : null}
           {funding === "byok" && !hasDataForSeo ? <span className="text-[13px] text-amber">The audit reads Google profile details through DataForSEO. Add that login in Settings → API keys, or use an included scan.</span> : null}
         </div>
       </div>

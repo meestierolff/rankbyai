@@ -1,30 +1,44 @@
 /*
- * RankbyAI design tokens — extracted from the Claude Design handoff (/design/README.md).
- * Dark theme only: the logo and every surface are designed for dark backgrounds.
+ * RankbyAI design tokens. Dark theme only.
  * These CSS variables are the single source of truth. globals.css maps them into
  * Tailwind (@theme) and into the shadcn/ui variable names.
+ *
+ * One palette for the whole product: since the landing redesign (Nov 2026) the --rb-* surface,
+ * line and text values below ARE the landing values (--lp-* further down), so the app, the login
+ * pages, share pages and legal pages match the landing page. The data colours are unchanged:
+ * they encode ranks.
  */
 :root {
   /* Surfaces */
-  --rb-bg: #0b0b0b; /* page background */
-  --rb-bg-alt: #111111; /* alternating bands, mock frames */
-  --rb-surface: #141414; /* cards */
-  --rb-surface-2: #161616; /* highlighted card, table column, popovers */
-  --rb-inset: #0e0e0e; /* app windows, inputs, segmented wells */
-  --rb-well: #121212; /* grid backdrop */
+  --rb-bg: #000000; /* page background (= --lp-bg) */
+  --rb-bg-alt: #0a0a0a; /* alternating bands, mock frames (= --lp-frame-inner) */
+  --rb-surface: #0e0e0e; /* cards (= --lp-surface) */
+  --rb-surface-2: #121212; /* highlighted card, table head, popovers, notes (= --lp-well) */
+  --rb-inset: #0a0a0a; /* sidebar, inputs, estimate boxes (= --lp-frame-inner) */
+  --rb-well: #121212; /* segmented wells (= --lp-well) */
 
   /* Lines */
-  --rb-line: #1c1c1c; /* section borders, window dividers */
-  --rb-border: #262626; /* card borders */
-  --rb-border-strong: #2e2e2e; /* pills, chips, secondary buttons */
-  --rb-border-heavy: #3a3a3a; /* price card, sold segments */
+  --rb-line: #1a1a1a; /* hairlines: dividers, table rows (= --lp-line) */
+  --rb-border: #1e1e1e; /* card borders (= --lp-frame-inner-border) */
+  --rb-border-strong: #2e2e2e; /* inputs, pills, chips (= --lp-border-2) */
+  --rb-border-heavy: #333333; /* secondary buttons (= --lp-border-3) */
+  --rb-track: #262626; /* progress tracks, the empty part of a score ring (= --lp-border) */
 
   /* Text */
-  --rb-fg: #f5f5f5;
-  --rb-fg-2: #d4d4d4;
-  --rb-muted: #a1a1a1;
-  --rb-dim: #8a8a8a; /* dimmest text allowed on --rb-bg (4.5:1) */
-  --rb-faint: #6b6b6b; /* labels on dark wells only, never body text */
+  --rb-fg: #f4f2ee; /* warm off-white (= --lp-fg) */
+  --rb-fg-2: #d6d3ce; /* (= --lp-fg-2) */
+  --rb-muted: #8f8f8f; /* body copy (= --lp-muted): 6.5:1 on the page, 5.8:1 on --rb-surface-2 */
+  /*
+   * Small labels and hints. The landing value is #7a7a7a, which is 4.9:1 on black but only 4.4:1
+   * on --rb-surface-2, where the app also sets hints. #808080 keeps 4.5:1 on every surface above
+   * (5.3:1 on the page, 4.9:1 on cards, 4.7:1 on --rb-surface-2).
+   */
+  --rb-dim: #808080;
+  --rb-faint: #6b6b6b; /* labels on dark wells only, never body text (= --lp-faint) */
+
+  /* Accent: the brand orange. In the app only for small accents (active nav marker, focus ring,
+     the brand dot). Never for a data state: --rb-orange below means "rank 11 to 20". */
+  --rb-accent: #ff7a1a; /* (= --lp-accent) */
 
   /* Signal */
   --rb-danger: #ef5b5b;
@@ -61,8 +75,8 @@
   --rb-band-y: clamp(48px, 6vw, 72px);
 
   /*
-   * Landing redesign (design handoff "landing redesign", Nov 2026). New tokens, added next to the
-   * ones above instead of changing them: the app, share pages and PDFs keep the --rb-* values.
+   * Landing redesign (design handoff "landing redesign", Nov 2026). The --rb-* surface, line and
+   * text values above were set to these, so both sets describe the same palette.
    */
   --lp-bg: #000000; /* page */
   --lp-bg-banner: #070707; /* top banner */

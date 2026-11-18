@@ -1,42 +1,44 @@
-import Image from "next/image";
+import { DotMark, LpWordmark } from "@/components/marketing/lp";
 import { cn } from "@/lib/utils";
 
-/** The folded-map mark. Designed for dark backgrounds only. Source ratio 148:80. */
-export function Logo({ height = 34, className, priority }: { height?: number; className?: string; priority?: boolean }) {
-  const width = Math.round((height * 148) / 80);
-  return (
-    <Image
-      src="/brand/logo-80.png"
-      alt=""
-      width={width}
-      height={height}
-      priority={priority}
-      className={cn("block shrink-0", className)}
-      style={{ height, width: "auto" }}
-    />
-  );
+/*
+ * The brand mark: the 3×3 dot grid (eight off-white dots around an orange centre) and the
+ * "RankbyAI" wordmark in the display face. One drawing for the whole product: this file reuses
+ * the landing page's DotMark and LpWordmark, so the app, the login pages, share pages and the
+ * landing header cannot drift apart.
+ *
+ * Places that cannot use CSS variables or web fonts draw the same mark with literal colours:
+ * the icons (scripts/make-icons.mjs) and anything rendered outside the browser.
+ */
+
+export { DotMark };
+
+/**
+ * The mark alone. `height` is its size in px (the mark is square). `priority` is accepted for
+ * callers written for the old image logo; an inline SVG has nothing to preload.
+ */
+export function Logo({ height = 22, className }: { height?: number; className?: string; priority?: boolean }) {
+  return <DotMark size={height} className={cn("block", className)} />;
 }
 
-/** Two-line wordmark used in the marketing header. */
-export function Wordmark({ tagline = true, size = "md" }: { tagline?: boolean; size?: "sm" | "md" }) {
+/** The wordmark. `tagline` adds the mono line under it; `size` is "md" (headers) or "sm" (sidebars). */
+export function Wordmark({ tagline = false, size = "md", className }: { tagline?: boolean; size?: "sm" | "md"; className?: string }) {
+  const word = <LpWordmark className={cn(size === "sm" && "text-[16px]", !tagline && className)} />;
+  if (!tagline) return word;
   return (
-    <span className="flex flex-col gap-[3px]">
-      <span className={cn("leading-none font-semibold tracking-[-0.02em]", size === "md" ? "text-[17px]" : "text-[15px]")}>
-        rankbyai<span className="text-dim">.live</span>
-      </span>
-      {tagline ? (
-        <span className="font-mono text-[10px] leading-none font-medium tracking-[0.12em] text-dim">AI VISIBILITY, PAID ONCE</span>
-      ) : null}
+    <span className={cn("flex flex-col gap-[4px]", className)}>
+      {word}
+      <span className="font-mono text-[10px] leading-none font-medium tracking-[0.12em] text-dim">AI VISIBILITY, PAID ONCE</span>
     </span>
   );
 }
 
-export function LogoLockup({ height = 34, tagline = true, priority }: { height?: number; tagline?: boolean; priority?: boolean }) {
+/** Mark and wordmark side by side, as in the landing header. */
+export function LogoLockup({ height = 22, tagline = false, size = "md", priority }: { height?: number; tagline?: boolean; size?: "sm" | "md"; priority?: boolean }) {
   return (
-    <span className="flex items-center gap-3">
+    <span className="flex items-center gap-[10px] text-fg">
       <Logo height={height} priority={priority} />
-      <Wordmark tagline={tagline} />
-      <span className="sr-only">RankbyAI</span>
+      <Wordmark tagline={tagline} size={size} />
     </span>
   );
 }

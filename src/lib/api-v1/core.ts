@@ -24,19 +24,43 @@ export interface ApiResult { status: number; body: Record<string, unknown> }
 /** Runs work after the response is sent (Next.js `after`); tests run it inline. */
 export type Defer = (work: () => Promise<unknown>) => void;
 
-const ok = (body: Record<string, unknown>, status = 200): ApiResult => ({ status, body });
-const fail = (status: number, error: string, message: string, extra: Record<string, unknown> = {}): ApiResult => ({ status, body: { error, message, ...extra } });
+/**
+ * Money in responses: every US-dollar amount (any numeric field whose name contains "usd") is
+ * rounded to 6 decimal places, so sums of vendor prices never leak binary-float noise.
+ */
+export function roundMoney<T>(value: T, isMoney = false): T {
+  if (typeof value === "number") return (isMoney && Number.isFinite(value) ? Number(value.toFixed(6)) : value) as T;
+  if (Array.isArray(value)) return value.map((v) => roundMoney(v, isMoney)) as T;
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, roundMoney(v, /usd/i.test(k))])) as T;
+  return value;
+}
+
+const ok = (body: Record<string, unknown>, status = 200): ApiResult => ({ status, body: roundMoney(body) });
+const fail = (status: number, error: string, message: string, extra: Record<string, unknown> = {}): ApiResult => ({ status, body: roundMoney({ error, message, ...extra }) });
 const needsConfirm = (estimate: unknown, what: string): ApiResult => ok({ confirm_required: true, estimate, message: `This ${what} costs money. Review the estimate, then send the same request with "confirm": true.` });
+/**
+ * Estimate for a single vendor call. Estimates use camelCase keys everywhere (`totalUsd`, `lines`);
+ * `total_usd` is the old name of `totalUsd` on these two estimates, kept for one release.
+ */
+const singleCallEstimate = (provider: string, label: string, usd: number) => ({ totalUsd: usd, total_usd: usd, lines: [{ provider, label, usd }] });
 const uuid = z.uuid();
 const badId = (what: string) => fail(404, "not_found", `Unknown ${what}.`);
+/** An id that is not a UUID can never exist: that is a malformed request (400), not a missing resource (404). */
+const invalidId = (what: string) => fail(400, "invalid_request", `id: the ${what} id must be a UUID.`);
 const invalid = (e: z.ZodError) => fail(400, "invalid_request", e.issues.slice(0, 3).map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; "));
+const blankToNull = (v: unknown) => (typeof v === "string" && v.trim() === "" ? null : v);
 
-const BUSINESS_COLS = "id, name, address, city, region, country, lat, lng, website, phone, primary_category, rating, reviews_count, source, created_at";
+/** Paging shared by every list endpoint. */
+export const PAGE_LIMIT_MAX = 200;
+export const PAGE_OFFSET_MAX = 100_000;
+const Page = { limit: z.coerce.number().int().min(1).max(PAGE_LIMIT_MAX).default(50), offset: z.coerce.number().int().min(0).max(PAGE_OFFSET_MAX).default(0) };
+
+const BUSINESS_COLS = "id, client_id, name, address, city, region, country, lat, lng, website, phone, primary_category, rating, reviews_count, source, created_at";
 
 // ───────────────────────── businesses ─────────────────────────
 
 export async function listBusinesses(c: ApiCaller, q: { limit?: unknown; offset?: unknown }): Promise<ApiResult> {
-  const p = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50), offset: z.coerce.number().int().min(0).default(0) }).safeParse(q);
+  const p = z.object(Page).safeParse(q);
   if (!p.success) return invalid(p.error);
   const { data, error } = await dbUser(c.ownerId).from("businesses").select(BUSINESS_COLS).eq("workspace_id", c.workspaceId).neq("source", "prospect").order("created_at", { ascending: false }).range(p.data.offset, p.data.offset + p.data.limit - 1);
   if (error) return fail(500, "server_error", "The businesses could not be loaded.");
@@ -71,7 +95,7 @@ export async function addBusiness(c: ApiCaller, input: unknown): Promise<ApiResu
     row = { name: b.name, city: b.city ?? null, country: b.country, lat: b.lat, lng: b.lng, address: b.address ?? null, website: b.website ?? null, phone: b.phone ?? null, primary_category: b.primary_category ?? null, source: "manual" };
   } else {
     if (!b.city) return fail(400, "invalid_request", "Send either lat and lng, or a city so the business can be looked up on Google Maps.");
-    if (!b.confirm) return needsConfirm({ total_usd: DATAFORSEO_MAPS_PER_POINT.live, lines: [{ label: "One Google Maps lookup on your DataForSEO key", usd: DATAFORSEO_MAPS_PER_POINT.live }] }, "lookup");
+    if (!b.confirm) return needsConfirm(singleCallEstimate("dataforseo", "One Google Maps lookup on your DataForSEO key", DATAFORSEO_MAPS_PER_POINT.live), "lookup");
     try {
       const r = await resolveRows({ workspaceId: c.workspaceId, funding: "byok", rows: [{ name: b.name, city: b.city, country: b.country, address: "", region: "", website: b.website ?? "", phone: b.phone ?? "", place_id: "" }] });
       const hit = r.resolved[0];
@@ -92,12 +116,49 @@ export async function addBusiness(c: ApiCaller, input: unknown): Promise<ApiResu
 }
 
 export async function getBusiness(c: ApiCaller, id: string): Promise<ApiResult> {
-  if (!uuid.safeParse(id).success) return badId("business");
+  if (!uuid.safeParse(id).success) return invalidId("business");
   const db = dbUser(c.ownerId);
   const { data } = await db.from("businesses").select(BUSINESS_COLS).eq("id", id).eq("workspace_id", c.workspaceId).maybeSingle();
   if (!data) return badId("business");
-  const { data: scans } = await db.from("scans").select("id, kind, grid_size, status, keyword, niche, created_at").eq("business_id", id).order("created_at", { ascending: false }).limit(10);
+  const { data: scans } = await db.from("scans").select("id, kind, grid_size, status, keyword, niche, created_at").eq("business_id", id).eq("workspace_id", c.workspaceId).order("created_at", { ascending: false }).limit(10);
   return ok({ business: data, recent_scans: scans ?? [] });
+}
+
+export const UpdateBusiness = z.strictObject({
+  name: z.string().trim().min(1).max(300).optional(),
+  address: z.preprocess(blankToNull, z.string().trim().max(400).nullable()).optional(),
+  city: z.preprocess(blankToNull, z.string().trim().max(120).nullable()).optional(),
+  /** A client of this workspace (clients are made in the app), or null to take the business out of its client. */
+  client_id: z.uuid().nullable().optional(),
+});
+
+/** Change the name, address, city or client of a business. Free. Only the fields that are sent change. */
+export async function updateBusiness(c: ApiCaller, id: string, input: unknown): Promise<ApiResult> {
+  if (!uuid.safeParse(id).success) return invalidId("business");
+  const p = UpdateBusiness.safeParse(input);
+  if (!p.success) return invalid(p.error);
+  const patch = Object.fromEntries(Object.entries(p.data).filter(([, v]) => v !== undefined));
+  if (!Object.keys(patch).length) return fail(400, "invalid_request", "Send at least one of: name, address, city, client_id.");
+  const admin = dbAdmin();
+  if (typeof patch.client_id === "string") {
+    const { data: client } = await admin.from("clients").select("id").eq("id", patch.client_id).eq("workspace_id", c.workspaceId).maybeSingle();
+    if (!client) return fail(400, "invalid_client", "That client does not belong to this workspace.");
+  }
+  const { data, error } = await admin.from("businesses").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id).eq("workspace_id", c.workspaceId).select(BUSINESS_COLS);
+  if (error) return fail(500, "server_error", "The business could not be updated.");
+  return data?.[0] ? ok({ business: data[0] }) : badId("business");
+}
+
+/**
+ * Delete a business. The same single delete as the app's own route (DELETE /api/businesses/{id}):
+ * the database removes the business's scans, audits, Fix Kits, schedules and reports with it, so
+ * its share links stop working. Free, and it cannot be undone.
+ */
+export async function deleteBusiness(c: ApiCaller, id: string): Promise<ApiResult> {
+  if (!uuid.safeParse(id).success) return invalidId("business");
+  const { error, count } = await dbAdmin().from("businesses").delete({ count: "exact" }).eq("id", id).eq("workspace_id", c.workspaceId);
+  if (error) return fail(500, "server_error", "The business could not be deleted.");
+  return count ? ok({ deleted: true, id }) : badId("business");
 }
 
 // ───────────────────────── scans ─────────────────────────
@@ -141,8 +202,24 @@ export async function createScanOp(c: ApiCaller, input: unknown, defer: Defer): 
 
 const SCAN_COLS = "id, business_id, kind, keyword, niche, engines, grid_size, radius_miles, mode, funding, status, credits_used, est_cost_usd, actual_cost_usd, summary, error, created_at, finished_at";
 
+const ListScans = z.object({ ...Page, business_id: z.uuid().optional(), kind: z.enum(["ai", "maps"]).optional(), status: z.enum(["queued", "running", "done", "partial", "failed"]).optional() });
+
+/** Every scan of the workspace, newest first, optionally narrowed to a business, a kind or a status. */
+export async function listScans(c: ApiCaller, q: Record<string, unknown>): Promise<ApiResult> {
+  const p = ListScans.safeParse(q);
+  if (!p.success) return invalid(p.error);
+  const f = p.data;
+  let query = dbUser(c.ownerId).from("scans").select(SCAN_COLS).eq("workspace_id", c.workspaceId);
+  if (f.business_id) query = query.eq("business_id", f.business_id);
+  if (f.kind) query = query.eq("kind", f.kind);
+  if (f.status) query = query.eq("status", f.status);
+  const { data, error } = await query.order("created_at", { ascending: false }).range(f.offset, f.offset + f.limit - 1);
+  if (error) return fail(500, "server_error", "The scans could not be loaded.");
+  return ok({ scans: data ?? [], limit: f.limit, offset: f.offset });
+}
+
 export async function getScan(c: ApiCaller, id: string, defer?: Defer): Promise<ApiResult> {
-  if (!uuid.safeParse(id).success) return badId("scan");
+  if (!uuid.safeParse(id).success) return invalidId("scan");
   const { data } = await dbUser(c.ownerId).from("scans").select(`${SCAN_COLS}, lease_until`).eq("id", id).eq("workspace_id", c.workspaceId).maybeSingle();
   if (!data) return badId("scan");
   const { lease_until, ...scan } = data as Record<string, unknown> & { lease_until: string | null; status: string };
@@ -152,7 +229,7 @@ export async function getScan(c: ApiCaller, id: string, defer?: Defer): Promise<
 }
 
 export async function getScanPoints(c: ApiCaller, id: string): Promise<ApiResult> {
-  if (!uuid.safeParse(id).success) return badId("scan");
+  if (!uuid.safeParse(id).success) return invalidId("scan");
   const db = dbUser(c.ownerId);
   const { data: scan } = await db.from("scans").select("id, kind, grid_size, status").eq("id", id).eq("workspace_id", c.workspaceId).maybeSingle();
   if (!scan) return badId("scan");
@@ -210,8 +287,24 @@ export async function createAuditOp(c: ApiCaller, input: unknown, defer: Defer):
   return ok({ audit_id: r.auditId, status: "queued", estimate: r.estimate }, 202);
 }
 
+const ListAudits = z.object({ ...Page, business_id: z.uuid().optional(), status: z.enum(["queued", "running", "done", "failed"]).optional() });
+
+/** Every audit of the workspace, newest first. Findings are on GET /audits/{id}. */
+export async function listAudits(c: ApiCaller, q: Record<string, unknown>): Promise<ApiResult> {
+  const p = ListAudits.safeParse(q);
+  if (!p.success) return invalid(p.error);
+  const f = p.data;
+  // `inputs` also holds internal check state: only the service and the months are read from it.
+  let query = dbUser(c.ownerId).from("audits").select("id, business_id, status, score, category_scores, checks_ran, checks_total, funding, est_cost_usd, cost_usd, error, created_at, finished_at, service:inputs->>service, months:inputs->months").eq("workspace_id", c.workspaceId);
+  if (f.business_id) query = query.eq("business_id", f.business_id);
+  if (f.status) query = query.eq("status", f.status);
+  const { data, error } = await query.order("created_at", { ascending: false }).range(f.offset, f.offset + f.limit - 1);
+  if (error) return fail(500, "server_error", "The audits could not be loaded.");
+  return ok({ audits: data ?? [], limit: f.limit, offset: f.offset });
+}
+
 export async function getAudit(c: ApiCaller, id: string): Promise<ApiResult> {
-  if (!uuid.safeParse(id).success) return badId("audit");
+  if (!uuid.safeParse(id).success) return invalidId("audit");
   const db = dbUser(c.ownerId);
   const { data: audit } = await db.from("audits").select("id, business_id, status, score, category_scores, checks_ran, checks_total, funding, est_cost_usd, cost_usd, error, created_at, finished_at, inputs").eq("id", id).eq("workspace_id", c.workspaceId).maybeSingle();
   if (!audit) return badId("audit");
@@ -224,8 +317,9 @@ export async function getAudit(c: ApiCaller, id: string): Promise<ApiResult> {
   });
 }
 
-export async function getFixKit(c: ApiCaller, id: string, q: { confirm?: unknown }): Promise<ApiResult> {
-  if (!uuid.safeParse(id).success) return badId("audit");
+/** `readOnly` (HEAD requests) returns a stored Fix Kit and never builds one. */
+export async function getFixKit(c: ApiCaller, id: string, q: { confirm?: unknown }, opts: { readOnly?: boolean } = {}): Promise<ApiResult> {
+  if (!uuid.safeParse(id).success) return invalidId("audit");
   const db = dbUser(c.ownerId);
   const { data: audit } = await db.from("audits").select("id, status, funding").eq("id", id).eq("workspace_id", c.workspaceId).maybeSingle();
   if (!audit) return badId("audit");
@@ -233,11 +327,12 @@ export async function getFixKit(c: ApiCaller, id: string, q: { confirm?: unknown
   const { data: existing } = await db.from("fix_kits").select(cols).eq("audit_id", id).order("created_at", { ascending: false }).limit(1);
   if (existing?.[0]) return ok({ fix_kit: existing[0] });
   if (audit.status !== "done") return fail(409, "audit_not_done", "The audit has not finished yet.");
+  if (opts.readOnly) return fail(404, "not_built", "The Fix Kit has not been built yet. Send a GET request to build it.");
   if (c.plan !== "lifetime") return fail(403, "lifetime_required", "The Fix Kit needs lifetime access.");
   // Building it makes one model call. On own keys that is the caller's money, so it needs a confirm.
   const confirmed = q.confirm === true || q.confirm === "true";
   if (audit.funding === "byok" && !confirmed && !isMockMode()) {
-    return needsConfirm({ total_usd: LLM_FIX_KIT_BUDGET_USD, lines: [{ label: "One OpenAI call to draft the description and FAQs (upper bound)", usd: LLM_FIX_KIT_BUDGET_USD }] }, "Fix Kit");
+    return needsConfirm(singleCallEstimate("openai", "One OpenAI call to draft the description and FAQs (upper bound)", LLM_FIX_KIT_BUDGET_USD), "Fix Kit");
   }
   const r = await generateFixKit(id, c.workspaceId);
   if (!r.ok) return fail(r.status, r.error, r.message);
@@ -267,7 +362,7 @@ export async function createProspectsOp(c: ApiCaller, input: unknown, defer: Def
     const creds = await resolveCredentials(c.workspaceId, b.funding);
     const est = await estimateBatch(b.max_reports, ENGINES.filter((e) => !!creds[e]));
     const search = DATAFORSEO_MAPS_PER_POINT.live;
-    return needsConfirm({ ...est, totalUsd: est.totalUsd + search, lines: [{ label: "One Google Maps search to find the businesses", usd: search }, ...est.lines], note: `Up to ${b.max_reports} reports; fewer when the search finds fewer businesses outside the top 3.` }, "prospect batch");
+    return needsConfirm({ ...est, totalUsd: est.totalUsd + search, lines: [{ provider: "dataforseo", label: "One Google Maps search to find the businesses", usd: search }, ...est.lines], note: `Up to ${b.max_reports} reports; fewer when the search finds fewer businesses outside the top 3.` }, "prospect batch");
   }
   let candidates;
   try {
@@ -284,8 +379,20 @@ export async function createProspectsOp(c: ApiCaller, input: unknown, defer: Def
   return ok({ batch_id: r.batchId, status: "queued", reports: picked.length, businesses_found: candidates.length, estimate: r.estimate }, 202);
 }
 
+/** Every prospect batch of the workspace, newest first. The reports of a batch are on GET /prospects/{id}. */
+export async function listProspectBatches(c: ApiCaller, q: Record<string, unknown>): Promise<ApiResult> {
+  const p = z.object({ ...Page, status: z.enum(["queued", "running", "done", "partial", "failed"]).optional() }).safeParse(q);
+  if (!p.success) return invalid(p.error);
+  const f = p.data;
+  let query = dbUser(c.ownerId).from("prospect_batches").select("id, mode, niche, city, country, funding, total, done, failed, status, created_at, finished_at").eq("workspace_id", c.workspaceId);
+  if (f.status) query = query.eq("status", f.status);
+  const { data, error } = await query.order("created_at", { ascending: false }).range(f.offset, f.offset + f.limit - 1);
+  if (error) return fail(500, "server_error", "The prospect batches could not be loaded.");
+  return ok({ batches: data ?? [], limit: f.limit, offset: f.offset });
+}
+
 export async function getProspects(c: ApiCaller, id: string, siteUrl: string, defer?: Defer): Promise<ApiResult> {
-  if (!uuid.safeParse(id).success) return badId("batch");
+  if (!uuid.safeParse(id).success) return invalidId("batch");
   const { data } = await dbUser(c.ownerId).from("prospect_batches").select("id, mode, niche, city, funding, total, done, failed, status, rows, created_at, finished_at, lease_until").eq("id", id).eq("workspace_id", c.workspaceId).maybeSingle();
   if (!data) return badId("batch");
   const { rows, lease_until, ...batch } = data as Record<string, unknown> & { rows: BatchRow[]; lease_until: string | null; status: string };
@@ -298,6 +405,51 @@ export async function getProspects(c: ApiCaller, id: string, siteUrl: string, de
       report_url: r.report_slug ? `${siteUrl}/r/${r.report_slug}` : null, business_id: r.business_id ?? null,
     })),
   });
+}
+
+// ───────────────────────── branding ─────────────────────────
+
+const BRANDING_COLS = "brand_name, brand_color_hex, brand_website, reply_to_email, hide_rankbyai_branding";
+const httpUrl = z.string().trim().max(300).refine((v) => {
+  try {
+    const u = new URL(v);
+    return u.protocol === "https:" || u.protocol === "http:";
+  } catch {
+    return false;
+  }
+}, "must be a full web address starting with https://");
+
+/** The white-label fields of the app's Branding page (same rules as POST /api/branding). The logo is uploaded in the app. */
+export const UpdateBranding = z.strictObject({
+  brand_name: z.preprocess(blankToNull, z.string().trim().max(80).nullable()).optional(),
+  brand_color_hex: z.preprocess(blankToNull, z.string().regex(/^#[0-9a-fA-F]{6}$/, "must be a colour like #1a2b3c").nullable()).optional(),
+  brand_website: z.preprocess(blankToNull, httpUrl.nullable()).optional(),
+  reply_to_email: z.preprocess(blankToNull, z.email().max(254).nullable()).optional(),
+  hide_rankbyai_branding: z.boolean().optional(),
+});
+
+const brandingOf = (row: Record<string, unknown>) => {
+  const { brand_logo_path, ...branding } = row;
+  return { ...branding, has_logo: !!brand_logo_path };
+};
+
+/** What share links and PDF reports show as the agency. */
+export async function getBranding(c: ApiCaller): Promise<ApiResult> {
+  const { data, error } = await dbUser(c.ownerId).from("workspaces").select(`${BRANDING_COLS}, brand_logo_path`).eq("id", c.workspaceId).maybeSingle();
+  if (error || !data) return fail(500, "server_error", "The branding could not be loaded.");
+  return ok({ branding: brandingOf(data) });
+}
+
+/** Change white-label fields. Free. Only the fields that are sent change; null or "" clears a field. */
+export async function updateBranding(c: ApiCaller, input: unknown): Promise<ApiResult> {
+  const p = UpdateBranding.safeParse(input);
+  if (!p.success) return invalid(p.error);
+  if (c.plan !== "lifetime") return fail(403, "lifetime_required", "White-label branding needs lifetime access.");
+  const patch = Object.fromEntries(Object.entries(p.data).filter(([, v]) => v !== undefined));
+  if (!Object.keys(patch).length) return fail(400, "invalid_request", "Send at least one of: brand_name, brand_color_hex, brand_website, reply_to_email, hide_rankbyai_branding.");
+  const { data, error } = await dbAdmin().from("workspaces").update(patch).eq("id", c.workspaceId).select(`${BRANDING_COLS}, brand_logo_path`);
+  if (error || !data?.[0]) return fail(500, "server_error", "The branding could not be saved.");
+  return ok({ branding: brandingOf(data[0]) });
 }
 
 // ───────────────────────── usage ─────────────────────────

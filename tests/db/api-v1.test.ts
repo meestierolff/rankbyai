@@ -22,7 +22,7 @@ let keyA: string;
 let keyB: string;
 const BASE = "https://rankbyai.test/api/v1";
 
-async function rest(method: "GET" | "POST", path: string, opts: { key?: string | null; body?: unknown } = {}) {
+async function rest(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, opts: { key?: string | null; body?: unknown } = {}) {
   const key = opts.key === undefined ? keyA : opts.key;
   const url = new URL(BASE + path);
   const request = new Request(url, { method, headers: { ...(key ? { Authorization: `Bearer ${key}` } : {}), ...(opts.body ? { "Content-Type": "application/json" } : {}) }, body: opts.body ? JSON.stringify(opts.body) : undefined });
@@ -114,14 +114,33 @@ describe("REST: authentication and rate limit", () => {
   });
 
   it("answers 429 after 60 requests in a minute for one key, and other keys are unaffected", async () => {
+    // The window is a calendar minute: start early enough in one that all 63 requests land in it.
+    const second = new Date().getUTCSeconds();
+    if (second > 50) await new Promise((resolve) => setTimeout(resolve, (61 - second) * 1000));
     await sql("delete from public.rate_limits");
     const statuses: number[] = [];
-    for (let i = 0; i < 62; i++) statuses.push((await rest("GET", "/usage")).status);
+    const remaining: number[] = [];
+    for (let i = 0; i < 62; i++) {
+      const r = await rest("GET", "/usage");
+      statuses.push(r.status);
+      remaining.push(Number(r.headers.get("x-ratelimit-remaining")));
+    }
     expect(statuses.slice(0, 60).every((s) => s === 200)).toBe(true);
     expect(statuses.slice(60)).toEqual([429, 429]);
+    // The counter is visible on the way down: 59 left after the first request, none after the 60th.
+    expect(remaining.slice(0, 60)).toEqual(Array.from({ length: 60 }, (_, i) => 59 - i));
+    expect(remaining.slice(60)).toEqual([0, 0]);
     const limited = await rest("GET", "/usage");
+    expect(limited.status).toBe(429);
     expect(limited.body.error).toBe("rate_limited");
-    expect(Number(limited.headers.get("retry-after"))).toBeGreaterThan(0);
+    const wait = Number(limited.headers.get("retry-after"));
+    expect(wait).toBeGreaterThan(0);
+    expect(wait).toBeLessThanOrEqual(60);
+    expect(limited.headers.get("x-ratelimit-limit")).toBe("60");
+    expect(limited.headers.get("x-ratelimit-remaining")).toBe("0");
+    const reset = Number(limited.headers.get("x-ratelimit-reset"));
+    expect(reset).toBeGreaterThan(Date.now() / 1000 - 5);
+    expect(reset).toBeLessThanOrEqual(Date.now() / 1000 + 65);
     expect((await rest("GET", "/usage", { key: keyB })).status).toBe(200);
     await sql("delete from public.rate_limits");
   });
@@ -144,7 +163,8 @@ describe("REST: businesses, scans, audits, prospects, usage", () => {
     // Name + city means a paid lookup: estimate first, then confirm.
     const estimate = await rest("POST", "/businesses", { body: { name: "Lone Oak Dental", city: "Austin" } });
     expect(estimate.body).toMatchObject({ confirm_required: true });
-    expect(estimate.body.estimate.total_usd).toBeGreaterThan(0);
+    expect(estimate.body.estimate.totalUsd).toBeGreaterThan(0);
+    expect(estimate.body.estimate.total_usd).toBe(estimate.body.estimate.totalUsd); // old name, kept for one release
     expect((await rest("GET", "/businesses")).body.businesses).toHaveLength(1);
     const added = await rest("POST", "/businesses", { body: { name: "Lone Oak Dental", city: "Austin", confirm: true } });
     expect(added.status).toBe(201);
@@ -275,12 +295,16 @@ describe("OpenAPI document", () => {
     for (const [path, ops] of Object.entries(spec.paths)) {
       for (const method of Object.keys(ops)) {
         documented.push(`${method.toUpperCase()} ${path}`);
-        const r = await rest(method.toUpperCase() as "GET" | "POST", path.replace("{id}", id), { body: method === "post" ? {} : undefined });
+        const r = await rest(method.toUpperCase() as "GET" | "POST" | "PATCH" | "DELETE", path.replace("{id}", id), { body: method === "post" || method === "patch" ? {} : undefined });
+        expect(r.status, `${method} ${path}`).not.toBe(405);
         expect(r.body.message ?? "", `${method} ${path}`).not.toContain("Unknown endpoint");
       }
     }
     expect(documented.sort()).toEqual([
-      "GET /audits/{id}", "GET /audits/{id}/fix-kit", "GET /businesses", "GET /businesses/{id}", "GET /prospects/{id}", "GET /scans/compare", "GET /scans/{id}", "GET /scans/{id}/points", "GET /usage",
+      "DELETE /businesses/{id}",
+      "GET /audits", "GET /audits/{id}", "GET /audits/{id}/fix-kit", "GET /branding", "GET /businesses", "GET /businesses/{id}", "GET /prospects", "GET /prospects/{id}",
+      "GET /scans", "GET /scans/compare", "GET /scans/{id}", "GET /scans/{id}/points", "GET /usage",
+      "PATCH /branding", "PATCH /businesses/{id}",
       "POST /audits", "POST /businesses", "POST /prospects", "POST /scans",
     ]);
     expect(spec.servers[0].url).toBe("https://rankbyai.live/api/v1");

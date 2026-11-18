@@ -8,6 +8,8 @@ import { Segmented } from "@/components/brand/segmented";
 import { track } from "@/lib/analytics";
 import type { BatchRow, Candidate } from "@/lib/prospects/batch";
 import { StatusChip, inputClass, labelClass } from "./ui";
+import { CREDIT_COST } from "@/lib/pricing-constants";
+import { plural } from "./first-run";
 
 const money = (v: number) => "$" + (v < 1 ? v.toFixed(3) : v.toFixed(2));
 const post = (url: string, body: unknown) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -130,7 +132,8 @@ export function ProspectFinder({ credits, locked, hasDataForSeo }: { credits: nu
         ) : null}
         <div className="flex flex-col gap-[6px]">
           <span className={labelClass}>Paid with</span>
-          <Segmented label="Funding" value={funding} onChange={(f) => { setFunding(f); setEstimate(null); }} options={[{ value: "byok" as const, label: "My own keys" }, { value: "credits" as const, label: `Included scans (${credits} left)` }]} />
+          <Segmented label="Funding" value={funding} onChange={(f) => { setFunding(f); setEstimate(null); }} options={[{ value: "byok" as const, label: "My own keys" }, { value: "credits" as const, label: "Included scans" }]} />
+          {funding === "credits" ? <span className="text-[13px] text-dim">Each report uses {plural(CREDIT_COST.prospect_report, "credit")}. You have {credits} left.</span> : null}
           {funding === "byok" && !hasDataForSeo ? <span className="text-[13px] text-amber">Prospect mode needs your DataForSEO login (Settings → API keys), or included scans.</span> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">

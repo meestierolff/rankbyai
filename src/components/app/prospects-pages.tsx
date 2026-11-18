@@ -6,7 +6,8 @@ import { isMockMode } from "@/lib/mock";
 import type { BatchRow } from "@/lib/prospects/batch";
 import { getCreditBalance, getKeyStatuses } from "@/lib/workspace-data";
 import { BatchProgress, ProspectFinder, type BatchView } from "./prospects-client";
-import { ErrorState, PageHeader, Panel, PrimaryLink, StatusChip, fmtDateTime } from "./ui";
+import { ErrorState, PageHeader, Panel, PrimaryLink, StatusChip } from "./ui";
+import { LocalTime } from "./local-time";
 
 export async function ProspectIndexPage({ ctx }: { ctx: SessionContext }) {
   const db = await currentUserDb();
@@ -42,7 +43,7 @@ export async function ProspectIndexPage({ ctx }: { ctx: SessionContext }) {
                     <td className="px-3 py-3 font-mono">{b.done} of {b.total}{b.failed ? <span className="text-dim"> · {b.failed} failed</span> : null}</td>
                     <td className="px-3 py-3 text-muted-foreground">{b.funding === "credits" ? "Included scans" : "Own keys"}</td>
                     <td className="px-3 py-3"><StatusChip tone={b.status === "done" ? "good" : b.status === "failed" ? "bad" : "warn"}>{b.status}</StatusChip></td>
-                    <td className="px-3 py-3 text-muted-foreground">{fmtDateTime(b.created_at)}</td>
+                    <td className="px-3 py-3 text-muted-foreground"><LocalTime iso={b.created_at} /></td>
                   </tr>
                 ))}
               </tbody>

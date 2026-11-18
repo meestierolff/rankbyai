@@ -47,6 +47,8 @@
   --color-line: var(--rb-line);
   --color-border-strong: var(--rb-border-strong);
   --color-border-heavy: var(--rb-border-heavy);
+  --color-track: var(--rb-track);
+  --color-accent-brand: var(--rb-accent);
   --color-fg: var(--rb-fg);
   --color-fg-2: var(--rb-fg-2);
   --color-dim: var(--rb-dim);
@@ -148,6 +150,7 @@
   --secondary-foreground: var(--rb-fg);
   --muted: var(--rb-line);
   --muted-foreground: var(--rb-muted);
+  /* shadcn "accent" is a hover surface, not the brand orange (that is --rb-accent). */
   --accent: var(--rb-line);
   --accent-foreground: var(--rb-fg);
   --destructive: var(--rb-danger);
@@ -200,6 +203,10 @@
   :focus-visible {
     outline: 2px solid var(--rb-fg);
     outline-offset: 2px;
+  }
+  /* Signed-in app and login pages: the focus ring is the brand orange (a small accent, never data). */
+  .rb-app :focus-visible {
+    outline-color: var(--rb-accent);
   }
   [id] {
     scroll-margin-top: 84px;
@@ -355,12 +362,13 @@
   line-height: 1;
   letter-spacing: -0.05em;
 }
+/* The gridded well behind every dot grid in the app and on share pages: same look as lp-grid-well. */
 @utility grid-well {
-  background-color: var(--rb-well);
+  background-color: var(--rb-surface);
   background-image:
-    linear-gradient(#1a1a1a 1px, transparent 1px), linear-gradient(90deg, #1a1a1a 1px, transparent 1px);
-  background-size: 26px 26px;
-  border: 1px solid #1f1f1f;
+    linear-gradient(#171717 1px, transparent 1px), linear-gradient(90deg, #171717 1px, transparent 1px);
+  background-size: 24px 24px;
+  border: 1px solid var(--lp-line-2);
 }
 
 /* Long-form text (legal pages, guides, docs). */

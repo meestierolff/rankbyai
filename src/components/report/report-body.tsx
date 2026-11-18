@@ -444,10 +444,11 @@ function AnswerCard({ a, businessName }: { a: QuotedAnswer; businessName: string
             <div className="flex flex-col gap-2">
               <span className="font-mono text-[11.5px] tracking-[0.1em] text-dim uppercase">Cited</span>
               <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-                {a.cited.map((c) => (
+                {a.cited.map((c, _i, all) => (
                   <li key={c.url}>
                     <a href={c.url} target="_blank" rel="nofollow noopener noreferrer ugc" title={c.title || c.url} className="inline-block max-w-full truncate rounded-full border border-lp-border-2 px-[10px] py-[3px] font-mono text-[12px] text-lp-muted no-underline hover:border-lp-border-3 hover:text-lp-fg">
-                      {c.domain}
+                      {/* Several sources on one site (Gemini cites Google Maps places): name each by its title. */}
+                      {c.title && all.filter((o) => o.domain === c.domain).length > 1 ? c.title.slice(0, 48) : c.domain}
                     </a>
                   </li>
                 ))}

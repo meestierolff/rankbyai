@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CATEGORY_WEIGHTS, numbersIn, runChecks, scoreAudit, type AuditInputs } from "@/lib/audit/checks";
 import { extractFacts } from "@/lib/audit/crawl";
+import { reviewFix } from "@/lib/audit/checks";
 import { pageMath, pagePlan, pagePlanCsv, reviewTarget } from "@/lib/audit/math";
 import type { BusinessInfo } from "@/lib/providers/dataforseo";
 
@@ -152,5 +153,19 @@ describe("score", () => {
     const checks = runChecks(perfect);
     expect(checks.filter((c) => c.status === "fail").map((c) => c.key)).toEqual([]);
     expect(scoreAudit(checks).score).toBe(100);
+  });
+});
+
+describe("review gap advice stays plausible", () => {
+  it("keeps the chosen months while the pace is realistic", () => {
+    expect(reviewFix(74, 25, 3)).toBe("Ask every customer. Aim for 25 new reviews a month for 3 months to reach the median.");
+  });
+  it("spreads a large gap over a year, and states only the gap past that (real audit, 18 Nov 2026: 181 vs 748)", () => {
+    expect(reviewFix(300, 100, 3)).toBe("Ask every customer. The gap is 300 reviews: about 25 new reviews a month closes it in a year.");
+    // The real one: 748 − 181 = 567; 567 ÷ 12 = 48 a month is still not realistic, so only the gap is stated.
+    expect(reviewFix(567, 189, 3)).toBe("Ask every customer after every visit. The gap to the median is 567 reviews, so this is a long-term habit, not a one-month push.");
+  });
+  it("states only the gap when even a year is not realistic", () => {
+    expect(reviewFix(2000, 667, 3)).not.toMatch(/a month/);
   });
 });

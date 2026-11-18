@@ -67,6 +67,17 @@ const skip = (key: string, category: Category, priority: Priority, title: string
 const lc = (s: string | null | undefined) => (s ?? "").toLowerCase();
 const stem = (word: string) => lc(word).replace(/(ists|ers|ies|es|s)$/, (m) => (m === "ies" ? "y" : m === "ists" ? "ist" : m === "ers" ? "er" : "")).slice(0, 12);
 
+/** A monthly review pace a busy practice can plausibly keep up; above it, the advice stretches the period instead. */
+const PLAUSIBLE_REVIEWS_PER_MONTH = 30;
+
+/** The fix line for a review gap: the pace for the chosen months, else over a year, else the gap alone. */
+export function reviewFix(gap: number, monthlyTarget: number, months: number): string {
+  if (monthlyTarget <= PLAUSIBLE_REVIEWS_PER_MONTH) return `Ask every customer. Aim for ${monthlyTarget} new reviews a month for ${months} months to reach the median.`;
+  const yearly = Math.ceil(gap / 12);
+  if (yearly <= PLAUSIBLE_REVIEWS_PER_MONTH) return `Ask every customer. The gap is ${gap} reviews: about ${yearly} new reviews a month closes it in a year.`;
+  return `Ask every customer after every visit. The gap to the median is ${gap} reviews, so this is a long-term habit, not a one-month push.`;
+}
+
 export function runChecks(inp: AuditInputs): CheckResult[] {
   const out: CheckResult[] = [];
   const home = inp.site?.home ?? null;
@@ -237,13 +248,14 @@ export function runChecks(inp: AuditInputs): CheckResult[] {
         { label: "Your reviews", value: String(rt.you) }, { label: "Competitor median", value: String(rt.top3Median) }, { label: "Competitor average", value: String(rt.top3Average) },
         { label: "Competitor maximum", value: String(rt.top3Max) }, { label: "Gap to the median", value: String(rt.gap) }, { label: "Months", value: String(rt.months) },
         { label: "Monthly target", value: `${rt.gap} ÷ ${rt.months} months = ${rt.monthlyTarget} reviews/month` },
+        ...(rt.monthlyTarget > PLAUSIBLE_REVIEWS_PER_MONTH ? [{ label: "Over a year", value: `${rt.gap} ÷ 12 months = ${Math.ceil(rt.gap / 12)} reviews/month` }] : []),
       ],
       impact: "Review count is the most visible gap between a business and the map pack.",
       data: { ...rt },
     };
     out.push(rt.gap <= 0
       ? ok({ ...base, title: `${rt.you} reviews vs a map-pack median of ${rt.top3Median}`, fix: "" })
-      : bad({ ...base, title: `${rt.you} reviews vs a map-pack median of ${rt.top3Median}`, fix: `Ask every customer. Aim for ${rt.monthlyTarget} new reviews a month for ${rt.months} months to reach the median.` }));
+      : bad({ ...base, title: `${rt.you} reviews vs a map-pack median of ${rt.top3Median}`, fix: reviewFix(rt.gap, rt.monthlyTarget, rt.months) }));
   }
   const rivalRatings = rivals.map((r) => r.profile!.rating).filter((n): n is number => n != null);
   const ratingMedian = median(rivalRatings);

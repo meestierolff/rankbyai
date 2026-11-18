@@ -71,22 +71,36 @@ export interface BusinessIdentity {
   placeId?: string | null;
 }
 
+/** Words that only say what kind of practice it is or its legal form. A longer name may add these and still be the same business. */
+const GENERIC_EXTRAS = new Set(["care", "group", "office", "offices", "clinic", "practice", "center", "centre", "dds", "dmd", "md", "pa", "pllc", "professional"]);
+
+/** The name before a branch or location qualifier: "Enamel Dentistry – South Lamar", "Smile Haus (South Austin)", "Dentique: Leila Moghadam, DMD". */
+const headOf = (raw: string) => normalizeName(raw.split(/\s[-–—|]\s|[,(:]/)[0] ?? "");
+
 /**
- * Same business by name: Jaro-Winkler ≥ 0.9 on normalised names, or one name's words all inside the other.
- * Guard: when both names have the same number of words, every word pair must itself be similar. Without it,
- * names that share a long prefix ("Smile Dental North" / "Smile Dental South") score above 0.9 and merge.
+ * Same business by name. Measured on real answers (18 Nov 2026): "South Austin Dentist" was counted as
+ * named when an assistant named "South Austin Dental Associates" and "South Austin Dental Implant Studio",
+ * two other practices, because a long shared prefix scored above the similarity threshold. So:
+ * - equal word counts: every word must match its counterpart (a typo is fine, "Dental" vs "Dentist" is not);
+ * - different word counts: every word of the shorter name must be in the longer one, and the longer one may
+ *   add only generic words ("Care", "DDS") or a qualifier after a dash, bracket, comma or colon.
+ * Letters and digits written with or without spaces count as the same ("Smiles4Kids" / "Smiles 4 Kids").
  */
 export function namesMatch(a: string, b: string): boolean {
   const na = normalizeName(a);
   const nb = normalizeName(b);
   if (!na || !nb) return false;
-  if (na === nb) return true;
+  if (na === nb || na.replace(/ /g, "") === nb.replace(/ /g, "")) return true;
   const ta = na.split(" ");
   const tb = nb.split(" ");
   if (ta.length === tb.length) return ta.every((t, i) => t === tb[i] || jaroWinkler(t, tb[i]) >= 0.88);
-  if (jaroWinkler(na, nb) >= 0.9) return true;
-  const [short, long] = ta.length <= tb.length ? [ta, new Set(tb)] : [tb, new Set(ta)];
-  return short.length >= 2 && short.every((t) => long.has(t));
+  const [shortN, longN, longRaw] = ta.length < tb.length ? [na, nb, b] : [nb, na, a];
+  const shortT = shortN.split(" ");
+  const longT = longN.split(" ");
+  if (headOf(longRaw) === shortN && (shortT.length >= 2 || shortN.length >= 6)) return true;
+  if (shortT.length < 2 || !shortT.every((t) => longT.includes(t))) return false;
+  const shortSet = new Set(shortT);
+  return longT.filter((t) => !shortSet.has(t)).every((t) => GENERIC_EXTRAS.has(t));
 }
 
 /** 1-based position of the business in an ordered list of names, or null. */
@@ -103,7 +117,8 @@ export function mentionedInText(text: string, business: BusinessIdentity): boole
   const phone = normalizePhone(business.phone);
   if (phone && text.replace(/\D/g, "").includes(phone)) return true;
   const n = normalizeName(business.name);
-  return n.length >= 6 && normalizeName(text).includes(n);
+  // Whole words only: "South Austin Dentist" is not inside "South Austin Dentistry".
+  return n.length >= 6 && ` ${normalizeName(text)} `.includes(` ${n} `);
 }
 
 /** Find the business in Maps results: cid or place_id first, then name + domain. */

@@ -239,7 +239,7 @@ function AnswerPdf({ a, businessName }: { a: QuotedAnswer; businessName: string 
               {dropped ? <Text style={[s.small, { marginTop: 3 }]}>[Characters this PDF font cannot draw, such as emoji, are left out.]</Text> : null}
             </View>
           ) : null}
-          {a.cited.length ? <Text style={[s.small, { marginTop: 5 }]}>Cited: {a.cited.map((c) => c.domain).join(", ")}</Text> : null}
+          {a.cited.length ? <Text style={[s.small, { marginTop: 5 }]}>Cited: {[...new Set(a.cited.map((c) => c.domain))].join(", ")}</Text> : null}
         </>
       )}
     </View>

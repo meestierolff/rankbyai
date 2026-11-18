@@ -107,12 +107,31 @@ describe("business matching", () => {
     expect(namesMatch("Mock Rival One", "Mock Rival Two")).toBe(false);
     expect(namesMatch("Northgate Family Dental", "Northgate Familly Dental")).toBe(true); // typo
   });
+  it("does not merge practices that share the start of a name (real answers, 18 Nov 2026)", () => {
+    expect(namesMatch("South Austin Dentist", "South Austin Dental Associates")).toBe(false);
+    expect(namesMatch("South Austin Dentist", "South Austin Dental Implant Studio")).toBe(false);
+    expect(namesMatch("South Austin Dentist", "South Austin Dental")).toBe(false);
+    expect(namesMatch("South Austin Dental", "South Austin Dental Implant Studio")).toBe(false);
+    expect(namesMatch("South Austin Dental Implant Studio", "South Austin Dental")).toBe(false);
+    expect(namesMatch("Daylight Dental", "Daylight Dental South Austin")).toBe(false);
+  });
+  it("still matches the same practice written differently", () => {
+    expect(namesMatch("Enamel Dentistry", "Enamel Dentistry – South Lamar")).toBe(true);
+    expect(namesMatch("Enamel Dentistry – South Lamar", "Enamel Dentistry")).toBe(true);
+    expect(namesMatch("Smile Haus", "Smile Haus (South Austin)")).toBe(true);
+    expect(namesMatch("Dentique", "Dentique: Leila Moghadam, DMD")).toBe(true);
+    expect(namesMatch("Northgate Family Dental", "Northgate Family Dental Care, PLLC")).toBe(true);
+    expect(namesMatch("Smiles4Kids", "Smiles 4 Kids")).toBe(true);
+    expect(namesMatch("Lifetime Smiles Cosmetic Dentistry - South Austin", "Lifetime Smiles Cosmetic Dentistry")).toBe(true);
+  });
   it("position in a list and mention in text", () => {
     expect(positionInNames(["Smile Dental", "Northgate Family Dental LLC"], biz)).toBe(2);
     expect(positionInNames(["Smile Dental"], biz)).toBeNull();
     expect(mentionedInText("Try northgatedental.example for bookings", biz)).toBe(true);
     expect(mentionedInText("Call 512-555-0174 today", biz)).toBe(true);
     expect(mentionedInText("Smile Dental is nice", biz)).toBe(false);
+    expect(mentionedInText("Try Northgate Family Dentistry instead", { name: "Northgate Family Dent" })).toBe(false);
+    expect(mentionedInText("1. **Northgate Family Dental** on Main St", { name: "Northgate Family Dental" })).toBe(true);
   });
   it("finds the business in Maps results by cid, then place_id, then name", () => {
     const items = [

@@ -1,6 +1,6 @@
 import "server-only";
-import { getSessionContext } from "@/lib/auth";
 import { dbAdmin, dbUser, type Db } from "./clients";
+import { currentMember } from "./session";
 
 /**
  * Reads for a signed-in member that must never come back as a fake "nothing here yet".
@@ -43,11 +43,11 @@ export async function memberRead<T>(
   workspaceId: string,
   run: (db: Db, asServer: boolean) => PromiseLike<ReadResult<T>>,
 ): Promise<{ data: T | null; count: number | null }> {
-  const ctx = await getSessionContext();
+  const member = await currentMember();
   // No session, or a workspace other than the session's own: never read, on either path.
-  if (!ctx || ctx.workspace.id !== workspaceId) throw new NotAMemberError();
+  if (!member || member.workspaceId !== workspaceId) throw new NotAMemberError();
 
-  const first = await run(dbUser(ctx.user.id), false);
+  const first = await run(dbUser(member.userId), false);
   if (!first.error) return { data: first.data, count: first.count ?? null };
   console.warn(`[db] ${what}: signed-in read failed (${first.error.code ?? "no code"}); reading as the server`);
   const second = await run(dbAdmin(), true);

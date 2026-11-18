@@ -7,7 +7,15 @@ import { createBatch, discover, processBatch } from "@/lib/prospects/batch";
 
 /** Renders the prospect screens on the server with real data, read through row-level security. */
 const session = vi.hoisted(() => ({ userId: "" }));
-vi.mock("@/lib/db/session", () => ({ currentUserDb: async () => dbUser(session.userId) }));
+vi.mock("@/lib/db/session", () => ({
+  currentUserDb: async () => dbUser(session.userId),
+  // The session's own workspace, as the real module derives it from the verified session.
+  currentMember: async () => {
+    const { sql } = await import("./helpers");
+    const [row] = await sql<{ workspace_id: string }>("select workspace_id from public.workspace_members where user_id = $1 order by created_at limit 1", [session.userId]);
+    return row ? { userId: session.userId, workspaceId: row.workspace_id } : null;
+  },
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {}, refresh: () => {} }), notFound: () => { throw new Error("NOT_FOUND"); } }));
 
 let u: TestUser;

@@ -7,15 +7,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const userDb = { who: "user" };
 const adminDb = { who: "server" };
 const WS = "ws-of-the-session";
-vi.mock("@/lib/auth", () => ({ getSessionContext: async () => session.current }));
+vi.mock("@/lib/db/session", () => ({ currentMember: async () => session.current }));
 vi.mock("@/lib/db/clients", () => ({ dbAdmin: () => adminDb, dbUser: () => userDb }));
-const session: { current: { user: { id: string }; workspace: { id: string } } | null } = { current: { user: { id: "u1" }, workspace: { id: WS } } };
+const session: { current: { userId: string; workspaceId: string } | null } = { current: { userId: "u1", workspaceId: WS } };
 
 const { memberRead, NotAMemberError } = await import("@/lib/db/member-read");
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  session.current = { user: { id: "u1" }, workspace: { id: WS } };
+  session.current = { userId: "u1", workspaceId: WS };
 });
 
 describe("memberRead", () => {

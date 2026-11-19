@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { usd0, usdSmart } from "@/lib/cost/estimate";
+import { usd0, usdSmart, type ScenarioCosts } from "@/lib/cost/estimate";
 import { fmtPrice } from "@/lib/ladder";
 import { COMPETITORS, COMPETITOR_PRICES_DATE, REFUND_DAYS, SCENARIO } from "@/lib/pricing-constants";
 import { CreamLink } from "./lp";
@@ -72,12 +72,15 @@ const STRUCK = "font-mono text-[clamp(30px,3.6vw,42px)] leading-none font-semibo
 
 /**
  * Hero. The offer is the first thing a visitor sees: two competitor list prices struck through
- * and ours next to them, for one published scenario. `scenarioYearUsd` is the data cost of that
- * scenario [estimate], computed on the server from the same constant the compare table uses.
+ * and ours next to them, for one published scenario. `costs` holds the data cost of that scenario
+ * and of its AI row [estimate], computed on the server from the same constants the compare table uses.
+ * The AI row sits right under our figure: the headline sells AI visibility, so the Maps-only number
+ * is never shown alone.
  */
-export function Hero({ scenarioYearUsd }: { scenarioYearUsd: number }) {
+export function Hero({ costs }: { costs: ScenarioCosts }) {
   const { offer } = useOffer();
   const priced = offer?.open ? offer : null;
+  const once = priced ? priced.currentPriceUsd : 0;
   return (
     <section id="top" className="relative isolate flex flex-col items-center overflow-hidden bg-lp-bg px-6 pt-10 pb-16 text-lp-fg">
       <HeroGlow />
@@ -115,17 +118,24 @@ export function Hero({ scenarioYearUsd }: { scenarioYearUsd: number }) {
           <div className="text-center">
             <div className="font-mono text-[clamp(34px,4.2vw,50px)] leading-none font-semibold text-lp-ours">
               <span className="text-[0.6em] text-lp-ours-dim">≈ </span>
-              {usd0((priced ? priced.currentPriceUsd : 0) + scenarioYearUsd)}
+              {usd0(once + costs.mapsUsd)}
             </div>
             <div className="mt-[10px] text-[14.5px] text-lp-fg">
               {priced ? "RankbyAI, on your own keys" : "RankbyAI data on your own keys, plus the one-time price"}
             </div>
           </div>
         </div>
+        <div className="mt-[16px] flex flex-wrap items-baseline justify-center gap-x-2 gap-y-[2px] border-t border-[rgba(255,255,255,0.08)] pt-[12px] text-center text-[13.5px] leading-[1.45] text-[#bdbdbd]">
+          <span>Add AI grids ({SCENARIO.aiLabel}):</span>
+          <span className="font-mono font-semibold whitespace-nowrap text-lp-ours">≈ {usd0(once + costs.mapsUsd + costs.aiUsd)}</span>
+          <span className="whitespace-nowrap text-lp-dim">{priced ? "in year one" : "a year, plus the one-time price"}</span>
+        </div>
         {/* Required with every competitor price: its source and date. Also says what our number is made of. */}
         <div className="mt-[10px] text-center text-[12px] leading-[1.4] text-lp-dim">
           Yearly list prices from their pricing pages, {COMPETITOR_PRICES_DATE}.
-          {priced ? ` Ours: ${fmtPrice(priced.currentPriceUsd)} once plus ≈ ${usd0(scenarioYearUsd)} of Maps data [estimate].` : " Ours is an estimate."}{" "}
+          {priced
+            ? ` Ours: ${fmtPrice(priced.currentPriceUsd)} once plus ≈ ${usd0(costs.mapsUsd)} of Maps data, or ≈ ${usd0(costs.mapsUsd + costs.aiUsd)} with the AI grids [estimate].`
+            : " Ours is an estimate."}{" "}
           <span className="underline underline-offset-[3px]">How we calculated this</span>
         </div>
       </a>

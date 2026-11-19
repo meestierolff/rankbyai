@@ -147,9 +147,19 @@ export const SCENARIO = {
     "An agency tracks 10 clients, 3 prompts each, every week on a 7×7 Google Maps grid: 1,560 grids and 76,440 grid points a year.",
   /** Grid points a year: 30 prompts × 52 weeks × 49 points. Asserted in tests/unit/pricing.test.ts. */
   mapsPointsPerYear: 76_440,
+  /**
+   * The AI half of the same scenario, shown as its own row next to the Maps figure so the site never
+   * sells AI visibility on a Maps-only number: the same 30 prompts as weekly 3×3 AI grids on all
+   * three engines. Competitor cells for this row repeat only what the compare table records.
+   */
+  aiGrid: 3 as AiGridSize,
+  aiLabel: "weekly 3×3 AI grids on 3 engines, same 30 prompts",
+  aiDescription: "The AI row adds the same 30 prompts as weekly 3×3 AI grids on ChatGPT, Perplexity and Gemini: 42,120 AI answers a year.",
+  /** AI answers a year: 30 prompts × 52 weeks × 9 points × 3 engines. Asserted in tests/unit/pricing.test.ts. */
+  aiAnswersPerYear: 42_120,
   coverageDate: "18 Nov 2026",
   coverage:
-    "Plan fit checked on the vendors' own pages on 18 Nov 2026: Local Falcon charges one credit per grid point and Starter billed yearly includes 90,000 credits; BrightLocal states that every plan includes a 7×7 grid with up to 5 keywords and that reports can run weekly.",
+    "Plan fit for the Maps grids checked on the vendors' own pages on 18 Nov 2026: Local Falcon charges one credit per grid point and Starter billed yearly includes 90,000 credits; BrightLocal states that every plan includes a 7×7 grid with up to 5 keywords and that reports can run weekly.",
 };
 /** Local Falcon Starter, billed yearly: credits per year (brief 9.12; localfalcon.com/pricing). */
 export const LOCAL_FALCON_STARTER_CREDITS_PER_YEAR = 90_000;

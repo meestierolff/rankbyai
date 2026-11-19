@@ -94,8 +94,8 @@ function FeatureRow({ title, children, links, visual, visualFirst = false }: { t
   );
 }
 
-/** The three feature rows: AI grid, your own keys, API and MCP. */
-export function FeatureRows() {
+/** The three feature rows: AI grid, your own keys, API and MCP. `packsOpen` comes from lib/availability. */
+export function FeatureRows({ packsOpen }: { packsOpen: boolean }) {
   return (
     <section id="features" className="pt-[140px] pb-[120px] text-lp-fg">
       <div className="container-lp flex flex-col gap-[170px]">
@@ -110,7 +110,7 @@ export function FeatureRows() {
             <>
               <LpTextLink href="#calc">Run your own numbers</LpTextLink>
               <Link href="#packs" className="text-[14px] text-lp-dim no-underline transition-colors hover:text-lp-fg">
-                No keys? Buy included scans
+                {packsOpen ? "No keys? Buy included scans" : "Included scans, no keys: coming soon"}
               </Link>
             </>
           }
@@ -128,10 +128,11 @@ export function FeatureRows() {
   );
 }
 
-const HOW = [
+/** The three steps. Step one names the keys a buyer needs today; included scans only once they are on sale. */
+const howSteps = (packsOpen: boolean) => [
   {
     title: "Add your keys.",
-    body: "Paste a key, we test it and show the balance where the vendor exposes one. Keys are encrypted before they are stored. No keys? Buy included scans and skip this step.",
+    body: `A DataForSEO login and at least one AI key (OpenAI, Perplexity or Gemini). Paste a key, we test it and show the balance where the vendor exposes one. Keys are encrypted before they are stored. ${packsOpen ? "No keys? Buy included scans and skip this step." : "Included scans that skip this step are coming soon."}`,
   },
   { title: "Add a business.", body: "Search it by name and confirm the Google listing." },
   { title: "Run a check.", body: "Pick a prompt and a grid, see the cost, hit run. The grid fills in point by point." },
@@ -146,7 +147,8 @@ const SECURITY = [
 ];
 
 /** How it works, then key security. */
-export function HowItWorks() {
+export function HowItWorks({ packsOpen }: { packsOpen: boolean }) {
+  const steps = howSteps(packsOpen);
   return (
     <section id="how" className="py-[130px] text-lp-fg">
       <div className="container-lp">
@@ -154,7 +156,7 @@ export function HowItWorks() {
           From signup to first AI grid in about five minutes.
         </h2>
         <ol className="m-0 mt-14 grid list-none grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-8 p-0">
-          {HOW.map((h, i) => (
+          {steps.map((h, i) => (
             <li key={h.title} className="border-t border-[#2a2a2a] pt-[22px]">
               <div aria-hidden className="font-mono text-[13px] leading-[1.3] text-lp-accent-text">
                 {String(i + 1).padStart(2, "0")}

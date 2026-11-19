@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRef, type ReactNode } from "react";
-import { usd0, usdSmart } from "@/lib/cost/estimate";
+import { usd0, usdSmart, type ScenarioCosts } from "@/lib/cost/estimate";
 import { fmtPrice, formatClosesAt, heatFor } from "@/lib/ladder";
 import { largerMapsGridsText, largestOneCreditMapsGrid } from "@/lib/cost/credits";
-import { COMPETITORS, COMPETITOR_PRICES_DATE, CREDIT_COST, FAIR_USE, MAPS_GRID_RANGE, PACKS, REFUND_DAYS, SCENARIO } from "@/lib/pricing-constants";
+import { COMPETITORS, COMPETITOR_PRICES_DATE, CREDIT_COST, FAIR_USE, GEMINI, MAPS_GRID_RANGE, PACKS, REFUND_DAYS, SCENARIO } from "@/lib/pricing-constants";
 import { cn } from "@/lib/utils";
 import { Bezel, CreamLink } from "./lp";
 import { BUY_HREF, useOffer, useOfferWatch, type LiveOffer } from "./offer-context";
@@ -30,7 +30,7 @@ const cardPad = "p-[clamp(20px,4vw,32px)]";
  * Three states everywhere: the offer is unavailable (no price), the deal is closed, the deal is open.
  * `packsOpen` says whether scan packs can be bought in this deployment (lib/availability, server side).
  */
-export function Pricing({ scenarioYearUsd, packsOpen = false }: { scenarioYearUsd: number; packsOpen?: boolean }) {
+export function Pricing({ costs, packsOpen = false }: { costs: ScenarioCosts; packsOpen?: boolean }) {
   const ref = useRef<HTMLElement>(null);
   useOfferWatch(ref);
   const { offer } = useOffer();
@@ -77,7 +77,7 @@ export function Pricing({ scenarioYearUsd, packsOpen = false }: { scenarioYearUs
           <div className={cn("min-w-0", cardPad)}>
             <Kicker>Lifetime access</Kicker>
             {live ? (
-              <PriceCard offer={live} />
+              <PriceCard offer={live} packsOpen={packsOpen} />
             ) : closed ? (
               <>
                 <p className="mt-[14px] mb-0 text-[22px] leading-[1.2] font-semibold tracking-[-0.03em]">The lifetime deal has closed.</p>
@@ -134,15 +134,29 @@ export function Pricing({ scenarioYearUsd, packsOpen = false }: { scenarioYearUs
                 {usdSmart(plan.yearUsd)} <span className="text-lp-dim">/yr</span>
               </dd>
             </div>
-            <div className="flex justify-between gap-4 border-t border-lp-line pt-3">
+            <div className="flex justify-between gap-4 border-t border-lp-line py-3">
               <dt className="text-lp-muted">
-                {live ? "RankbyAI: once, plus data on your own keys" : "RankbyAI: data on your own keys"} <span className="text-lp-dim">[estimate]</span>
+                {live ? "RankbyAI: once, plus Maps data on your own keys" : "RankbyAI: Maps data on your own keys"} <span className="text-lp-dim">[estimate]</span>
               </dt>
               <dd className="m-0 font-mono whitespace-nowrap text-lp-accent-text">
-                {live ? `${fmtPrice(live.currentPriceUsd)} once + ` : ""}≈ {usd0(scenarioYearUsd)} <span className="text-lp-dim">/yr</span>
+                {live ? `${fmtPrice(live.currentPriceUsd)} once + ` : ""}≈ {usd0(costs.mapsUsd)} <span className="text-lp-dim">/yr</span>
+              </dd>
+            </div>
+            {/* The AI row: the hero sells AI visibility, so the math never stops at the Maps-only figure. */}
+            <div className="flex justify-between gap-4 border-t border-lp-line pt-3">
+              <dt className="text-lp-muted">
+                With AI grids too: {SCENARIO.aiLabel} <span className="text-lp-dim">[estimate]</span>
+              </dt>
+              <dd className="m-0 font-mono whitespace-nowrap text-lp-accent-text">
+                {live ? `${fmtPrice(live.currentPriceUsd)} once + ` : ""}≈ {usd0(costs.mapsUsd + costs.aiUsd)} <span className="text-lp-dim">/yr</span>
               </dd>
             </div>
           </dl>
+          <p className="mt-3 mb-0 text-[12px] leading-[1.55] text-lp-dim">
+            {plan.name} Track includes an AI visibility tracker in the plan price; we did not check its limits against these grids. Our AI figure assumes Gemini stays inside its free allowance of{" "}
+            {GEMINI.freeGroundedRequestsPerMonth.toLocaleString("en-US")} grounded requests a month; if your key already uses it up, add about{" "}
+            {usd0(costs.geminiOverAllowanceUsd)} a year.
+          </p>
         </div>
       </div>
 
@@ -155,7 +169,7 @@ export function Pricing({ scenarioYearUsd, packsOpen = false }: { scenarioYearUs
             </p>
             {packsOpen ? null : (
               <p role="note" className="mt-[10px] mb-0 text-[13px] leading-[1.55] text-lp-fg-2">
-                Scan packs are not open yet. Scans on your own API keys work today.
+                Coming soon: scan packs are not on sale yet. Scans on your own API keys work today.
               </p>
             )}
           </div>
@@ -169,7 +183,7 @@ export function Pricing({ scenarioYearUsd, packsOpen = false }: { scenarioYearUs
                 <span className={cn("font-display text-[26px] leading-none font-bold", !packsOpen && "text-lp-muted")}>{fmtPrice(p.priceCents / 100)}</span>
                 {packsOpen ? null : (
                   <span className="rounded-[5px] border border-lp-border-2 px-[6px] py-[2px] font-mono text-[10.5px] tracking-[0.06em] whitespace-nowrap text-lp-dim uppercase">
-                    Not open yet
+                    Coming soon
                   </span>
                 )}
               </div>
@@ -191,7 +205,7 @@ function Kicker({ children }: { children: ReactNode }) {
 }
 
 /** Left column while the deal is open: price, seat counter, ladder, call to action. */
-function PriceCard({ offer }: { offer: LiveOffer }) {
+function PriceCard({ offer, packsOpen }: { offer: LiveOffer; packsOpen: boolean }) {
   const left = offer.seatsLeftAtCurrentPrice;
   const seats = offer.seatsPerStep;
   const price = fmtPrice(offer.currentPriceUsd);
@@ -257,7 +271,12 @@ function PriceCard({ offer }: { offer: LiveOffer }) {
         You save {fmtPrice(step)} vs the next tier and {fmtPrice(step * 4)} vs buyers four tiers from now.
       </p>
 
-      <CreamLink href={BUY_HREF} size="block" className="mt-6 px-5 py-[15px] text-[16.5px] font-medium">
+      {/* What a buyer needs before the first scan, right where they decide to pay. */}
+      <p className="mt-6 mb-0 rounded-[10px] border border-lp-line-2 px-[14px] py-[10px] text-[13.5px] leading-[1.55] text-lp-fg-2">
+        <span className="text-lp-fg">You&apos;ll need:</span> a DataForSEO login and one AI key (OpenAI, Perplexity or Gemini), all pay-as-you-go.
+        {packsOpen ? " Or buy included scans below and skip the keys." : " Included scans without keys are coming soon."}
+      </p>
+      <CreamLink href={BUY_HREF} size="block" className="mt-3 px-5 py-[15px] text-[16.5px] font-medium">
         Lock in {price} now
       </CreamLink>
       <p className="mt-3 mb-0 text-center text-[12.5px] leading-[1.55] text-lp-dim">

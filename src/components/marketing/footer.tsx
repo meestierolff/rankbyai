@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { NOT_AFFILIATED } from "@/lib/copy";
 import { legalEnv } from "@/lib/env";
+import { hasRegionalPages } from "@/lib/regional";
 import { SEO_PAGES } from "@/lib/seo-pages";
 import { FooterMark } from "./footer-mark";
 import { DotMark, LpWordmark } from "./lp";
@@ -27,8 +28,12 @@ const shortTitle = (path: string, title: string) =>
 
 const linkClass = "text-lp-muted no-underline transition-colors hover:text-lp-fg";
 
-/** 9.16 Footer. The operator line comes from LEGAL_* env; nothing is invented when they are unset. */
-export function Footer({ padForStickyBar = false }: { padForStickyBar?: boolean }) {
+/**
+ * 9.16 Footer. The operator line comes from LEGAL_* env; nothing is invented when they are unset.
+ * "AI by city" shows only once a regional page is public (a cached read, so it joins the static shell).
+ */
+export async function Footer({ padForStickyBar = false }: { padForStickyBar?: boolean }) {
+  const productLinks = (await hasRegionalPages()) ? PRODUCT_LINKS : PRODUCT_LINKS.filter((l) => l.href !== "/ai");
   const entity = legalEnv.entityName();
   const address = legalEnv.address();
   const email = legalEnv.email();
@@ -50,7 +55,7 @@ export function Footer({ padForStickyBar = false }: { padForStickyBar?: boolean 
         </div>
         <nav aria-label="Footer" className="grid grid-cols-3 content-start gap-x-5 gap-y-3 text-[15px]">
           <div className="flex flex-col gap-3">
-            {PRODUCT_LINKS.map((l) => <Link key={l.href} href={l.href} className={linkClass}>{l.label}</Link>)}
+            {productLinks.map((l) => <Link key={l.href} href={l.href} className={linkClass}>{l.label}</Link>)}
             {email ? <a href={`mailto:${email}`} className={linkClass}>Contact</a> : null}
           </div>
           <div className="flex flex-col gap-3">

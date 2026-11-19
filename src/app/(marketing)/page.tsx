@@ -12,10 +12,11 @@ import { Hero } from "@/components/marketing/hero";
 import { LandingView } from "@/components/marketing/landing-view";
 import { OfferProvider } from "@/components/marketing/offer-context";
 import { Pricing } from "@/components/marketing/pricing";
+import { RealDataLink } from "@/components/marketing/real-data";
 import { FeatureRows, HowItWorks, Problem } from "@/components/marketing/sections";
 import { TopBanner } from "@/components/marketing/top-banner";
 import { Tour } from "@/components/marketing/tour";
-import { scenarioYearlyDataCost } from "@/lib/cost/estimate";
+import { scenarioCosts } from "@/lib/cost/estimate";
 import { miscEnv } from "@/lib/env";
 import { freeCheckOpen, packsOpen } from "@/lib/availability";
 import { buildFaq } from "@/lib/faq";
@@ -38,9 +39,10 @@ export default async function HomePage() {
   const result = await getOfferCached();
   const live = result.available ? { ...result.offer, paidTotal: result.paidTotal } : null;
   const offer = result.available ? result.offer : null;
-  const faq = buildFaq(offer);
-  // The published comparison scenario [estimate]: one number, used by hero, pricing and compare.
-  const scenarioYearUsd = scenarioYearlyDataCost().totalUsdPerYear;
+  const packs = packsOpen();
+  const faq = buildFaq(offer, { packsOpen: packs });
+  // The published comparison scenario [estimate]: one set of numbers, used by hero, pricing and compare.
+  const costs = scenarioCosts();
 
   return (
     <OfferProvider initial={live}>
@@ -51,14 +53,15 @@ export default async function HomePage() {
         <TopBanner />
         <Header />
         <main>
-          <Hero scenarioYearUsd={scenarioYearUsd} />
+          <Hero costs={costs} />
           <Tour />
+          <RealDataLink />
           <Problem />
-          <FeatureRows />
+          <FeatureRows packsOpen={packs} />
           <Features />
-          <HowItWorks />
-          <Pricing scenarioYearUsd={scenarioYearUsd} packsOpen={packsOpen()} />
-          <Compare scenarioYearUsd={scenarioYearUsd} />
+          <HowItWorks packsOpen={packs} />
+          <Pricing costs={costs} packsOpen={packs} />
+          <Compare costs={costs} />
           <Calculator />
           <Faq items={faq} />
           <FreeCheck turnstileSiteKey={miscEnv.turnstileSiteKey()} open={freeCheckOpen()} />

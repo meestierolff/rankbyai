@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { KeyCards, type KeyCard } from "@/components/app/key-cards";
 import { PageHeader } from "@/components/app/ui";
 import { requireSession } from "@/lib/auth";
+import { packsOpen } from "@/lib/availability";
 import { miscEnv } from "@/lib/env";
 import { isMockMode } from "@/lib/mock";
 import { getKeyStatuses } from "@/lib/workspace-data";
@@ -66,7 +67,7 @@ export default async function KeysPage() {
       ) : null}
       <p className="mb-5 max-w-[760px] text-[14px] leading-normal text-muted-foreground">
         Minimum to start: DataForSEO for Maps grids and the audit, and at least one AI key for AI checks. Vendors bill you directly at their
-        rates. No keys? Use included scans from the Billing page.
+        rates.{packsOpen() ? " No keys? Use included scans from the Billing page." : " Included scans without keys are coming soon."}
       </p>
       <KeyCards cards={cards} canEdit={ctx.role === "owner"} />
     </>

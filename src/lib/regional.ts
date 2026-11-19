@@ -44,6 +44,14 @@ export async function listRegionalPagesCached(): Promise<RegionalPage[]> {
   return listRegionalPages(true).catch(() => []);
 }
 
+/**
+ * Whether any regional page is public. Until one is, links to /ai stay off the footer, sitemap and
+ * llms.txt: a visitor following "AI by city" should find real data, not an empty index.
+ */
+export async function hasRegionalPages(): Promise<boolean> {
+  return (await listRegionalPagesCached()).length > 0;
+}
+
 /** Cached page lookup: a regional page changes at most once a day. */
 export async function getRegionalPageCached(niche: string, city: string): Promise<RegionalPage | null> {
   "use cache";

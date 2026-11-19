@@ -1,9 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { usd0, usd2, usdSmart } from "@/lib/cost/estimate";
+import { usd0, usd2, usdSmart, type ScenarioCosts } from "@/lib/cost/estimate";
 import { fmtPrice } from "@/lib/ladder";
-import { COMPETITOR_PRICES_DATE, COMPETITORS, LOCAL_FALCON_STARTER_CREDITS_PER_YEAR, SCENARIO } from "@/lib/pricing-constants";
+import { COMPETITOR_PRICES_DATE, COMPETITORS, GEMINI, LOCAL_FALCON_STARTER_CREDITS_PER_YEAR, SCENARIO } from "@/lib/pricing-constants";
 import { cn } from "@/lib/utils";
 import { Bezel } from "./lp";
 import { useOffer } from "./offer-context";
@@ -17,11 +17,12 @@ const OURS = "bg-[rgba(255,122,26,0.07)]";
  * 9.12 Compare. ONLY the verified figures from the brief, with the date: every competitor price
  * is read from COMPETITORS. Never claim to be first or only.
  */
-export function Compare({ scenarioYearUsd }: { scenarioYearUsd: number }) {
+export function Compare({ costs }: { costs: ScenarioCosts }) {
   const { offer } = useOffer();
   const live = offer?.open ? offer : null;
   const price = live ? fmtPrice(live.currentPriceUsd) : "the lifetime price";
-  const data = usd0(scenarioYearUsd);
+  const data = usd0(costs.mapsUsd);
+  const withAi = usd0(costs.mapsUsd + costs.aiUsd);
   const { localfalcon: lf, brightlocal: bl, whitespark: ws, semrush: sr } = COMPETITORS;
 
   const rows: { label: string; cells: [ReactNode, ReactNode, ReactNode, ReactNode, ReactNode] }[] = [
@@ -30,12 +31,24 @@ export function Compare({ scenarioYearUsd }: { scenarioYearUsd: number }) {
       label: "Year 1",
       cells: [
         <span key="ours" className="font-semibold">
-          {live ? `${price} + ` : ""}≈ {data} data <span className="font-normal text-lp-muted">[estimate]</span>
+          {live ? `${price} + ` : ""}≈ {data} Maps data <span className="font-normal text-lp-muted">[estimate]</span>
         </span>,
         `${usdSmart(lf.yearUsd)} (${LOCAL_FALCON_STARTER_CREDITS_PER_YEAR.toLocaleString("en-US")} credits/yr)`,
         usdSmart(bl.yearUsd),
         ws.yearLabel,
         `${priceOnly(sr.yearLabel)} (see note)`,
+      ],
+    },
+    {
+      label: "Year 1 with AI grids",
+      cells: [
+        <span key="ours" className="font-semibold">
+          {live ? `${price} + ` : ""}≈ {withAi} data <span className="font-normal text-lp-muted">(Maps + {SCENARIO.aiLabel}) [estimate]</span>
+        </span>,
+        "AI scans use the same credits (per-point AI credit rate not shown on its pricing page); whether Starter covers these grids was not checked",
+        "“Local AI Visibility Tracker” included in Track; its limits for these grids were not checked",
+        "Not listed on its pricing page",
+        "Not recorded (price only)",
       ],
     },
     { label: "Monthly equivalent", cells: ["none", lf.monthlyEquivalent, bl.monthlyEquivalent, priceOnly(ws.yearLabel), priceOnly(sr.yearLabel)] },
@@ -90,7 +103,7 @@ export function Compare({ scenarioYearUsd }: { scenarioYearUsd: number }) {
           <div className="overflow-x-auto focus-visible:-outline-offset-2" tabIndex={0} role="region" aria-label="Comparison table">
             <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-[13.5px] leading-[1.5] text-lp-muted">
               <caption className="caption-top border-b border-lp-line px-4 py-[14px] text-left text-[13px] text-lp-muted">
-                <span className="text-lp-fg-2">Scenario:</span> {SCENARIO.description}
+                <span className="text-lp-fg-2">Scenario:</span> {SCENARIO.description} {SCENARIO.aiDescription}
               </caption>
               <colgroup>
                 <col className="w-[150px]" />
@@ -134,7 +147,8 @@ export function Compare({ scenarioYearUsd }: { scenarioYearUsd: number }) {
           {sr.name} {sr.plan} is listed at {priceOnly(sr.yearLabel)} as verified by the operator on {COMPETITOR_PRICES_DATE} (currency as given);
           other {sr.name} cells are marked not recorded because only that monthly price was verified. Their plans include features we don&apos;t
           (e.g. citation building, Apple Maps, reputation tools). RankbyAI data costs are our estimate from the vendors&apos; published API prices
-          on the same date. {SCENARIO.coverage} Trademarks belong to their owners; we&apos;re not affiliated.
+          on the same date. The AI row assumes Gemini stays inside its free allowance of {GEMINI.freeGroundedRequestsPerMonth.toLocaleString("en-US")}{" "}
+          grounded requests a month; beyond it, add about {usd0(costs.geminiOverAllowanceUsd)} a year. {SCENARIO.coverage} Trademarks belong to their owners; we&apos;re not affiliated.
         </p>
       </div>
     </section>

@@ -66,6 +66,10 @@ export default async function BillingPage() {
                 </p>
               </div>
               <div className="flex w-full max-w-[380px] flex-col gap-3">
+                <p className="m-0 rounded-lg border border-border px-3 py-2 text-[13.5px] leading-normal text-muted-foreground">
+                  <span className="text-fg">You&apos;ll need:</span> a DataForSEO login and one AI key (OpenAI, Perplexity or Gemini), all pay-as-you-go.
+                  {packsAvailable ? " Or buy included scans below." : " Included scans without keys are coming soon."}
+                </p>
                 <BuyLifetimeButton offer={offer} />
                 <p className="m-0 text-[13px] leading-normal text-dim">
                   Secure checkout by Stripe. {REFUND_DAYS}-day refund, no questions. See the <Link href="/refunds" className="underline underline-offset-2">refund policy</Link> and <Link href="/terms" className="underline underline-offset-2">terms</Link>.

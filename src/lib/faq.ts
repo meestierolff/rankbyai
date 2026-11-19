@@ -8,8 +8,16 @@ export interface FaqItem {
   a: string;
 }
 
-/** Home FAQ (brief 9.14). One list feeds both the visible accordion and the FAQPage JSON-LD. */
-export function buildFaq(offer: Offer | null): FaqItem[] {
+/**
+ * Home FAQ (brief 9.14). One list feeds both the visible accordion and the FAQPage JSON-LD.
+ * `packsOpen` (lib/availability) decides whether included scans are offered or said to be coming:
+ * a buyer must never pay for lifetime access expecting to need no keys while packs are closed.
+ */
+export function buildFaq(offer: Offer | null, { packsOpen }: { packsOpen: boolean }): FaqItem[] {
+  const packs = `${PACKS.pack_25.credits} for $${PACKS.pack_25.priceCents / 100} or ${PACKS.pack_100.credits} for $${PACKS.pack_100.priceCents / 100}`;
+  const noKeys = packsOpen
+    ? `If you would rather not manage keys, buy included scans: ${packs}.`
+    : `Included scans that need no keys (${packs}) are coming soon but not on sale yet, so for now every scan runs on your own keys.`;
   const g3 = estimateAiGrid(3, ENGINES).rangeUsd;
   const maps = estimateMapsGrid(7, "standard").totalUsd;
   const ladder = offer
@@ -27,7 +35,7 @@ export function buildFaq(offer: Offer | null): FaqItem[] {
     },
     {
       q: "Which API keys do I need?",
-      a: `A DataForSEO account for Maps grids and the audit, and at least one of OpenAI, Perplexity or Gemini for AI checks. All are pay-as-you-go. Gemini needs a billing-enabled key, because Google does not offer Maps grounding on its free tier. If you would rather not manage keys, buy included scans: ${PACKS.pack_25.credits} for $${PACKS.pack_25.priceCents / 100} or ${PACKS.pack_100.credits} for $${PACKS.pack_100.priceCents / 100}.`,
+      a: `A DataForSEO account for Maps grids and the audit, and at least one of OpenAI, Perplexity or Gemini for AI checks. All are pay-as-you-go. Gemini needs a billing-enabled key, because Google does not offer Maps grounding on its free tier. ${noKeys}`,
     },
     {
       q: "What does a check really cost?",

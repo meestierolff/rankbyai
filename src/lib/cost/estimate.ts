@@ -1,6 +1,7 @@
 import {
   AI_SAMPLE_EST_USD,
   DATAFORSEO_MAPS_PER_POINT,
+  ENGINES,
   GEMINI,
   SCENARIO,
   type AiGridSize,
@@ -134,6 +135,37 @@ export function scenarioYearlyDataCost(): CalculatorResult {
     geminiFreeAllowance: true,
     mapsGrid: SCENARIO.mapsGrid,
   });
+}
+
+/** The same prompts as weekly AI grids on all three engines (the scenario's AI row) [estimate]. */
+export function scenarioYearlyAiCost(geminiFreeAllowance = true): CalculatorResult {
+  return calculateYearlyDataCost({
+    prompts: SCENARIO.clients * SCENARIO.promptsPerClient,
+    aiGrid: SCENARIO.aiGrid,
+    engines: [...ENGINES],
+    frequency: SCENARIO.frequency,
+    geminiFreeAllowance,
+    mapsGrid: 0,
+  });
+}
+
+/** Everything the hero, pricing card and compare table show for the scenario, computed once on the server. */
+export interface ScenarioCosts {
+  /** Maps data a year (the headline scenario). */
+  mapsUsd: number;
+  /** AI data a year for the AI row, with Gemini inside its free grounding allowance. */
+  aiUsd: number;
+  /** What the AI row adds a year if the Gemini allowance is already used up elsewhere. */
+  geminiOverAllowanceUsd: number;
+}
+
+export function scenarioCosts(): ScenarioCosts {
+  const ai = scenarioYearlyAiCost(true).totalUsdPerYear;
+  return {
+    mapsUsd: scenarioYearlyDataCost().totalUsdPerYear,
+    aiUsd: ai,
+    geminiOverAllowanceUsd: scenarioYearlyAiCost(false).totalUsdPerYear - ai,
+  };
 }
 
 export const usd0 = (v: number) => "$" + Math.round(v).toLocaleString("en-US");

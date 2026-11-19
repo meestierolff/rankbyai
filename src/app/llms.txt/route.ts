@@ -1,7 +1,9 @@
+import { packsOpen } from "@/lib/availability";
 import { AI_DISCLAIMER_TEXT } from "@/lib/copy";
 import { publicEnv } from "@/lib/env";
 import { fmtPrice, formatClosesAt } from "@/lib/ladder";
 import { getOfferCached } from "@/lib/offer";
+import { hasRegionalPages } from "@/lib/regional";
 import { MAPS_GRID_RANGE, PACKS, REFUND_DAYS } from "@/lib/pricing-constants";
 import { STATIC_PAGES } from "@/lib/site-pages";
 
@@ -12,6 +14,9 @@ export async function GET() {
   const pricing = result.available
     ? `The lifetime price starts at ${fmtPrice(result.offer.basePriceUsd)} and rises ${fmtPrice(result.offer.stepUsd)} every ${result.offer.seatsPerStep} sales until ${formatClosesAt(result.offer.closesAt)}. The live price and count are at ${site}/api/offer.`
     : `The lifetime price rises by a fixed step after every few sales. The live price and count are at ${site}/api/offer.`;
+  const packs = `${PACKS.pack_25.credits} credits for $${PACKS.pack_25.priceCents / 100}, ${PACKS.pack_100.credits} credits for $${PACKS.pack_100.priceCents / 100}`;
+  const open = packsOpen();
+  const regional = await hasRegionalPages();
 
   const body = `# RankbyAI
 
@@ -28,11 +33,11 @@ Local-marketing agencies and freelancers in the US and UK who track and report l
 - REST API and MCP server.
 
 ## How it works
-Scans run through official APIs only (DataForSEO for Google Maps results, OpenAI, Perplexity and Gemini for AI answers), on the customer's own API keys at the vendors' prices, or on optional included-scan packs. ${AI_DISCLAIMER_TEXT}
+Scans run through official APIs only (DataForSEO for Google Maps results, OpenAI, Perplexity and Gemini for AI answers), on the customer's own API keys at the vendors' prices${open ? ", or on optional included-scan packs" : ""}. ${AI_DISCLAIMER_TEXT}
 
 ## Pricing
 - One payment, no subscription. ${pricing}
-- Optional included-scan packs: ${PACKS.pack_25.credits} credits for $${PACKS.pack_25.priceCents / 100}, ${PACKS.pack_100.credits} credits for $${PACKS.pack_100.priceCents / 100}. Credits never expire.
+- ${open ? `Optional included-scan packs: ${packs}. Credits never expire.` : `Included-scan packs (${packs}) are coming soon and not on sale yet; today every scan needs the customer's own DataForSEO login and at least one AI key.`}
 - ${REFUND_DAYS}-day refund, no questions.
 
 ## What it is not
@@ -41,7 +46,7 @@ Scans run through official APIs only (DataForSEO for Google Maps results, OpenAI
 - It does not guarantee rankings or AI recommendations, and it does not contact businesses or send email for its users.
 
 ## Pages
-${STATIC_PAGES.filter((p) => p.inLlms).map((p) => `- [${p.title}](${site}${p.path === "/" ? "/" : p.path})`).join("\n")}
+${STATIC_PAGES.filter((p) => p.inLlms && (p.path !== "/ai" || regional)).map((p) => `- [${p.title}](${site}${p.path === "/" ? "/" : p.path})`).join("\n")}
 - [Pricing](${site}/#pricing)
 `;
   return new Response(body, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=300" } });

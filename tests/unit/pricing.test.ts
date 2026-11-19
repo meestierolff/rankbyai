@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAPS_WORST_CASE_PER_POINT_USD, mapsCredits, mapsRunUsd, scanCreditsFor, withinCap } from "@/lib/cost/credits";
-import { calculateYearlyDataCost, estimateAiGrid, estimateMapsGrid, scenarioYearlyDataCost } from "@/lib/cost/estimate";
+import { calculateYearlyDataCost, estimateAiGrid, estimateMapsGrid, scenarioCosts, scenarioYearlyAiCost, scenarioYearlyDataCost } from "@/lib/cost/estimate";
 import { priceCentsForSale } from "@/lib/ladder";
 import {
   AI_GRID_SIZES,
@@ -86,6 +86,24 @@ describe("vendor price constants", () => {
     expect(r.totalUsdPerYear).toBeCloseTo(1560 * 49 * 0.0006, 6); // 45.864
     expect(Math.round(r.totalUsdPerYear)).toBe(46);
     expect(r.formula).toBe("1,560 Maps grids × 49 points × $0.0006");
+  });
+
+  it("prices the scenario's AI row (same 30 prompts, weekly 3×3 AI grids, 3 engines) like the calculator does", () => {
+    const ai = scenarioYearlyAiCost();
+    const calc = calculateYearlyDataCost({ prompts: 30, aiGrid: 3, engines: ["openai", "perplexity", "gemini"], frequency: "weekly", geminiFreeAllowance: true, mapsGrid: 0 });
+    expect(ai.totalUsdPerYear).toBe(calc.totalUsdPerYear);
+    expect(ai.mapsUsdPerYear).toBe(0);
+    expect(ai.checksPerYear * ai.aiPointsPerCheck * 3).toBe(SCENARIO.aiAnswersPerYear); // 1,560 × 9 × 3
+    expect(SCENARIO.aiDescription).toContain(SCENARIO.aiAnswersPerYear.toLocaleString("en-US"));
+    // 1,170 grounded Gemini requests a month: inside the 5,000 free allowance.
+    expect(ai.geminiBillablePerMonth).toBe(0);
+    expect(Math.round(ai.totalUsdPerYear)).toBe(222);
+    // The calculator figure a reviewer saw for $29 + weekly 7×7 Maps + weekly 3×3 AI on 3 engines.
+    const c = scenarioCosts();
+    expect(Math.round(29 + c.mapsUsd + c.aiUsd)).toBe(297);
+    // Without the Gemini allowance every grounded request is billed: the extra is stated on the site.
+    expect(c.geminiOverAllowanceUsd).toBeCloseTo(scenarioYearlyAiCost(false).totalUsdPerYear - ai.totalUsdPerYear, 6);
+    expect(Math.round(c.geminiOverAllowanceUsd)).toBe(197);
   });
 
   it("the competitor plans in the comparison can run that scenario", () => {

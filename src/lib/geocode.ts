@@ -20,18 +20,28 @@ export interface Place {
   lng: number;
 }
 
+/** Longest a search waits for its slot, and most searches queued at once, before answering "busy". */
+const MAX_WAIT_MS = 3000;
+const MAX_IN_FLIGHT = 5;
+
 const cache = new Map<string, { at: number; places: Place[] }>();
 let nextSlot = 0;
+let inFlight = 0;
 
-/** Waits for this instance's next free one-second slot. */
+export class GeocodeError extends Error {}
+
+/**
+ * Waits for this instance's next free one-second slot; refuses (busy) rather than queue without end.
+ * The spacing is per server instance: at today's traffic one instance serves these requests; a
+ * shared limiter (database or KV) is the step if that changes.
+ */
 async function slot(): Promise<void> {
   const now = Date.now();
   const at = Math.max(now, nextSlot);
+  if (at - now > MAX_WAIT_MS || inFlight >= MAX_IN_FLIGHT) throw new GeocodeError("The address search is busy. Try again in a moment, or drag the map.");
   nextSlot = at + SPACING_MS;
   if (at > now) await new Promise((r) => setTimeout(r, at - now));
 }
-
-export class GeocodeError extends Error {}
 
 /** Up to five places for a free-text address, optionally within one country (ISO 3166-1 alpha-2). */
 export async function geocode(query: string, country?: string | null): Promise<Place[]> {
@@ -43,6 +53,15 @@ export async function geocode(query: string, country?: string | null): Promise<P
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.places;
 
   await slot();
+  inFlight++;
+  try {
+    return await lookup(key, q, cc);
+  } finally {
+    inFlight--;
+  }
+}
+
+async function lookup(key: string, q: string, cc: string): Promise<Place[]> {
   const url = `${ENDPOINT}?format=jsonv2&limit=5&q=${encodeURIComponent(q)}${cc ? `&countrycodes=${cc}` : ""}`;
   let res: Response;
   try {

@@ -19,11 +19,11 @@ const cellPx = (n: number) => (n <= 5 ? 36 : n <= 9 ? 28 : 24);
 /** Marker size on the picker map: the grid covers most of the map, so dense grids get small markers (zoom in to pick precisely). */
 const pickerMarkerPx = (n: number) => (n >= 15 ? 14 : n >= 13 ? 16 : n >= 11 ? 18 : 22);
 
-/** "Point H8 (business), checked" */
-export function pickerLabel(n: number, idx: number, skipped: boolean): string {
+/** "Point H8 (business), checked"; "(grid centre)" when the grid was moved off the business. */
+export function pickerLabel(n: number, idx: number, skipped: boolean, centredOnBusiness = true): string {
   const row = Math.floor(idx / n);
   const col = idx % n;
-  return `Point ${pointName(row, col)}${idx === centreIdx(n) ? " (business)" : ""}, ${skipped ? "skipped" : "checked"}`;
+  return `Point ${pointName(row, col)}${idx === centreIdx(n) ? (centredOnBusiness ? " (business)" : " (grid centre)") : ""}, ${skipped ? "skipped" : "checked"}`;
 }
 
 /**
@@ -33,13 +33,15 @@ export function pickerLabel(n: number, idx: number, skipped: boolean): string {
  * With the business location the same toggles can be shown on the real map.
  * Points are numbered as the server builds the grid (lib/scans/grid): idx = row × n + col, row 0 north.
  */
-export function GridPicker({ n, skip, onChange, center, radiusMiles }: {
+export function GridPicker({ n, skip, onChange, center, radiusMiles, centredOnBusiness = true }: {
   n: number;
   skip: readonly number[];
   onChange: (skip: number[]) => void;
   /** The business location. Without it only the grid view is offered. */
   center?: { lat: number; lng: number } | null;
   radiusMiles: number;
+  /** False when the grid centre was moved off the business: the middle point is then just the centre. */
+  centredOnBusiness?: boolean;
 }) {
   const total = n * n;
   const skipped = new Set(skip);
@@ -88,7 +90,7 @@ export function GridPicker({ n, skip, onChange, center, radiusMiles }: {
         const off = skipped.has(p.idx);
         const isCentre = p.idx === centreIdx(n);
         return {
-          key: `${n}:${p.idx}`, lat: p.lat, lng: p.lng, label: "", title: pickerLabel(n, p.idx, off), pressed: off, skipped: off,
+          key: `${n}:${p.idx}`, lat: p.lat, lng: p.lng, label: "", title: pickerLabel(n, p.idx, off, centredOnBusiness), pressed: off, skipped: off,
           bg: isCentre ? "var(--rb-fg)" : "var(--rb-fg-2)", fg: "var(--rb-bg)", size: pickerMarkerPx(n),
         };
       })
@@ -142,8 +144,8 @@ export function GridPicker({ n, skip, onChange, center, radiusMiles }: {
                   }}
                   type="button"
                   aria-pressed={off}
-                  aria-label={pickerLabel(n, idx, off)}
-                  title={pickerLabel(n, idx, off)}
+                  aria-label={pickerLabel(n, idx, off, centredOnBusiness)}
+                  title={pickerLabel(n, idx, off, centredOnBusiness)}
                   tabIndex={idx === tabStop ? 0 : -1}
                   onClick={() => {
                     setFocusIdx(idx);
@@ -166,7 +168,7 @@ export function GridPicker({ n, skip, onChange, center, radiusMiles }: {
       <p className="m-0 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-dim">
         <span className="flex items-center gap-[6px]"><span aria-hidden className="size-[10px] rounded-full bg-fg-2" />Checked</span>
         <span className="flex items-center gap-[6px]"><span aria-hidden className="size-[10px] rounded-full border-[1.5px] border-dashed border-faint" />Skipped</span>
-        <span className="flex items-center gap-[6px]"><span aria-hidden className="grid size-[10px] place-items-center rounded-full bg-fg-2"><span className="size-[4px] rounded-full bg-bg" /></span>The business</span>
+        <span className="flex items-center gap-[6px]"><span aria-hidden className="grid size-[10px] place-items-center rounded-full bg-fg-2"><span className="size-[4px] rounded-full bg-bg" /></span>{centredOnBusiness ? "The business" : "Grid centre"}</span>
       </p>
       {notice ? <p role="alert" className="m-0 text-[13px] text-amber">{notice}</p> : null}
     </div>

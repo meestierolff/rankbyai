@@ -256,7 +256,7 @@ export function ScanForm({
               Skip points <span className="font-normal text-dim">· {skip.length ? skippedLine(grid, skip.length) : "all points checked"}</span>
             </summary>
             <div className="mt-3">
-              <GridPicker n={grid} skip={skip} onChange={setSkip} center={center} radiusMiles={radius} />
+              <GridPicker n={grid} skip={skip} onChange={setSkip} center={center} radiusMiles={radius} centredOnBusiness={!centre} />
             </div>
           </details>
         ) : null}

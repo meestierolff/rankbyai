@@ -2,7 +2,10 @@ import { z } from "zod";
 import { err, json, withSession } from "@/lib/api";
 import { GeocodeError, geocode } from "@/lib/geocode";
 
-/** Per signed-in user, per server instance: enough for setting up grids, not for bulk lookups. */
+/**
+ * Per signed-in user, per server instance: enough for setting up grids, not for bulk lookups. Per
+ * instance is enough at today's traffic; a shared counter is the step if that changes.
+ */
 const LIMIT = 20;
 const WINDOW_MS = 10 * 60 * 1000;
 const recent = new Map<string, number[]>();
@@ -16,6 +19,8 @@ export async function GET(request: Request) {
     const parsed = Query.safeParse({ q: url.searchParams.get("q") ?? "", country: url.searchParams.get("country") || undefined });
     if (!parsed.success) return err(400, "invalid_query", "Type an address or place of at least 3 characters.");
     const now = Date.now();
+    // Keep the table small: forget users with no search in the window.
+    if (recent.size > 1000) for (const [k, ts] of recent) if (!ts.some((t) => now - t < WINDOW_MS)) recent.delete(k);
     const mine = (recent.get(ctx.user.id) ?? []).filter((t) => now - t < WINDOW_MS);
     if (mine.length >= LIMIT) return err(429, "too_many_searches", "Too many address searches. Wait a few minutes, or drag the map instead.");
     recent.set(ctx.user.id, [...mine, now]);

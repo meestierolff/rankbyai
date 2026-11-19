@@ -9,6 +9,10 @@ import { AI_GRID_SIZES, ENGINE_LABEL, ENGINES, MAPS_GRID_SIZES, type Engine } fr
 import { DEFAULT_PROMPT_TEMPLATE } from "@/lib/scans/prompt";
 import { skippedLine } from "@/lib/scans/skip";
 import { creditsBlocker, creditsLeft, defaultFunding, plural, scanCredits, type FundingChoice } from "./first-run";
+import { SERVICE_AREA_NOTE } from "@/lib/service-area";
+import { milesBetween } from "@/lib/scans/grid";
+import type { Pt } from "./centre-map";
+import { CentrePicker } from "./centre-picker";
 import { GridPicker } from "./grid-picker";
 import type { IncludedScans } from "./included";
 import { inputClass, labelClass } from "./ui";
@@ -21,6 +25,9 @@ export interface FormBusiness {
   /** The listing's location: the grid's centre. Lets the point picker show the grid on the map. */
   lat?: number | null;
   lng?: number | null;
+  country?: string | null;
+  /** No street address on the Google listing: the map point is approximate. */
+  serviceArea?: boolean;
 }
 
 interface Estimate {
@@ -67,6 +74,8 @@ export function ScanForm({
   const [grid, setGrid] = useState<number>(firstGrid);
   // Grid points the user switched off (idx = row × n + col). Cleared when the grid or the business changes.
   const [skip, setSkip] = useState<number[]>([]);
+  // A grid centre chosen on the map; null = the business's own map point.
+  const [centre, setCentre] = useState<Pt | null>(null);
   const [radius, setRadius] = useState(2);
   const [mode, setMode] = useState<"standard" | "priority" | "live">("priority");
   const [repeat, setRepeat] = useState<"none" | "weekly" | "monthly">("none");
@@ -81,7 +90,9 @@ export function ScanForm({
   const activeEngines = engines.filter(usable);
   const engineKey = activeEngines.join(",");
   const business = businesses.find((b) => b.id === businessId) ?? null;
-  const center = business?.lat != null && business?.lng != null ? { lat: business.lat, lng: business.lng } : null;
+  const businessAt = business?.lat != null && business?.lng != null ? { lat: business.lat, lng: business.lng } : null;
+  // Where the grid is centred: the chosen point, else the business.
+  const center = centre ?? businessAt;
   // The estimate on screen is for another grid or skip list while a new one is being estimated.
   const estimateStale = !!estimate && (estimateFor.grid !== grid || estimateFor.skip !== skip.length);
   // Fail closed: if the server's estimate does not count the skipped points, running would check
@@ -103,14 +114,15 @@ export function ScanForm({
     (confirm: boolean) => ({
       business_id: businessId, kind, keyword, grid_size: grid, radius_miles: radius, funding, confirm,
       ...(skip.length ? { skip_points: skip } : {}),
+      ...(centre ? { center_lat: centre.lat, center_lng: centre.lng } : {}),
       ...(kind === "ai" ? { engines: engineKey ? engineKey.split(",") : [], prompt_template: template === DEFAULT_PROMPT_TEMPLATE ? null : template } : { mode }),
     }),
-    [businessId, kind, keyword, grid, skip, radius, funding, mode, template, engineKey],
+    [businessId, kind, keyword, grid, skip, radius, funding, mode, template, engineKey, centre],
   );
 
   // Live estimate: ask the server (no confirm) whenever the setup changes.
   useEffect(() => {
-    if (!businessId || keyword.trim().length < 2 || (kind === "ai" && !engineKey)) return;
+    if (!businessId || keyword.trim().length < 2 || (kind === "ai" && !engineKey) || !center) return;
     const my = ++seq.current;
     const sent = body(false);
     const t = setTimeout(async () => {
@@ -122,9 +134,9 @@ export function ScanForm({
       setProblem(json.error === "confirmation_required" ? null : (json.message ?? "Could not estimate this scan."));
     }, 350);
     return () => clearTimeout(t);
-  }, [body, businessId, keyword, kind, engineKey]);
+  }, [body, businessId, keyword, kind, engineKey, center]);
 
-  const ready = !!businessId && keyword.trim().length >= 2 && (kind === "maps" || activeEngines.length > 0) && !estimateStale && !skipIgnored;
+  const ready = !!businessId && !!center && keyword.trim().length >= 2 && (kind === "maps" || activeEngines.length > 0) && !estimateStale && !skipIgnored;
 
   const run = async () => {
     setBusy(true);
@@ -159,6 +171,7 @@ export function ScanForm({
             onChange={(e) => {
               setBusinessId(e.target.value);
               setSkip([]); // skipped points belong to one business's surroundings
+              setCentre(null); // a chosen centre belongs to one business too
               const b = businesses.find((x) => x.id === e.target.value);
               if (b?.category && !keyword) setKeyword(b.category.toLowerCase());
             }}
@@ -221,6 +234,21 @@ export function ScanForm({
             />
           </div>
         </div>
+
+        {business?.serviceArea ? <p className="-mt-2 mb-0 text-[13px] text-amber">{SERVICE_AREA_NOTE}</p> : null}
+
+        <details className="rounded-xl border border-border bg-inset px-4 py-3" open={!businessAt || undefined}>
+          <summary className="text-[14px] font-medium">
+            Grid centre{" "}
+            <span className="font-normal text-dim">
+              · {centre ? (businessAt ? `moved ${milesBetween(centre, businessAt).toFixed(1)} mi from the business` : "chosen on the map") : businessAt ? "on the business" : "choose a point"}
+            </span>
+          </summary>
+          <div className="mt-3">
+            <CentrePicker key={businessId} mode="grid" value={centre} business={businessAt} n={grid} radiusMiles={radius} country={business?.country} onChange={setCentre} />
+            {centre && skip.length ? <p className="mt-2 mb-0 text-[13px] text-amber">Skipped points stay at the same places in the grid, so they move with it. Check them under Skip points.</p> : null}
+          </div>
+        </details>
 
         {grid > 1 ? (
           <details className="rounded-xl border border-border bg-inset px-4 py-3">

@@ -13,6 +13,7 @@ import { ScheduleActions } from "./m3-controls";
 import { ScanForm, type FormBusiness } from "./scan-form";
 import { ScanResult } from "./scan-result";
 import { EmptyState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatusChip, fmtUsd } from "./ui";
+import { isServiceArea } from "@/lib/service-area";
 
 /* Server-side page bodies shared by the AI Visibility and Maps Grid sections. */
 
@@ -39,7 +40,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
   // Every read is filtered by the session's workspace id and goes through memberRead: a failed
   // read throws (the page's error state shows) instead of looking like "Add a business first".
   const [{ data: bizRows }, keyRows, credits, included, { data: scanRows }, { data: scheduleRows }] = await Promise.all([
-    memberRead("Businesses", ws.id, (db) => db.from("businesses").select("id, name, city, primary_category, lat, lng").eq("workspace_id", ws.id).not("lat", "is", null).order("created_at", { ascending: false }).limit(500)),
+    memberRead("Businesses", ws.id, (db) => db.from("businesses").select("id, name, city, country, address, cid, primary_category, lat, lng").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(500)),
     getKeyStatuses(ws.id),
     getCreditBalance(ws.id),
     includedScans(ws.id),
@@ -57,7 +58,11 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
     ),
   ]);
   const schedules = (scheduleRows ?? []) as unknown as { id: string; keyword: string | null; niche: string | null; grid_size: number; skip_points: number[] | null; schedule: string; next_run_at: string | null; active: boolean; funding: string; businesses: { name: string } | null }[];
-  const businesses: FormBusiness[] = ((bizRows ?? []) as { id: string; name: string; city: string | null; primary_category: string | null; lat: number | null; lng: number | null }[]).map((b) => ({ id: b.id, name: b.name, city: b.city, category: b.primary_category, lat: b.lat, lng: b.lng }));
+  type BizRow = { id: string; name: string; city: string | null; country: string | null; address: string | null; cid: string | null; primary_category: string | null; lat: number | null; lng: number | null };
+  const businesses: FormBusiness[] = ((bizRows ?? []) as BizRow[]).map((b) => ({
+    id: b.id, name: b.name, city: b.city, category: b.primary_category, lat: b.lat, lng: b.lng, country: b.country,
+    serviceArea: isServiceArea(b),
+  }));
   const scans = (scanRows ?? []) as unknown as (ScanRow & { skip_points?: number[] | null })[];
   const mock = isMockMode();
   const has = (p: string) => mock || keyRows.some((k) => k.provider === p && k.status === "valid");

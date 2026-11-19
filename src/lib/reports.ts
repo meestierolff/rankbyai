@@ -6,6 +6,7 @@ import type { ReportView } from "@/components/report/types";
 import type { Engine } from "@/lib/pricing-constants";
 import type { AiSummary, MapsSummary } from "@/lib/scans/summary";
 import { dbAdmin } from "@/lib/db/clients";
+import { businessLanguage, languageName } from "@/lib/countries";
 import { CENTRED_MILES, milesBetween } from "@/lib/scans/grid";
 import { signedUrl } from "@/lib/storage";
 
@@ -43,7 +44,7 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
   if (!report || !report.business_id) return null;
 
   const [{ data: business }, { data: ws }] = await Promise.all([
-    admin.from("businesses").select("id, name, city, region, primary_category, lat, lng, website").eq("id", report.business_id).maybeSingle(),
+    admin.from("businesses").select("id, name, city, region, primary_category, lat, lng, website, language, country").eq("id", report.business_id).maybeSingle(),
     report.workspace_id
       ? admin.from("workspaces").select("brand_name, brand_logo_path, brand_color_hex, brand_website, hide_rankbyai_branding, report_default_view, plan").eq("id", report.workspace_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -131,7 +132,7 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
   return {
     kind: report.kind,
     watermark: report.watermark,
-    business: { name: business.name, city: business.city, region: business.region, category: business.primary_category, lat: businessAt?.lat ?? null, lng: businessAt?.lng ?? null, website: safeHttpUrl(business.website) },
+    business: { name: business.name, city: business.city, region: business.region, category: business.primary_category, lat: businessAt?.lat ?? null, lng: businessAt?.lng ?? null, website: safeHttpUrl(business.website), language: languageName(businessLanguage(business)) },
     // White-label applies to paid workspaces only; a free check always carries RankbyAI branding.
     brand: {
       name: lifetime ? (ws?.brand_name ?? null) : null,

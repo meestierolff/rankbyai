@@ -182,6 +182,8 @@ export function fixPrompt(view: ReportView): string | null {
   lines.push("3. Wait for me to confirm before moving on.");
   if (ai?.sources.length) lines.push("Then check that the business is listed, with the same name, address and phone number, on the cited sites above.");
   lines.push("");
+  const language = oneLine(business.language, 40);
+  if (language && language !== "English") lines.push(`Write every text for the website, the Google profile and other listings in ${language}.`);
   lines.push("Use only facts I give you or that are already on the website. Do not invent reviews, ratings, prices, awards or claims. When you need a fact (opening hours, services, prices, address), ask me.");
   return lines.join("\n");
 }

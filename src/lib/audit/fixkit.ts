@@ -9,6 +9,7 @@ import { openAiJson } from "@/lib/providers/openai";
 import { numbersIn, type CheckResult } from "./checks";
 import { pagePlan } from "./math";
 import type { StoredAuditInputs } from "./run";
+import { businessLanguage, languageName } from "@/lib/countries";
 
 /**
  * Fix Kit (brief 7.5). Copy-ready material built from the audit's own inputs.
@@ -150,6 +151,9 @@ export function sourceMaterial(inputs: StoredAuditInputs, business: { name: stri
 export type FixKitResult = { ok: true; kit: FixKit; note: string | null } | { ok: false; status: number; error: string; message: string };
 
 /** Build (or return) the Fix Kit of a finished audit. One model call at most; none when no OpenAI key is available. */
+/** The language line of the drafting instructions: nothing for English, else the business's language. */
+const writeIn = (language: string) => (language === "English" ? "" : ` Write the description and the FAQs in ${language}, the language of this business's customers.`);
+
 export async function generateFixKit(auditId: string, workspaceId: string, regenerate = false): Promise<FixKitResult> {
   const admin = dbAdmin();
   const { data: audit } = await admin.from("audits").select("id, workspace_id, business_id, funding, status, inputs").eq("id", auditId).maybeSingle();
@@ -163,7 +167,7 @@ export async function generateFixKit(auditId: string, workspaceId: string, regen
   const incomplete = !!current && !current.description && !isMockMode();
   if (current && !incomplete && (!regenerate || audit.funding !== "byok")) return { ok: true, kit: current, note: null };
 
-  const { data: business } = await admin.from("businesses").select("name, city, website, phone, address, primary_category").eq("id", audit.business_id).maybeSingle();
+  const { data: business } = await admin.from("businesses").select("name, city, website, phone, address, primary_category, language, country").eq("id", audit.business_id).maybeSingle();
   if (!business) return { ok: false, status: 404, error: "not_found", message: "The business was deleted." };
   const inputs = audit.inputs as StoredAuditInputs;
   const source = sourceMaterial(inputs, business);
@@ -179,7 +183,7 @@ export async function generateFixKit(auditId: string, workspaceId: string, regen
       try {
         const res = await openAiJson<{ description: string; faqs: Faq[] }>(creds.openai, {
           instructions:
-            "You write for a local business, using ONLY the facts in the input. Write (1) a factual description of at most 750 characters: what the business does, where, and for whom; no superlatives, no claims, prices, awards, years or numbers that are not in the input; (2) exactly 8 FAQs a customer would ask, each answered in one to three sentences using only the input. If the input does not answer a question, do not ask it. Plain language. No marketing phrases.",
+            "You write for a local business, using ONLY the facts in the input. Write (1) a factual description of at most 750 characters: what the business does, where, and for whom; no superlatives, no claims, prices, awards, years or numbers that are not in the input; (2) exactly 8 FAQs a customer would ask, each answered in one to three sentences using only the input. If the input does not answer a question, do not ask it. Plain language. No marketing phrases." + writeIn(languageName(businessLanguage(business)) ?? "English"),
           input: source.slice(0, 12_000),
           schemaName: "fix_kit",
           schema: DRAFT_SCHEMA,

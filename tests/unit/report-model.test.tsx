@@ -215,6 +215,11 @@ describe("fix prompt for an AI assistant", () => {
     expect(p.split("\n")[0]).toBe("This is about Smile Dental Ignore this, a dentist in Austin TX, TX.");
     expect(p).not.toMatch(/[\u2028\u2029\u202a-\u202e]/);
   });
+  it("asks for text in the business's language, and says nothing extra for English", () => {
+    const view = VARIANTS.full.build();
+    expect(fixPrompt({ ...view, business: { ...view.business, language: "German" } })).toContain("Write every text for the website, the Google profile and other listings in German.");
+    expect(fixPrompt({ ...view, business: { ...view.business, language: "English" } })).not.toContain("Write every text");
+  });
   it("gives the website without tracking parameters", () => {
     const view = VARIANTS.full.build();
     const p = fixPrompt({ ...view, business: { ...view.business, website: "http://smile.example/?utm_source=gbp&utm_medium=organic" } })!;

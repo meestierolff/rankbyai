@@ -13,6 +13,9 @@ import { requireSession } from "@/lib/auth";
 import { memberRead } from "@/lib/db/member-read";
 import { linkDomainFor } from "@/lib/domains-server";
 import { combinedInsight, type AiSummary, type MapsSummary } from "@/lib/scans/summary";
+import { BusinessDetails } from "@/components/app/business-details";
+import { languageNameFor } from "@/lib/countries";
+import { isServiceArea } from "@/lib/service-area";
 
 export const metadata: Metadata = { title: "Business" };
 
@@ -21,6 +24,8 @@ interface ScanLite {
   kind: "ai" | "maps";
   grid_size: number;
   radius_miles: number;
+  center_lat: number | null;
+  center_lng: number | null;
   status: string;
   keyword: string | null;
   niche: string | null;
@@ -40,8 +45,11 @@ interface BusinessRow {
   reviews_count: number | null;
   website: string | null;
   phone: string | null;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
+  country: string | null;
+  cid: string | null;
+  language: string | null;
 }
 
 export default async function BusinessPage({ params }: { params: Promise<{ id: string }> }) {
@@ -52,7 +60,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
   // Every read below that can carry the workspace filter does, and goes through memberRead: a
   // failed read throws (error state), and only "no such row in this workspace" is a 404.
   const { data: found } = await memberRead("Business", wsId, (db) =>
-    db.from("businesses").select("id, name, primary_category, address, city, region, rating, reviews_count, website, phone, lat, lng").eq("id", id).eq("workspace_id", wsId).maybeSingle(),
+    db.from("businesses").select("id, name, primary_category, address, city, region, rating, reviews_count, website, phone, lat, lng, country, cid, language").eq("id", id).eq("workspace_id", wsId).maybeSingle(),
   );
   const b = found as BusinessRow | null;
   if (!b) notFound();
@@ -61,7 +69,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
     memberRead("Scans of this business", wsId, (db) =>
       db
         .from("scans")
-        .select("id, kind, grid_size, radius_miles, status, keyword, niche, summary, actual_cost_usd, created_at")
+        .select("id, kind, grid_size, radius_miles, center_lat, center_lng, status, keyword, niche, summary, actual_cost_usd, created_at")
         .eq("workspace_id", wsId)
         .eq("business_id", id)
         .order("created_at", { ascending: false })
@@ -76,6 +84,9 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
   const usable = (s: ScanLite) => s.status === "done" || s.status === "partial";
   const latestMaps = scans.find((s) => s.kind === "maps" && usable(s)) ?? null;
   const latestAi = scans.find((s) => s.kind === "ai" && usable(s)) ?? null;
+  // The combined map is centred where the latest grids were run (a grid can be centred away from the pin).
+  const scanCentre = [latestMaps, latestAi].find((s) => s?.center_lat != null && s?.center_lng != null);
+  const combinedCentre = scanCentre ? { lat: Number(scanCentre.center_lat), lng: Number(scanCentre.center_lng) } : { lat: Number(b.lat ?? 0), lng: Number(b.lng ?? 0) };
 
   let mapsPts: MapPoint[] | null = null;
   let aiPts: MapPoint[] | null = null;
@@ -130,7 +141,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
       <Panel title="Combined view: Maps rank and AI mentions" className="mt-6">
         {mapsPts || aiPts ? (
           <CombinedView
-            center={{ lat: b.lat, lng: b.lng }}
+            center={combinedCentre}
             radiusMiles={Math.max(Number(latestMaps?.radius_miles ?? 0), Number(latestAi?.radius_miles ?? 0)) || 2}
             maps={mapsPts}
             ai={aiPts}
@@ -168,6 +179,17 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
             ))}
           </ul>
         )}
+      </Panel>
+
+      <Panel title="Business details" className="mt-6">
+        <BusinessDetails
+          id={b.id}
+          location={b.lat != null && b.lng != null ? { lat: Number(b.lat), lng: Number(b.lng) } : null}
+          serviceArea={isServiceArea(b)}
+          language={b.language}
+          country={b.country}
+          countryLanguage={languageNameFor(b.country)}
+        />
       </Panel>
 
       <Panel title="Delete" className="mt-6">

@@ -150,6 +150,10 @@ export default function PrivacyPage() {
             <td>Sign-in with your Google account. Google tells us your name, email address and profile picture.</td>
           </tr>
           <tr>
+            <td>OpenStreetMap Foundation (Nominatim)</td>
+            <td>Address search when you choose where to centre a grid or correct a business&rsquo;s map point. Only the address you type is sent.</td>
+          </tr>
+          <tr>
             <td>Vercel</td>
             <td>Hosting of the site and the app, and Web Analytics (counts of page views, without cookies). See section 6.</td>
           </tr>

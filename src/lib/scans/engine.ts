@@ -14,7 +14,7 @@ import { askPerplexity } from "@/lib/providers/perplexity";
 import { ProviderError, type AiAnswer, type GeoContext, type ProviderCredentials } from "@/lib/providers/types";
 import { dbAdmin } from "@/lib/db/clients";
 import { putObject } from "@/lib/storage";
-import { buildGrid, milesBetween } from "./grid";
+import { buildGrid, MAX_CENTRE_MILES, milesBetween, validCoord } from "./grid";
 import { findInMaps, mentionedInText, namesMatch, positionInNames, type BusinessIdentity } from "./match";
 import { PARSE_INSTRUCTIONS, PARSE_SCHEMA, parseNamedBusinesses } from "./parse";
 import { fetchPlaces, labelPoints } from "./places";
@@ -60,6 +60,11 @@ export interface CreateScanInput {
   radiusMiles: number;
   funding: Funding;
   trackedQueryId?: string | null;
+  /**
+   * Where the grid is centred. Default: the business's map point (and, for a scheduled run, the
+   * schedule's own centre when it has one). For a service-area business or a pin in the wrong place.
+   */
+  center?: { lat: number; lng: number } | null;
   /** Part of another paid action (an audit's 1×1 check, a prospect report): house keys and caps apply, but no extra credit is taken and the running-scan limit does not apply. */
   noCharge?: boolean;
   confirm: boolean;
@@ -84,11 +89,15 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
   const admin = dbAdmin();
   let { spec } = input;
 
-  // A scheduled run keeps the points its schedule skips, unless the caller sends its own list.
-  if (input.trackedQueryId && spec.skip === undefined) {
-    const { data: tq } = await admin.from("tracked_queries").select("skip_points").eq("id", input.trackedQueryId).maybeSingle<{ skip_points: number[] | null }>();
-    if (tq?.skip_points?.length) spec = { ...spec, skip: tq.skip_points };
+  // A scheduled run keeps the points its schedule skips and its grid centre, unless the caller sends its own.
+  let chosenCentre = input.center ?? null;
+  if (input.trackedQueryId && (spec.skip === undefined || !chosenCentre)) {
+    const { data: tq } = await admin.from("tracked_queries").select("skip_points, center_lat, center_lng").eq("id", input.trackedQueryId)
+      .maybeSingle<{ skip_points: number[] | null; center_lat: number | null; center_lng: number | null }>();
+    if (spec.skip === undefined && tq?.skip_points?.length) spec = { ...spec, skip: tq.skip_points };
+    if (!chosenCentre && tq?.center_lat != null && tq?.center_lng != null) chosenCentre = { lat: tq.center_lat, lng: tq.center_lng };
   }
+  if (chosenCentre && !validCoord(chosenCentre)) return fail(400, "invalid_center", "The grid centre is not a valid map point.");
   const specError = validateSpec(spec);
   if (specError) return fail(400, "invalid_spec", specError);
   const skip = normalizeSkip(spec.skip);
@@ -104,7 +113,12 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
 
   const { data: business } = await admin.from("businesses").select("*").eq("id", input.businessId).maybeSingle<BusinessRow>();
   if (!business || business.workspace_id !== input.workspaceId) return fail(404, "business_not_found", "That business was not found in this workspace.");
-  if (business.lat == null || business.lng == null) return fail(400, "business_has_no_location", "This business has no map location yet. Re-add it from search so we know where to centre the grid.");
+  const businessAt = business.lat != null && business.lng != null ? { lat: Number(business.lat), lng: Number(business.lng) } : null;
+  if (!chosenCentre && !businessAt) return fail(400, "business_has_no_location", "This business has no map location yet. Set it on the business page, or choose where to centre the grid.");
+  if (chosenCentre && businessAt) {
+    const away = milesBetween(chosenCentre, businessAt);
+    if (away > MAX_CENTRE_MILES) return fail(400, "center_too_far", `The grid centre is ${Math.round(away)} miles from the business. Keep it within ${MAX_CENTRE_MILES} miles, or correct the business's location on its page.`);
+  }
 
   const estimate = await estimateScan(spec);
   if (!input.confirm) return fail(409, "confirmation_required", "Review the estimate, then confirm to run.", estimate);
@@ -133,7 +147,7 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
     if (!budget.ok) return fail(429, "daily_cap", budget.message ?? "Daily capacity reached.", estimate);
   }
 
-  const center = { lat: business.lat, lng: business.lng };
+  const center = chosenCentre ?? businessAt!;
   const points = buildGrid(center, spec.grid, input.radiusMiles);
   const skipped = new Set(skip);
   const mode: MapsMode = spec.kind === "maps" ? spec.mode : "standard";

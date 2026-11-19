@@ -1,5 +1,6 @@
 import type { Engine } from "@/lib/pricing-constants";
 import { NOT_RANKED } from "./summary";
+import { CENTRED_MILES, milesBetween } from "./grid";
 
 /**
  * Compare two scans of the same business (brief 7.2, 7.3). Pure functions over stored rows.
@@ -38,8 +39,21 @@ const namedAt = (samples: AiCompareSample[], idx: number) => {
   return { done: done.length, named: done.filter((s) => s.mentioned).length };
 };
 
-export function compareAi(a: AiCompareSample[], b: AiCompareSample[], gridA: number, gridB: number): AiComparison {
-  const samePoints = gridA === gridB;
+/** Grid placement of a scan, as stored. */
+export interface GridPlace { center_lat: number | null; center_lng: number | null; radius_miles: number | string | null }
+
+/**
+ * Whether two scans' points are the same places: same centre (within about 80 m) and same radius.
+ * Points are matched one to one only then (and with the same grid size).
+ */
+export function samePlace(a: GridPlace, b: GridPlace): boolean {
+  if (Number(a.radius_miles) !== Number(b.radius_miles)) return false;
+  if (a.center_lat == null || a.center_lng == null || b.center_lat == null || b.center_lng == null) return a.center_lat == b.center_lat && a.center_lng == b.center_lng;
+  return milesBetween({ lat: Number(a.center_lat), lng: Number(a.center_lng) }, { lat: Number(b.center_lat), lng: Number(b.center_lng) }) <= CENTRED_MILES;
+}
+
+export function compareAi(a: AiCompareSample[], b: AiCompareSample[], gridA: number, gridB: number, placesMatch = true): AiComparison {
+  const samePoints = gridA === gridB && placesMatch;
   // Skipped points have no samples: the later scan's total is the points it actually checked.
   const total = new Set(b.map((s) => s.point_idx)).size || gridB * gridB;
   const points: AiPointDelta[] = [];
@@ -99,8 +113,8 @@ const avgRank = (pts: MapsComparePoint[]) => {
   return done.length ? Math.round((done.reduce((s, p) => s + (p.rank ?? NOT_RANKED), 0) / done.length) * 10) / 10 : null;
 };
 
-export function compareMaps(a: MapsComparePoint[], b: MapsComparePoint[]): MapsComparison {
-  const samePoints = a.length === b.length;
+export function compareMaps(a: MapsComparePoint[], b: MapsComparePoint[], placesMatch = true): MapsComparison {
+  const samePoints = a.length === b.length && placesMatch;
   const points: MapsPointDelta[] = [];
   if (samePoints) {
     const byIdx = new Map(a.map((p) => [p.idx, p]));

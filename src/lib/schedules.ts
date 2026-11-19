@@ -38,6 +38,9 @@ export interface TrackedQueryRow {
   /** Points every run skips; createScan reads them from here for a scheduled run. */
   skip_points: number[];
   radius_miles: number;
+  /** The schedule's own grid centre; null = the business's map point (it follows the business). */
+  center_lat: number | null;
+  center_lng: number | null;
   engines: Engine[];
   funding: "byok" | "credits";
   schedule: Schedule;
@@ -55,6 +58,8 @@ export interface TrackInput {
   /** idx of the grid points every run skips (validated by the caller with validateSpec). */
   skipPoints?: number[];
   radiusMiles: number;
+  /** A grid centre of its own; null or left out = follow the business's map point. */
+  center?: { lat: number; lng: number } | null;
   engines: Engine[];
   funding: "byok" | "credits";
   schedule: Exclude<Schedule, "none" | "daily">;
@@ -82,6 +87,8 @@ export async function upsertTrackedQuery(input: TrackInput, now: Date = new Date
     grid_size: input.gridSize,
     skip_points: input.skipPoints ?? [],
     radius_miles: input.radiusMiles,
+    center_lat: input.center?.lat ?? null,
+    center_lng: input.center?.lng ?? null,
     engines: input.kind === "ai" ? input.engines : [],
     funding: input.funding,
     schedule: input.schedule,

@@ -6,7 +6,7 @@ import { ENGINE_LABEL } from "@/lib/pricing-constants";
 import { cn } from "@/lib/utils";
 import { CopyLinkButton, FixPromptBlock, PdfLink } from "./actions";
 import {
-  aService, brandTextOnDark, dataDates, fixPrompt, fmtDay, headlineStats, isHex6, orList, placeOf, quoteBlocks, splitBlocks, textOn, verdict, wordCount,
+  aService, aroundPlace, atPlace, brandTextOnDark, dataDates, fixPrompt, fmtDay, headlineStats, isHex6, orList, placeOf, quoteBlocks, splitBlocks, textOn, verdict, wordCount,
   type HeadlineStat, type QuoteBlock,
 } from "./derive";
 import { MapSection } from "./map-section";
@@ -31,6 +31,8 @@ export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHr
   const mapsGrid = maps && !maps.single && maps.n > 1 ? maps : null;
   const target = business.lat != null && business.lng != null ? { lat: business.lat, lng: business.lng } : null;
   const nothing = !ai && !maps && !audit;
+  // false when a grid shown on the map was centred on a point chosen for the report, not the business.
+  const gridCentred = aiGrid?.centredOnBusiness !== false && mapsGrid?.centredOnBusiness !== false;
   const instead = insteadRows(view);
   const said = !!ai?.quote && ai.quote.answers.some((a) => a.state !== "no_answer");
   // Sections are numbered in the order they appear; absent sections take no number.
@@ -88,13 +90,13 @@ export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHr
         {aiGrid || mapsGrid ? (
           <section aria-labelledby="map-h" className="flex flex-col gap-6">
             <SectionHead id="map-h" n={num("map")} eyebrow="The map" style={eyebrowStyle} title={business.name.length > 40 ? "Where the business shows up" : `Where ${business.name} shows up`}
-              lead={`Each dot is one point on a grid around the business. From every point ${aiGrid && mapsGrid ? "the AI assistants were asked for a recommendation and Google Maps was searched" : aiGrid ? "the AI assistants were asked for a recommendation" : "Google Maps was searched"}, so you can see where the business is found and where it is not.`} />
+              lead={`Each dot is one point on a grid around ${aroundPlace(gridCentred)}. From every point ${aiGrid && mapsGrid ? "the AI assistants were asked for a recommendation and Google Maps was searched" : aiGrid ? "the AI assistants were asked for a recommendation" : "Google Maps was searched"}, so you can see where the business is found and where it is not.`} />
             <Bezel large>
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-lp-line px-[18px] py-[14px]">
                 <span className="text-[15px] font-medium text-lp-fg">
-                  {aiGrid && mapsGrid && aiGrid.n !== mapsGrid.n ? `AI ${aiGrid.n}×${aiGrid.n} · Google Maps ${mapsGrid.n}×${mapsGrid.n} grid` : `${(aiGrid ?? mapsGrid)!.n}×${(aiGrid ?? mapsGrid)!.n} grid around the business`}
+                  {aiGrid && mapsGrid && aiGrid.n !== mapsGrid.n ? `AI ${aiGrid.n}×${aiGrid.n} · Google Maps ${mapsGrid.n}×${mapsGrid.n} grid` : `${(aiGrid ?? mapsGrid)!.n}×${(aiGrid ?? mapsGrid)!.n} grid around ${aroundPlace(gridCentred)}`}
                 </span>
-                {radiusText(aiGrid?.radiusMiles ?? mapsGrid?.radiusMiles ?? null) ? <span className="font-mono text-[12px] text-dim">{radiusText(aiGrid?.radiusMiles ?? mapsGrid?.radiusMiles ?? null)}</span> : null}
+                {radiusText(aiGrid?.radiusMiles ?? mapsGrid?.radiusMiles ?? null, gridCentred) ? <span className="font-mono text-[12px] text-dim">{radiusText(aiGrid?.radiusMiles ?? mapsGrid?.radiusMiles ?? null, gridCentred)}</span> : null}
               </div>
               <MapSection
                 businessName={business.name}
@@ -124,7 +126,7 @@ export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHr
           <section aria-labelledby="said-h" className="flex flex-col gap-6">
             <SectionHead id="said-h" n={num("said")} eyebrow="The proof" style={eyebrowStyle} title="What the AI said"
               lead={<>
-                {ai.n === 1 ? "Asked at the business location" : `Asked at point ${ai.quote.pointName}${ai.quote.area ? ` (${ai.quote.area})` : ""}, ${ai.quote.atBusiness ? "where the business is" : "the checked point nearest the business"},`} on {fmtDay(ai.date)}. Quoted exactly as each assistant answered{ai.quote.answers.some((a) => a.names.some((x) => x.you)) ? <>; <mark className="rounded-[4px] bg-you-tint px-1 text-g1">{business.name}</mark> is highlighted where it appears</> : null}.
+                {ai.n === 1 ? `Asked at ${atPlace(ai.centredOnBusiness)}` : `Asked at point ${ai.quote.pointName}${ai.quote.area ? ` (${ai.quote.area})` : ""}, ${ai.quote.atBusiness ? "where the business is" : "the checked point nearest the business"},`} on {fmtDay(ai.date)}. Quoted exactly as each assistant answered{ai.quote.answers.some((a) => a.names.some((x) => x.you)) ? <>; <mark className="rounded-[4px] bg-you-tint px-1 text-g1">{business.name}</mark> is highlighted where it appears</> : null}.
               </>} />
             {ai.quote.prompt ? (
               <figure className="m-0 flex flex-col gap-2 rounded-2xl border border-lp-border-2 bg-lp-surface px-5 py-4">
@@ -142,8 +144,8 @@ export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHr
         {/* ── Free check: Google Maps at the business ── */}
         {maps?.single ? (
           <section aria-labelledby="maps1-h" className="flex flex-col gap-6">
-            <SectionHead id="maps1-h" n={num("maps1")} eyebrow="Google Maps" style={eyebrowStyle} title="Google Maps at the business location"
-              lead={`The local results for “${maps.keyword ?? ""}” at the business location on ${fmtDay(maps.date)}.`} />
+            <SectionHead id="maps1-h" n={num("maps1")} eyebrow="Google Maps" style={eyebrowStyle} title={maps.centredOnBusiness === false ? "Google Maps at the chosen point" : "Google Maps at the business location"}
+              lead={`The local results for “${maps.keyword ?? ""}” at ${atPlace(maps.centredOnBusiness)} on ${fmtDay(maps.date)}.`} />
             <ol className="m-0 flex max-w-[640px] list-none flex-col gap-[2px] rounded-2xl border border-lp-border-2 bg-lp-surface p-3">
               {maps.single.top.map((t) => {
                 const you = t.rank === maps.single!.rank;
@@ -234,13 +236,13 @@ export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHr
           <dl className="m-0 grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-2">
             {ai ? (
               <MethodItem term="AI assistants">
-                {ai.n === 1 ? "At the business location" : `At ${ai.pointsChecked} ${ai.pointsChecked === 1 ? "point" : "points"} of a ${ai.n}×${ai.n} grid${ai.radiusMiles ? ` within ${fmtMiles(ai.radiusMiles)} of the business` : ""}`}, on {fmtDay(ai.date)}, through the official APIs: {orList(ai.engines.map((e) => `${ENGINE_LABEL[e.key]?.api ?? e.label} (${e.label})`), "and")}. Every assistant got the same question{ai.n > 1 ? "; only the area name changes between points" : ""}.
+                {ai.n === 1 ? `At ${atPlace(ai.centredOnBusiness)}` : `At ${ai.pointsChecked} ${ai.pointsChecked === 1 ? "point" : "points"} of a ${ai.n}×${ai.n} grid${ai.radiusMiles ? ` within ${fmtMiles(ai.radiusMiles)} of ${aroundPlace(ai.centredOnBusiness)}` : ""}`}, on {fmtDay(ai.date)}, through the official APIs: {orList(ai.engines.map((e) => `${ENGINE_LABEL[e.key]?.api ?? e.label} (${e.label})`), "and")}. Every assistant got the same question{ai.n > 1 ? "; only the area name changes between points" : ""}.
                 {ai.engines.some((e) => !e.available) ? ` ${orList(ai.engines.filter((e) => !e.available).map((e) => e.label))} did not answer and is left out.` : ""}
               </MethodItem>
             ) : null}
             {maps ? (
               <MethodItem term="Google Maps">
-                {maps.single ? "At the business location" : `At ${maps.pointsDone} ${maps.pointsDone === 1 ? "point" : "points"} of a ${maps.n}×${maps.n} grid${maps.radiusMiles ? ` within ${fmtMiles(maps.radiusMiles)} of the business` : ""}`}, on {fmtDay(maps.date)}: the local results for “{maps.keyword}”, via DataForSEO. A business outside the top 20 counts as not ranked.
+                {maps.single ? `At ${atPlace(maps.centredOnBusiness)}` : `At ${maps.pointsDone} ${maps.pointsDone === 1 ? "point" : "points"} of a ${maps.n}×${maps.n} grid${maps.radiusMiles ? ` within ${fmtMiles(maps.radiusMiles)} of ${aroundPlace(maps.centredOnBusiness)}` : ""}`}, on {fmtDay(maps.date)}: the local results for “{maps.keyword}”, via DataForSEO. A business outside the top 20 counts as not ranked.
               </MethodItem>
             ) : null}
             {audit ? <MethodItem term="Local AI Audit">On {fmtDay(audit.date)}: checks of the business&apos;s Google profile and website, scored out of 100.</MethodItem> : null}
@@ -269,7 +271,7 @@ export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHr
 // ───────────────────────── parts ─────────────────────────
 
 const fmtMiles = (m: number) => `${Number.isInteger(m) ? m : m.toFixed(1)} ${m === 1 ? "mile" : "miles"}`;
-const radiusText = (m: number | null) => (m ? `${fmtMiles(m)} around the business` : undefined);
+const radiusText = (m: number | null, centred = true) => (m ? `${fmtMiles(m)} around ${aroundPlace(centred)}` : undefined);
 
 function countNote(view: ReportView): string {
   const parts: string[] = [];

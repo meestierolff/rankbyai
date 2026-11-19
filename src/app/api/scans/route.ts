@@ -5,6 +5,7 @@ import { captureServer } from "@/lib/analytics-server";
 import type { ScanSpec } from "@/lib/cost-guard";
 import { createScan, processScan } from "@/lib/scans/engine";
 import { MAX_POINT_IDX } from "@/lib/scans/skip";
+import { centreBothOrNone, centreFields, centreOf } from "@/lib/scans/centre";
 
 export const maxDuration = 300;
 
@@ -21,7 +22,8 @@ const Body = z.object({
   skip_points: z.array(z.number().int().min(0).max(MAX_POINT_IDX)).max(MAX_POINT_IDX).optional(),
   funding: z.enum(["byok", "credits"]).default("byok"),
   confirm: z.boolean().default(false),
-});
+  ...centreFields,
+}).refine(centreBothOrNone);
 
 /**
  * Estimate, then run. Without `confirm: true` the response is the estimate only (HTTP 409
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
 
     const result = await createScan({
       workspaceId: ctx.workspace.id, plan: ctx.workspace.plan, businessId: b.business_id, spec, keyword: b.keyword,
-      promptTemplate: b.prompt_template, radiusMiles: b.radius_miles, funding: b.funding, confirm: b.confirm,
+      promptTemplate: b.prompt_template, radiusMiles: b.radius_miles, funding: b.funding, confirm: b.confirm, center: centreOf(b),
     });
     if (!result.ok) {
       if (result.error === "confirmation_required") {

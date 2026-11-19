@@ -437,3 +437,19 @@ export function countryFromText(text: string | null | undefined): string | null 
   if (!t) return null;
   return normalizeCountry(t) ?? BY_NAME.get(fold(t)) ?? null;
 }
+
+// ───────────────────────── business language ─────────────────────────
+
+/** Every language a business can be given (the languages of the country table), by English name. */
+export const LANGUAGE_OPTIONS: readonly { code: string; name: string }[] = Object.entries(LANGUAGE_NAMES)
+  .map(([code, name]) => ({ code, name }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+
+export const isLanguageCode = (code: string | null | undefined): code is string => !!code && Object.hasOwn(LANGUAGE_NAMES, code);
+
+/** English name of a language code ("German"), or null for an unknown code. */
+export const languageName = (code: string | null | undefined): string | null => (isLanguageCode(code) ? LANGUAGE_NAMES[code] : null);
+
+/** The language text for a business is written in: its own setting, else the main language of its country. */
+export const businessLanguage = (b: { language?: string | null; country?: string | null }): string =>
+  isLanguageCode(b.language) ? b.language : languageCodeFor(b.country);

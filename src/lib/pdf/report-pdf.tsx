@@ -2,7 +2,7 @@ import "server-only";
 import { Circle, Document, Font, Image, Link, Page, Rect, StyleSheet, Svg, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import QRCode from "qrcode";
 import { DATA_HEX } from "@/components/brand/grid";
-import { dataDates, fixPrompt, fmtDay, headlineStats, isHex6, orList, placeOf, quoteBlocks, verdict, type HeadlineStat, type QuoteBlock } from "@/components/report/derive";
+import { aroundPlace, atPlace, dataDates, fixPrompt, fmtDay, headlineStats, isHex6, orList, placeOf, quoteBlocks, verdict, type HeadlineStat, type QuoteBlock } from "@/components/report/derive";
 import { aiPointLook, mapsPointLook } from "@/components/report/model";
 import type { QuotedAnswer, ReportView } from "@/components/report/types";
 import { AI_DISCLAIMER_TEXT, NOT_AFFILIATED } from "@/lib/copy";
@@ -260,7 +260,7 @@ function Qr({ url, size = 62 }: { url: string; size?: number }) {
   );
 }
 
-const miles = (m: number | null) => (m ? ` within ${Number.isInteger(m) ? m : m.toFixed(1)} ${m === 1 ? "mile" : "miles"} of the business` : "");
+const miles = (m: number | null, centred?: boolean) => (m ? ` within ${Number.isInteger(m) ? m : m.toFixed(1)} ${m === 1 ? "mile" : "miles"} of ${aroundPlace(centred)}` : "");
 
 // ───────────────────────── document ─────────────────────────
 
@@ -316,7 +316,7 @@ export function ReportDocument({ view, liveUrl, logo }: { view: ReportView; live
           <View style={s.section} wrap={false}>
             <Eyebrow n={num("map")} text="The map" color={accent} />
             <Text style={s.h2}>{safe(business.name.length > 40 ? "Where the business shows up" : `Where ${business.name} shows up`)}</Text>
-            <Text style={s.lead}>Each dot is one point on a grid around the business. From every point {aiGrid && mapsGrid ? "the AI assistants were asked for a recommendation and Google Maps was searched" : aiGrid ? "the AI assistants were asked for a recommendation" : "Google Maps was searched"}.</Text>
+            <Text style={s.lead}>Each dot is one point on a grid around {aroundPlace(aiGrid?.centredOnBusiness !== false && mapsGrid?.centredOnBusiness !== false)}. From every point {aiGrid && mapsGrid ? "the AI assistants were asked for a recommendation and Google Maps was searched" : aiGrid ? "the AI assistants were asked for a recommendation" : "Google Maps was searched"}.</Text>
             <View style={{ flexDirection: "row", gap: 14 }}>
               {aiGrid ? (
                 <View style={[s.box, { flex: 1, alignItems: "center" }]}>
@@ -358,7 +358,7 @@ export function ReportDocument({ view, liveUrl, logo }: { view: ReportView; live
               <Eyebrow n={num("said")} text="The proof" color={accent} />
               <Text style={s.h2}>What the AI said</Text>
               <Text style={s.lead}>
-                {ai.n === 1 ? "Asked at the business location" : `Asked at point ${ai.quote.pointName}${ai.quote.area ? ` (${safe(ai.quote.area)})` : ""}, ${ai.quote.atBusiness ? "where the business is" : "the checked point nearest the business"},`} on {fmtDay(ai.date)}. Quoted exactly as each assistant answered.
+                {ai.n === 1 ? `Asked at ${atPlace(ai.centredOnBusiness)}` : `Asked at point ${ai.quote.pointName}${ai.quote.area ? ` (${safe(ai.quote.area)})` : ""}, ${ai.quote.atBusiness ? "where the business is" : "the checked point nearest the business"},`} on {fmtDay(ai.date)}. Quoted exactly as each assistant answered.
               </Text>
               {ai.quote.prompt ? (
                 <View style={{ backgroundColor: SOFT, borderRadius: 5, padding: 8 }}>
@@ -375,8 +375,8 @@ export function ReportDocument({ view, liveUrl, logo }: { view: ReportView; live
         {maps?.single ? (
           <View style={s.section} wrap={false}>
             <Eyebrow n={num("maps1")} text="Google Maps" color={accent} />
-            <Text style={s.h2}>Google Maps at the business location</Text>
-            <Text style={s.lead}>{safe(`The local results for “${maps.keyword ?? ""}” at the business location on ${fmtDay(maps.date)}.`)}</Text>
+            <Text style={s.h2}>{maps.centredOnBusiness === false ? "Google Maps at the chosen point" : "Google Maps at the business location"}</Text>
+            <Text style={s.lead}>{safe(`The local results for “${maps.keyword ?? ""}” at ${atPlace(maps.centredOnBusiness)} on ${fmtDay(maps.date)}.`)}</Text>
             <View style={s.box}>
               {maps.single.top.map((t) => {
                 const you = t.rank === maps.single!.rank;
@@ -464,13 +464,13 @@ export function ReportDocument({ view, liveUrl, logo }: { view: ReportView; live
           {ai ? (
             <Text style={{ fontSize: 8, color: BODY }}>
               <Text style={{ fontFamily: "Helvetica-Bold" }}>AI assistants. </Text>
-              {ai.n === 1 ? "At the business location" : `At ${ai.pointsChecked} points of a ${ai.n}×${ai.n} grid${miles(ai.radiusMiles)}`}, on {fmtDay(ai.date)}, through the official APIs: {orList(ai.engines.map((e) => `${ENGINE_LABEL[e.key]?.api ?? e.label} (${e.label})`), "and")}. Every assistant got the same question{ai.n > 1 ? "; only the area name changes between points" : ""}.
+              {ai.n === 1 ? `At ${atPlace(ai.centredOnBusiness)}` : `At ${ai.pointsChecked} points of a ${ai.n}×${ai.n} grid${miles(ai.radiusMiles, ai.centredOnBusiness)}`}, on {fmtDay(ai.date)}, through the official APIs: {orList(ai.engines.map((e) => `${ENGINE_LABEL[e.key]?.api ?? e.label} (${e.label})`), "and")}. Every assistant got the same question{ai.n > 1 ? "; only the area name changes between points" : ""}.
             </Text>
           ) : null}
           {maps ? (
             <Text style={{ fontSize: 8, color: BODY }}>
               <Text style={{ fontFamily: "Helvetica-Bold" }}>Google Maps. </Text>
-              {maps.single ? "At the business location" : `At ${maps.pointsDone} points of a ${maps.n}×${maps.n} grid${miles(maps.radiusMiles)}`}, on {fmtDay(maps.date)}: the local results for {safe(`“${maps.keyword ?? ""}”`)}, via DataForSEO. Outside the top 20 counts as not ranked.
+              {maps.single ? `At ${atPlace(maps.centredOnBusiness)}` : `At ${maps.pointsDone} points of a ${maps.n}×${maps.n} grid${miles(maps.radiusMiles, maps.centredOnBusiness)}`}, on {fmtDay(maps.date)}: the local results for {safe(`“${maps.keyword ?? ""}”`)}, via DataForSEO. Outside the top 20 counts as not ranked.
             </Text>
           ) : null}
           {audit ? <Text style={{ fontSize: 8, color: BODY }}><Text style={{ fontFamily: "Helvetica-Bold" }}>Local AI Audit. </Text>On {fmtDay(audit.date)}: checks of the business&apos;s Google profile and website, scored out of 100.</Text> : null}

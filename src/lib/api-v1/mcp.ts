@@ -79,10 +79,13 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("update_business", {
     title: "Update a business",
-    description: "Change the name, address, city or client of a tracked business. Fields you leave out stay as they are; null clears address, city or client_id. Coordinates and the Google Maps listing do not change. Free.",
+    description: "Change the name, address, city, client, map point or language of a tracked business. Fields you leave out stay as they are; null clears address, city, client_id or language. lat and lng correct the map point (for a pin in the wrong place); schedules on the old point move with it. language sets the language of text written for the business (Fix Kit). The Google Maps listing does not change. Free.",
     inputSchema: z.object({
       business_id: id("business"), name: z.string().min(1).max(300).optional(), address: z.string().max(400).nullable().optional(), city: z.string().max(120).nullable().optional(),
       client_id: z.string().nullable().optional().describe("Id (a UUID) of a client of this workspace; clients are made in the app. null takes the business out of its client."),
+      lat: z.number().min(-90).max(90).optional().describe("New map point latitude (send with lng)"),
+      lng: z.number().min(-180).max(180).optional().describe("New map point longitude (send with lat)"),
+      language: z.string().nullable().optional().describe("Language code for text written for the business, e.g. de, nl, fr; null = the country's language"),
     }),
     outputSchema: open({ business: businessOut }),
   }, ({ business_id, ...fields }) => reply("update_business", () => core.updateBusiness(caller, business_id, fields)));
@@ -101,6 +104,8 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
     business_id: z.string().describe("Id from list_businesses or add_business"),
     keyword: z.string().min(2).max(120).describe("The service customers search for, e.g. \"dentist\" or \"emergency plumber\""),
     radius_miles: z.number().positive().max(50).default(2).describe("Half the width of the grid. 2 miles suits a city business; use 5 to 10 for service-area businesses."),
+    center_lat: z.number().min(-90).max(90).optional().describe("Optional grid centre (with center_lng), for a service-area business or a pin in the wrong place. Default: the business's map point. At most 100 miles from it."),
+    center_lng: z.number().min(-180).max(180).optional().describe("Optional grid centre (with center_lat)."),
     funding,
   };
   const aiGrid = z.literal(AI_GRID_SIZES).default(3).describe("3 = 3×3 grid (9 points). 5×5 costs about three times as much.");

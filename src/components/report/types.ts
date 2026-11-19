@@ -89,6 +89,8 @@ export interface ReportView {
   defaultView?: "map" | "grid";
   ai: {
     date: string;
+    /** False when the grid was centred on a point chosen for the report rather than the business's own map point. */
+    centredOnBusiness?: boolean;
     service: string | null;
     n: number;
     radiusMiles: number | null;
@@ -118,6 +120,8 @@ export interface ReportView {
   } | null;
   maps: {
     date: string;
+    /** False when the grid was centred on a point chosen for the report rather than the business's own map point. */
+    centredOnBusiness?: boolean;
     keyword: string | null;
     n: number;
     radiusMiles: number | null;

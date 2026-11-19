@@ -238,3 +238,14 @@ describe("scan summaries", () => {
     expect(combinedInsight(maps, ai)).toBe("Top 3 on Maps at 3/4 points, but named by AI engines in 1/4 answers.");
   });
 });
+
+describe("comparing two scans point by point", () => {
+  it("needs the same centre and radius, not only the same grid size", async () => {
+    const { samePlace } = await import("@/lib/scans/compare");
+    const at = (lat: number, lng: number, r = 2) => ({ center_lat: lat, center_lng: lng, radius_miles: r });
+    expect(samePlace(at(30.2672, -97.7431), at(30.2672, -97.7431))).toBe(true);
+    expect(samePlace(at(30.2672, -97.7431), at(30.2675, -97.7431))).toBe(true); // ~30 m
+    expect(samePlace(at(30.2672, -97.7431), at(30.2772, -97.7431))).toBe(false); // ~0.7 mi
+    expect(samePlace(at(30.2672, -97.7431, 2), at(30.2672, -97.7431, 5))).toBe(false);
+  });
+});

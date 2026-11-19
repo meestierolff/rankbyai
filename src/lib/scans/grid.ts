@@ -31,6 +31,15 @@ export function buildGrid(center: { lat: number; lng: number }, n: number, radiu
 
 const round7 = (v: number) => Math.round(v * 1e7) / 1e7;
 
+/** Farthest a grid centre may be from the business's own map point (a larger distance is almost always a mistake). */
+export const MAX_CENTRE_MILES = 100;
+/** A grid counts as centred on the business when its centre is this close to the business's map point (about 80 m). */
+export const CENTRED_MILES = 0.05;
+
+/** Whether a coordinate pair is a real place on the globe. */
+export const validCoord = (p: { lat: number; lng: number } | null | undefined): p is { lat: number; lng: number } =>
+  !!p && Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180;
+
 export function milesBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const dLat = (b.lat - a.lat) * MILES_PER_DEG_LAT;
   const dLng = (b.lng - a.lng) * MILES_PER_DEG_LAT * Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);

@@ -8,7 +8,7 @@ import { DotGrid, aiCellColors, mapsCellColors, pointName, skippedCell, type Cel
 import { requireSession } from "@/lib/auth";
 import { memberRead } from "@/lib/db/member-read";
 import { ENGINE_LABEL } from "@/lib/pricing-constants";
-import { compareAi, compareHeadline, compareMaps, type AiCompareSample, type MapsComparePoint } from "@/lib/scans/compare";
+import { compareAi, compareHeadline, compareMaps, samePlace, type AiCompareSample, type MapsComparePoint } from "@/lib/scans/compare";
 import { ScanSelect } from "./scan-select";
 import { CompareViewed } from "./viewed";
 
@@ -18,6 +18,9 @@ interface ScanLite {
   id: string;
   kind: "ai" | "maps";
   grid_size: number;
+  center_lat: number | null;
+  center_lng: number | null;
+  radius_miles: number | string | null;
   keyword: string | null;
   niche: string | null;
   status: string;
@@ -51,7 +54,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
 
   const { data: scanRows } = businessId
     ? await memberRead("Scans to compare", wsId, (db) =>
-        db.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at").eq("workspace_id", wsId).eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60),
+        db.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at, center_lat, center_lng, radius_miles").eq("workspace_id", wsId).eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60),
       )
     : { data: [] };
   const scans = (scanRows ?? []) as ScanLite[];
@@ -117,7 +120,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
     const all = (sampleRows ?? []) as (AiCompareSample & { scan_id: string })[];
     const sa = all.filter((s) => s.scan_id === before.id);
     const sb = all.filter((s) => s.scan_id === after.id);
-    const c = compareAi(sa, sb, before.grid_size, after.grid_size);
+    const c = compareAi(sa, sb, before.grid_size, after.grid_size, samePlace(before, after));
     headline = compareHeadline("ai", c);
     const skippedAt = (scanId: string, idx: number) => pts.some((p) => p.scan_id === scanId && p.idx === idx && p.status === "skipped");
     const grid = (samples: AiCompareSample[], n: number, scanId: string): CellView[] =>
@@ -145,7 +148,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
                 <DotGrid n={after.grid_size} cells={c.points.map((p) => deltaCell(String(p.idx), p.delta, where(p.idx)))} fontPx={12} gapPx={7} />
                 <p className="mt-3 mb-0 text-[13px] text-dim">{c.improved} improved · {c.declined} declined. The number is the change in how many engines named the business.</p>
               </>
-            ) : <p className="m-0 text-[14px] text-muted-foreground">These scans used different grid sizes, so points cannot be matched one to one. The metrics above still compare.</p>}
+            ) : <p className="m-0 text-[14px] text-muted-foreground">These scans used different grids (size, centre or radius), so points cannot be matched one to one. The metrics above still compare.</p>}
           </Panel>
         </div>
         <AiDisclaimer className="mt-4" />
@@ -154,7 +157,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   } else {
     const pa: MapsComparePoint[] = pts.filter((p) => p.scan_id === before.id);
     const pb: MapsComparePoint[] = pts.filter((p) => p.scan_id === after.id);
-    const c = compareMaps(pa, pb);
+    const c = compareMaps(pa, pb, samePlace(before, after));
     headline = compareHeadline("maps", c);
     const grid = (points: MapsComparePoint[]): CellView[] =>
       points.map((p) => p.status === "skipped" ? { key: String(p.idx), ...skippedCell(where(p.idx).replace(/^Point /, "")) } : (p.status === "done" ? { key: String(p.idx), ...mapsCellColors(p.rank), title: `${where(p.idx)}: ${p.rank ? `rank #${p.rank}` : "not in the top 20"}` } : { key: String(p.idx), bg: "var(--rb-well)", fg: "var(--rb-faint)", label: "!", title: `${where(p.idx)}: no result` }));
@@ -174,7 +177,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
                 <DotGrid n={after.grid_size} cells={c.points.map((p) => deltaCell(String(p.idx), p.delta, where(p.idx)))} fontPx={after.grid_size >= 9 ? 8 : 10} gapPx={4} />
                 <p className="mt-3 mb-0 text-[13px] text-dim">▲ = positions gained, ▼ = positions lost. Not in the top 20 counts as 21.</p>
               </>
-            ) : <p className="m-0 text-[14px] text-muted-foreground">These scans used different grid sizes, so points cannot be matched one to one. The metrics above still compare.</p>}
+            ) : <p className="m-0 text-[14px] text-muted-foreground">These scans used different grids (size, centre or radius), so points cannot be matched one to one. The metrics above still compare.</p>}
           </Panel>
         </div>
       </>

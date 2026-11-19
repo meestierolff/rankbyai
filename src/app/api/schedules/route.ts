@@ -5,6 +5,7 @@ import { upsertTrackedQuery } from "@/lib/schedules";
 import { validateTemplate } from "@/lib/scans/prompt";
 import { MAX_POINT_IDX, normalizeSkip } from "@/lib/scans/skip";
 import { dbAdmin } from "@/lib/db/clients";
+import { centreBothOrNone, centreFields, centreOf } from "@/lib/scans/centre";
 
 const Body = z.object({
   business_id: z.uuid(),
@@ -18,7 +19,8 @@ const Body = z.object({
   skip_points: z.array(z.number().int().min(0).max(MAX_POINT_IDX)).max(MAX_POINT_IDX).optional(),
   funding: z.enum(["byok", "credits"]).default("byok"),
   schedule: z.enum(["weekly", "monthly"]),
-});
+  ...centreFields,
+}).refine(centreBothOrNone);
 
 /** Create or update a recurring check. Opt-in only; the first run happens one period from now. */
 export async function POST(request: Request) {
@@ -40,6 +42,7 @@ export async function POST(request: Request) {
     const result = await upsertTrackedQuery({
       workspaceId: ctx.workspace.id, businessId: b.business_id, kind: b.kind, keyword: b.keyword, promptTemplate: b.prompt_template,
       gridSize: b.grid_size, skipPoints: normalizeSkip(b.skip_points), radiusMiles: b.radius_miles, engines: b.engines ?? [], funding: b.funding, schedule: b.schedule,
+      center: centreOf(b),
     });
     return result.ok ? json({ ok: true, id: result.id }) : err(409, "schedule_failed", result.message);
   });

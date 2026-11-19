@@ -9,11 +9,13 @@ import { resolveCredentials } from "@/lib/keys";
 import { isMockMode } from "@/lib/mock";
 import { DATAFORSEO_MAPS_PER_POINT, FAIR_USE, LLM_FIX_KIT_BUDGET_USD } from "@/lib/pricing-constants";
 import { createBatch, discover, estimateBatch, processBatch, resolveRows, type BatchRow } from "@/lib/prospects/batch";
-import { compareAi, compareHeadline, compareMaps, type AiCompareSample, type MapsComparePoint } from "@/lib/scans/compare";
+import { compareAi, compareHeadline, compareMaps, samePlace, type AiCompareSample, type MapsComparePoint } from "@/lib/scans/compare";
 import { createScan, processScan } from "@/lib/scans/engine";
 import { MAX_POINT_IDX } from "@/lib/scans/skip";
 import { ENGINES } from "@/lib/pricing-constants";
-import { COUNTRY_CODES, DEFAULT_COUNTRY } from "@/lib/countries";
+import { COUNTRY_CODES, DEFAULT_COUNTRY, isLanguageCode } from "@/lib/countries";
+import { CENTRE_PAIR_MESSAGE, centreBothOrNone, centreFields, centreOf } from "@/lib/scans/centre";
+import { setBusinessLocation } from "@/lib/businesses";
 
 /**
  * The public API's operations (brief 7.8). REST routes and MCP tools both call these, so the two
@@ -57,7 +59,7 @@ export const PAGE_LIMIT_MAX = 200;
 export const PAGE_OFFSET_MAX = 100_000;
 const Page = { limit: z.coerce.number().int().min(1).max(PAGE_LIMIT_MAX).default(50), offset: z.coerce.number().int().min(0).max(PAGE_OFFSET_MAX).default(0) };
 
-const BUSINESS_COLS = "id, client_id, name, address, city, region, country, lat, lng, website, phone, primary_category, rating, reviews_count, source, created_at";
+const BUSINESS_COLS = "id, client_id, name, address, city, region, country, lat, lng, language, website, phone, primary_category, rating, reviews_count, source, created_at";
 
 // ───────────────────────── businesses ─────────────────────────
 
@@ -132,19 +134,29 @@ export const UpdateBusiness = z.strictObject({
   city: z.preprocess(blankToNull, z.string().trim().max(120).nullable()).optional(),
   /** A client of this workspace (clients are made in the app), or null to take the business out of its client. */
   client_id: z.uuid().nullable().optional(),
-});
+  /** Correct the business's map point (both or neither). Schedules on the old point move with it. */
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+  /** Language for text written for the business (Fix Kit, fix prompt); null = its country's language. */
+  language: z.string().refine(isLanguageCode, "must be a language code such as de, nl or fr").nullable().optional(),
+}).refine((b) => (b.lat == null) === (b.lng == null), { message: "Send lat and lng together.", path: ["lat"] });
 
-/** Change the name, address, city or client of a business. Free. Only the fields that are sent change. */
+/** Change the name, address, city, client, map point or language of a business. Free. Only the fields that are sent change. */
 export async function updateBusiness(c: ApiCaller, id: string, input: unknown): Promise<ApiResult> {
   if (!uuid.safeParse(id).success) return invalidId("business");
   const p = UpdateBusiness.safeParse(input);
   if (!p.success) return invalid(p.error);
-  const patch = Object.fromEntries(Object.entries(p.data).filter(([, v]) => v !== undefined));
-  if (!Object.keys(patch).length) return fail(400, "invalid_request", "Send at least one of: name, address, city, client_id.");
+  const { lat, lng, ...fields } = p.data;
+  const patch = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+  if (!Object.keys(patch).length && lat == null) return fail(400, "invalid_request", "Send at least one of: name, address, city, client_id, lat and lng, language.");
   const admin = dbAdmin();
   if (typeof patch.client_id === "string") {
     const { data: client } = await admin.from("clients").select("id").eq("id", patch.client_id).eq("workspace_id", c.workspaceId).maybeSingle();
     if (!client) return fail(400, "invalid_client", "That client does not belong to this workspace.");
+  }
+  if (lat != null && lng != null) {
+    const moved = await setBusinessLocation(c.workspaceId, id, { lat, lng });
+    if (!moved.ok) return moved.status === 404 ? badId("business") : fail(moved.status, moved.error, moved.message);
   }
   const { data, error } = await admin.from("businesses").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id).eq("workspace_id", c.workspaceId).select(BUSINESS_COLS);
   if (error) return fail(500, "server_error", "The business could not be updated.");
@@ -180,7 +192,9 @@ export const CreateScan = z.object({
   skip_points: z.array(z.number().int().min(0).max(MAX_POINT_IDX)).max(MAX_POINT_IDX).optional(),
   funding: z.enum(["byok", "credits"]).default("byok"),
   confirm: z.boolean().default(false),
-});
+  /** Where to centre the grid (both or neither). Default: the business's map point. */
+  ...centreFields,
+}).refine(centreBothOrNone, { message: CENTRE_PAIR_MESSAGE, path: ["center_lat"] });
 
 export async function createScanOp(c: ApiCaller, input: unknown, defer: Defer): Promise<ApiResult> {
   const p = CreateScan.safeParse(input);
@@ -195,7 +209,7 @@ export async function createScanOp(c: ApiCaller, input: unknown, defer: Defer): 
     if (!engines.length) return fail(400, "missing_key", "No AI engine key is available. Add a key in Settings → API keys, or use \"funding\": \"credits\".");
   }
   const spec = (b.kind === "ai" ? { kind: "ai", grid: b.grid_size, engines, skip: b.skip_points } : { kind: "maps", grid: b.grid_size, mode: b.mode, skip: b.skip_points }) as ScanSpec;
-  const r = await createScan({ workspaceId: c.workspaceId, plan: c.plan, businessId: b.business_id, spec, keyword, promptTemplate: b.prompt_template, radiusMiles: b.radius_miles, funding: b.funding, confirm: b.confirm });
+  const r = await createScan({ workspaceId: c.workspaceId, plan: c.plan, businessId: b.business_id, spec, keyword, promptTemplate: b.prompt_template, radiusMiles: b.radius_miles, funding: b.funding, confirm: b.confirm, center: centreOf(b) });
   if (!r.ok) {
     if (r.error === "confirmation_required") return needsConfirm(r.estimate, "scan");
     return fail(r.status, r.error, r.message, r.estimate ? { estimate: r.estimate } : {});
@@ -250,7 +264,7 @@ export async function compareScans(c: ApiCaller, q: { a?: unknown; b?: unknown }
   const p = z.object({ a: z.uuid(), b: z.uuid() }).safeParse(q);
   if (!p.success) return fail(400, "invalid_request", "Send two scan ids: a (earlier) and b (later).");
   const db = dbUser(c.ownerId);
-  const { data: rows } = await db.from("scans").select("id, business_id, kind, grid_size, status, created_at").in("id", [p.data.a, p.data.b]).eq("workspace_id", c.workspaceId);
+  const { data: rows } = await db.from("scans").select("id, business_id, kind, grid_size, status, created_at, center_lat, center_lng, radius_miles").in("id", [p.data.a, p.data.b]).eq("workspace_id", c.workspaceId);
   const a = (rows ?? []).find((s) => s.id === p.data.a);
   const b = (rows ?? []).find((s) => s.id === p.data.b);
   if (!a || !b) return badId("scan");
@@ -259,12 +273,12 @@ export async function compareScans(c: ApiCaller, q: { a?: unknown; b?: unknown }
   if (a.kind === "ai") {
     const { data } = await db.from("ai_samples").select("scan_id, point_idx, engine, status, mentioned, mention_position").in("scan_id", [a.id, b.id]);
     const all = (data ?? []) as (AiCompareSample & { scan_id: string })[];
-    const cmp = compareAi(all.filter((s) => s.scan_id === a.id), all.filter((s) => s.scan_id === b.id), a.grid_size, b.grid_size);
+    const cmp = compareAi(all.filter((s) => s.scan_id === a.id), all.filter((s) => s.scan_id === b.id), a.grid_size, b.grid_size, samePlace(a, b));
     return ok({ kind: "ai", a: a.id, b: b.id, headline: compareHeadline("ai", cmp), comparison: cmp as unknown as Record<string, unknown> });
   }
   const { data } = await db.from("scan_points").select("scan_id, idx, row, col, rank, status").in("scan_id", [a.id, b.id]).order("idx");
   const all = (data ?? []) as (MapsComparePoint & { scan_id: string })[];
-  const cmp = compareMaps(all.filter((s) => s.scan_id === a.id), all.filter((s) => s.scan_id === b.id));
+  const cmp = compareMaps(all.filter((s) => s.scan_id === a.id), all.filter((s) => s.scan_id === b.id), samePlace(a, b));
   return ok({ kind: "maps", a: a.id, b: b.id, headline: compareHeadline("maps", cmp), comparison: cmp as unknown as Record<string, unknown> });
 }
 

@@ -40,6 +40,10 @@ export function placeOf(view: ReportView): string {
   return [city, region].filter(Boolean).join(", ");
 }
 
+/** Where a one-point check ran, or what a grid is centred on: the business, or a point chosen for the report. */
+export const atPlace = (centred: boolean | undefined) => (centred === false ? "the point chosen for this report" : "the business location");
+export const aroundPlace = (centred: boolean | undefined) => (centred === false ? "the point chosen for this report" : "the business");
+
 const around = (view: ReportView) => (view.business.city ? `around ${view.business.city}` : "around the business");
 const quoteMark = (s: string | null) => (s ? `“${s}”` : "its main search");
 
@@ -63,7 +67,7 @@ export function verdict(view: ReportView): string {
   const ai = view.ai;
   if (ai && ai.n === 1 && ai.single) {
     const answered = ai.single.filter((s) => s.available);
-    if (answered.length) parts.push(`Asked for ${ai.service ? `${aService(ai.service)} recommendation` : "a recommendation"} at the business location, ${answered.filter((s) => s.mentioned).length} of ${answered.length} AI assistants named ${name}.`);
+    if (answered.length) parts.push(`Asked for ${ai.service ? `${aService(ai.service)} recommendation` : "a recommendation"} at ${atPlace(ai.centredOnBusiness)}, ${answered.filter((s) => s.mentioned).length} of ${answered.length} AI assistants named ${name}.`);
   } else if (ai && ai.pointsChecked > 0) {
     const k = ai.pointsChecked;
     parts.push(
@@ -79,7 +83,7 @@ export function verdict(view: ReportView): string {
   const maps = view.maps;
   if (maps?.single) {
     const r = maps.single.rank;
-    parts.push(r != null && r <= 20 ? `On Google Maps it ranks #${r} for ${quoteMark(maps.keyword)} at the business location.` : `On Google Maps it is not in the top 20 for ${quoteMark(maps.keyword)} at the business location.`);
+    parts.push(r != null && r <= 20 ? `On Google Maps it ranks #${r} for ${quoteMark(maps.keyword)} at ${atPlace(maps.centredOnBusiness)}.` : `On Google Maps it is not in the top 20 for ${quoteMark(maps.keyword)} at ${atPlace(maps.centredOnBusiness)}.`);
   } else if (maps && maps.pointsDone > 0) {
     const lead = parts.length ? "On Google Maps it is" : `${name} is`;
     parts.push(`${lead} in the top 3 for ${quoteMark(maps.keyword)} at ${maps.top3Points} of ${maps.pointsDone} points${parts.length ? "" : ` ${around(view)}`}.`);
@@ -163,7 +167,7 @@ export function fixPrompt(view: ReportView): string | null {
     lines.push(`- Asked to recommend ${ai.service ? aService(oneLine(ai.service, 60)) : "a business like it"} from ${ai.pointsChecked} points ${near}, ${engines} named ${name} at ${ai.pointsMentioned} of them.${rival ? ` ${oneLine(rival.name, 80)} was named at ${rival.points}.` : ""}`);
   }
   if (maps && !maps.single && maps.pointsDone > 0) lines.push(`- On Google Maps it is in the top 3 for ${quoteMark(keyword)} at ${maps.top3Points} of ${maps.pointsDone} points.`);
-  if (maps?.single) lines.push(maps.single.rank != null && maps.single.rank <= 20 ? `- On Google Maps it ranks #${maps.single.rank} for ${quoteMark(keyword)} at the business location.` : `- On Google Maps it is not in the top 20 for ${quoteMark(keyword)} at the business location.`);
+  if (maps?.single) lines.push(maps.single.rank != null && maps.single.rank <= 20 ? `- On Google Maps it ranks #${maps.single.rank} for ${quoteMark(keyword)} at ${atPlace(maps.centredOnBusiness)}.` : `- On Google Maps it is not in the top 20 for ${quoteMark(keyword)} at ${atPlace(maps.centredOnBusiness)}.`);
   if (ai?.sources.length) lines.push(`- The sites the AI assistants cited most: ${ai.sources.slice(0, 6).map((s) => oneLine(s.domain, 60)).join(", ")}.`);
   if (audit) lines.push(`- Audit score of the Google profile and website: ${audit.score} out of 100.`);
   if (findings.length) {
@@ -216,7 +220,7 @@ export function headlineStats(view: ReportView): HeadlineStat[] {
   }
   if (maps?.single) {
     const r = maps.single.rank;
-    out.push({ key: "maps", value: r != null && r <= 20 ? `#${r}` : "20+", of: null, label: "Google Maps", unit: "rank at the business", caption: r != null && r <= 20 ? `rank at the business location for ${quoteMark(maps.keyword)}` : `not in the top 20 for ${quoteMark(maps.keyword)} at the business location`, share: null, tone: r != null && r <= 3 ? "good" : r != null && r <= 10 ? "mid" : "bad" });
+    out.push({ key: "maps", value: r != null && r <= 20 ? `#${r}` : "20+", of: null, label: "Google Maps", unit: "rank at the business", caption: r != null && r <= 20 ? `rank at ${atPlace(maps.centredOnBusiness)} for ${quoteMark(maps.keyword)}` : `not in the top 20 for ${quoteMark(maps.keyword)} at ${atPlace(maps.centredOnBusiness)}`, share: null, tone: r != null && r <= 3 ? "good" : r != null && r <= 10 ? "mid" : "bad" });
   } else if (maps && maps.pointsDone > 0) {
     out.push({ key: "maps", value: String(maps.top3Points), of: String(maps.pointsDone), label: "Google Maps", unit: "points in the top 3", caption: `points where the business is in the top 3 for ${quoteMark(maps.keyword)}`, share: maps.top3Points / maps.pointsDone, tone: toneOf(maps.top3Points / maps.pointsDone) });
   }

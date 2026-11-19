@@ -87,14 +87,17 @@ export function openApiSpec(siteUrl: string) {
       "/businesses/{id}": {
         get: { operationId: "getBusiness", tags: ["Businesses"], summary: "Get a business and its recent scans", parameters: [idParam("business")], responses: { "200": { description: "The business.", content: json(obj({ business: ref("Business"), recent_scans: { type: "array", items: obj({ id: uuid, kind: { type: "string", enum: ["ai", "maps"] }, grid_size: { type: "integer" }, status: scanStatus, keyword: nullable("string"), niche: nullable("string"), created_at: dateTime }) } })) }, ...errors } },
         patch: {
-          operationId: "updateBusiness", tags: ["Businesses"], summary: "Change the name, address, city or client of a business",
-          description: "Free. Fields you leave out stay as they are. Coordinates and the Google Maps listing do not change. Fields other than these four answer 400.",
+          operationId: "updateBusiness", tags: ["Businesses"], summary: "Change the name, address, city, client, map point or language of a business",
+          description: "Free. Fields you leave out stay as they are. `lat` and `lng` (together) correct the map point; schedules on the old point move with it. `language` sets the language of text written for the business. The Google Maps listing does not change. Other fields answer 400.",
           parameters: [idParam("business")],
           requestBody: { required: true, content: json(obj({
             name: { type: "string", description: "1 to 300 characters." },
             address: nullable("string", { description: "null or an empty string clears it." }),
             city: nullable("string", { description: "null or an empty string clears it." }),
             client_id: nullable("string", { format: "uuid", description: "A client of this workspace (clients are made in the app). null takes the business out of its client." }),
+            lat: { type: "number", minimum: -90, maximum: 90, description: "New map point, sent together with lng." },
+            lng: { type: "number", minimum: -180, maximum: 180, description: "New map point, sent together with lat." },
+            language: nullable("string", { description: "Language code (e.g. de, nl, fr) for text written for the business. null = its country's language." }),
           })) },
           responses: { "200": { description: "The business after the change.", content: json(obj({ business: ref("Business") })) }, ...errors },
         },
@@ -120,6 +123,8 @@ export function openApiSpec(siteUrl: string) {
             prompt_template: { type: "string", description: "AI scans only. Must contain {service} and {neighbourhood} or {city}." },
             grid_size: { type: "integer", enum: ANY_GRID, description: `AI scans: ${gridSides(AI_GRID_SIZES)}. Maps scans: ${gridSides(MAPS_GRID_SIZES)}.` }, radius_miles: { type: "number", default: 2, maximum: 50 },
             skip_points: skipPoints,
+            center_lat: { type: "number", minimum: -90, maximum: 90, description: "Optional grid centre, sent together with center_lng. Default: the business's map point. At most 100 miles from it." },
+            center_lng: { type: "number", minimum: -180, maximum: 180, description: "Optional grid centre, sent together with center_lat." },
             engines: { type: "array", items: { type: "string", enum: ["openai", "perplexity", "gemini"] }, description: "AI scans. Default: every engine you have a key for." },
             mode: { type: "string", enum: ["standard", "priority", "live"], default: "priority", description: "Maps scans: queue speed." },
             funding, confirm,
@@ -233,7 +238,7 @@ export function openApiSpec(siteUrl: string) {
         ConfirmRequired: obj({ confirm_required: { type: "boolean", const: true }, estimate: ref("Estimate"), message: { type: "string" } }, ["confirm_required", "estimate"]),
         Business: obj({
           id: uuid, client_id: nullable("string", { format: "uuid", description: "The client this business is filed under in the app." }), name: { type: "string" }, address: nullable("string"), city: nullable("string"), region: nullable("string"), country: nullable("string"),
-          lat: nullable("number"), lng: nullable("number"), website: nullable("string"), phone: nullable("string"), primary_category: nullable("string"),
+          lat: nullable("number"), lng: nullable("number"), language: nullable("string", { description: "Language for text written for the business; null = its country's language." }), website: nullable("string"), phone: nullable("string"), primary_category: nullable("string"),
           rating: nullable("number"), reviews_count: nullable("integer"), source: { type: "string", enum: ["search", "csv", "prospect", "manual"] }, created_at: dateTime,
         }, ["id", "name"]),
         Scan: obj({

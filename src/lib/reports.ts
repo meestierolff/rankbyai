@@ -6,6 +6,7 @@ import type { ReportView } from "@/components/report/types";
 import type { Engine } from "@/lib/pricing-constants";
 import type { AiSummary, MapsSummary } from "@/lib/scans/summary";
 import { dbAdmin } from "@/lib/db/clients";
+import { CENTRED_MILES, milesBetween } from "@/lib/scans/grid";
 import { signedUrl } from "@/lib/storage";
 
 /**
@@ -63,6 +64,11 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
   const aiScan = scans.find((s) => s.kind === "ai") ?? null;
   const mapsScan = scans.find((s) => s.kind === "maps") ?? null;
 
+  // A grid counts as "at the business" only when its centre is on the business's own map point.
+  const centredOn = (s: ScanLite) => {
+    const c = centerOf(s);
+    return !!businessAt && !!c && milesBetween(c, businessAt) <= CENTRED_MILES;
+  };
   let ai: ReportView["ai"] = null;
   if (aiScan) {
     const [{ data: pts }, { data: smp }] = await Promise.all([
@@ -84,6 +90,8 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
       { n: aiScan.grid_size, engines, service: aiScan.niche ?? aiScan.keyword, radiusMiles: finite(aiScan.radius_miles), center, date: aiScan.created_at, summary: aiScan.summary as unknown as AiSummary },
       points, samples, business.name, near ? buildQuote(near, quoteRows, engines, aiScan.grid_size) : null,
     );
+    const centred = centredOn(aiScan);
+    ai = { ...ai, centredOnBusiness: centred, quote: ai.quote && !centred ? { ...ai.quote, atBusiness: false } : ai.quote };
   }
 
   let maps: ReportView["maps"] = null;
@@ -93,6 +101,7 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
       { n: mapsScan.grid_size, keyword: mapsScan.keyword, radiusMiles: finite(mapsScan.radius_miles), center: centerOf(mapsScan), date: mapsScan.created_at, summary: mapsScan.summary as unknown as MapsSummary },
       buildMapsPoints((pts ?? []) as RawPoint[]),
     );
+    maps = { ...maps, centredOnBusiness: centredOn(mapsScan) };
   } else if (report.kind === "free_check" && report.data?.maps?.checked) {
     const m = report.data.maps as { keyword: string; rank: number | null; top: { rank: number; name: string }[] };
     maps = {

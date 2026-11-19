@@ -254,3 +254,22 @@ describe("competitors written several ways", () => {
     expect(rows.filter((r) => /digitec/i.test(r.name))).toHaveLength(1);
   });
 });
+
+describe("a grid centred on a point chosen for the report", () => {
+  const html = (view: ReportView) => renderToStaticMarkup(<ReportBody view={view} pdfHref="/r/abcdefghijkl/pdf" siteUrl={SITE} />);
+  it("never claims the points are around or at the business", () => {
+    const view = VARIANTS.full.build();
+    const moved = { ...view, ai: { ...view.ai!, centredOnBusiness: false }, maps: { ...view.maps!, centredOnBusiness: false } };
+    const out = html(moved);
+    expect(out).toContain("grid around the point chosen for this report");
+    expect(out).not.toContain("grid around the business");
+    expect(out).not.toMatch(/within [\d.]+ miles? of the business/);
+    expect(html(view)).toContain("grid around the business");
+  });
+  it("words one-point checks the same way", () => {
+    const view = VARIANTS.free.build();
+    const moved = { ...view, ai: { ...view.ai!, centredOnBusiness: false }, maps: { ...view.maps!, centredOnBusiness: false } };
+    expect(verdict(moved)).toContain("at the point chosen for this report");
+    expect(verdict(moved)).not.toContain("business location");
+  });
+});

@@ -50,6 +50,7 @@ interface BusinessRow {
   country: string | null;
   cid: string | null;
   language: string | null;
+  ask_in_language: boolean;
 }
 
 export default async function BusinessPage({ params }: { params: Promise<{ id: string }> }) {
@@ -60,7 +61,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
   // Every read below that can carry the workspace filter does, and goes through memberRead: a
   // failed read throws (error state), and only "no such row in this workspace" is a 404.
   const { data: found } = await memberRead("Business", wsId, (db) =>
-    db.from("businesses").select("id, name, primary_category, address, city, region, rating, reviews_count, website, phone, lat, lng, country, cid, language").eq("id", id).eq("workspace_id", wsId).maybeSingle(),
+    db.from("businesses").select("id, name, primary_category, address, city, region, rating, reviews_count, website, phone, lat, lng, country, cid, language, ask_in_language").eq("id", id).eq("workspace_id", wsId).maybeSingle(),
   );
   const b = found as BusinessRow | null;
   if (!b) notFound();
@@ -187,6 +188,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
           location={b.lat != null && b.lng != null ? { lat: Number(b.lat), lng: Number(b.lng) } : null}
           serviceArea={isServiceArea(b)}
           language={b.language}
+          askInLanguage={b.ask_in_language}
           country={b.country}
           countryLanguage={languageNameFor(b.country)}
         />

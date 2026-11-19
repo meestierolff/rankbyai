@@ -18,6 +18,7 @@ const Patch = z.strictObject({
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   language: z.string().refine(isLanguageCode).nullable().optional(),
+  ask_in_language: z.boolean().optional(),
 }).refine((b) => (b.lat == null) === (b.lng == null));
 
 /** Correct the business's map point and/or set its language. Schedules on the old point move with it. */
@@ -34,8 +35,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (!r.ok) return err(r.status, r.error, r.message);
       following = r.following;
     }
-    if (b.language !== undefined) {
-      const { error, count } = await dbAdmin().from("businesses").update({ language: b.language, updated_at: new Date().toISOString() }, { count: "exact" }).eq("id", id.data).eq("workspace_id", ctx.workspace.id);
+    if (b.language !== undefined || b.ask_in_language !== undefined) {
+      const change = { ...(b.language !== undefined ? { language: b.language } : {}), ...(b.ask_in_language !== undefined ? { ask_in_language: b.ask_in_language } : {}) };
+      const { error, count } = await dbAdmin().from("businesses").update({ ...change, updated_at: new Date().toISOString() }, { count: "exact" }).eq("id", id.data).eq("workspace_id", ctx.workspace.id);
       if (error) return err(500, "server_error", "The language could not be saved.");
       if (!count) return err(404, "not_found", "Unknown business.");
     }

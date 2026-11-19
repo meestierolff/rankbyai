@@ -11,6 +11,7 @@ import { ENGINE_LABEL } from "@/lib/pricing-constants";
 import { compareAi, compareHeadline, compareMaps, samePlace, type AiCompareSample, type MapsComparePoint } from "@/lib/scans/compare";
 import { ScanSelect } from "./scan-select";
 import { CompareViewed } from "./viewed";
+import { DEFAULT_PROMPT_TEMPLATE } from "@/lib/scans/prompt";
 
 export const metadata: Metadata = { title: "Compare scans" };
 
@@ -21,6 +22,7 @@ interface ScanLite {
   center_lat: number | null;
   center_lng: number | null;
   radius_miles: number | string | null;
+  prompt_template: string | null;
   keyword: string | null;
   niche: string | null;
   status: string;
@@ -54,7 +56,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
 
   const { data: scanRows } = businessId
     ? await memberRead("Scans to compare", wsId, (db) =>
-        db.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at, center_lat, center_lng, radius_miles").eq("workspace_id", wsId).eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60),
+        db.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at, center_lat, center_lng, radius_miles, prompt_template").eq("workspace_id", wsId).eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60),
       )
     : { data: [] };
   const scans = (scanRows ?? []) as ScanLite[];
@@ -131,8 +133,15 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
         const best = hits.length ? Math.min(...hits.map((s) => s.mention_position ?? 5)) : null;
         return { key: String(idx), ...aiCellColors(best), label: done.length ? `${hits.length}/${done.length}` : "!", title: `${where(idx)}: named by ${hits.length} of ${done.length} engines` };
       });
+    // A question asked differently (other wording or language) changes the answers by itself.
+    const sameQuestion = (before.prompt_template ?? DEFAULT_PROMPT_TEMPLATE) === (after.prompt_template ?? DEFAULT_PROMPT_TEMPLATE);
     body = (
       <>
+        {!sameQuestion ? (
+          <p role="note" className="mt-0 mb-4 rounded-xl border border-border-strong bg-surface-2 px-4 py-3 text-[14px] text-muted-foreground">
+            These two checks asked the assistants a different question (other wording or another language). Part of any change can come from the question itself.
+          </p>
+        ) : null}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
           <StatTile label="Points where AI names the business" value={signed(c.pointsMentioned.delta)} hint={`${c.pointsMentioned.before} → ${c.pointsMentioned.after} of ${c.pointsMentioned.total}`} tone={c.pointsMentioned.delta > 0 ? "good" : c.pointsMentioned.delta < 0 ? "bad" : undefined} />
           {c.engines.map((e) => (

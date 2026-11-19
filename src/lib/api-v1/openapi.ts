@@ -98,6 +98,7 @@ export function openApiSpec(siteUrl: string) {
             lat: { type: "number", minimum: -90, maximum: 90, description: "New map point, sent together with lng." },
             lng: { type: "number", minimum: -180, maximum: 180, description: "New map point, sent together with lat." },
             language: nullable("string", { description: "Language code (e.g. de, nl, fr) for text written for the business. null = its country's language." }),
+            ask_in_language: { type: "boolean", description: "true asks AI assistants in the business's language where RankbyAI has a written question for it (de, nl, fr, es, it, pt, sv, da, no, pl); false asks in English." },
           })) },
           responses: { "200": { description: "The business after the change.", content: json(obj({ business: ref("Business") })) }, ...errors },
         },
@@ -238,7 +239,7 @@ export function openApiSpec(siteUrl: string) {
         ConfirmRequired: obj({ confirm_required: { type: "boolean", const: true }, estimate: ref("Estimate"), message: { type: "string" } }, ["confirm_required", "estimate"]),
         Business: obj({
           id: uuid, client_id: nullable("string", { format: "uuid", description: "The client this business is filed under in the app." }), name: { type: "string" }, address: nullable("string"), city: nullable("string"), region: nullable("string"), country: nullable("string"),
-          lat: nullable("number"), lng: nullable("number"), language: nullable("string", { description: "Language for text written for the business; null = its country's language." }), website: nullable("string"), phone: nullable("string"), primary_category: nullable("string"),
+          lat: nullable("number"), lng: nullable("number"), language: nullable("string", { description: "Language for text written for the business; null = its country's language." }), ask_in_language: { type: "boolean", description: "Whether AI assistants are asked in that language (where a written question exists) instead of English." }, website: nullable("string"), phone: nullable("string"), primary_category: nullable("string"),
           rating: nullable("number"), reviews_count: nullable("integer"), source: { type: "string", enum: ["search", "csv", "prospect", "manual"] }, created_at: dateTime,
         }, ["id", "name"]),
         Scan: obj({

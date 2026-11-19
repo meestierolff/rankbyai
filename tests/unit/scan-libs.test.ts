@@ -249,3 +249,27 @@ describe("comparing two scans point by point", () => {
     expect(samePlace(at(30.2672, -97.7431, 2), at(30.2672, -97.7431, 5))).toBe(false);
   });
 });
+
+describe("questions in the business's language", () => {
+  it("every written question is valid and renders with a named area, with coordinates only, and without a city", async () => {
+    const { QUESTIONS, buildPrompt, validateTemplate } = await import("@/lib/scans/prompt");
+    for (const [lang, q] of Object.entries(QUESTIONS)) {
+      expect(validateTemplate(q.template), lang).toBeNull();
+      const named = buildPrompt(q.template, { neighbourhood: "Kreuzberg", city: "Berlin", service: q.serviceExample, lat: 52.5, lng: 13.4 });
+      expect(named, lang).toContain("Kreuzberg, Berlin");
+      expect(named, lang).toContain(q.serviceExample);
+      expect(named, lang).not.toMatch(/[{}]/);
+      const coords = buildPrompt(q.template, { neighbourhood: null, city: null, service: "x", lat: 52.5389, lng: 13.4246 });
+      expect(coords, lang).toContain("52.539, 13.425");
+      expect(coords, lang).not.toMatch(/[{}]|,\s*\./);
+    }
+  });
+  it("chooses the language: own language when asked in it and written, else English", async () => {
+    const { DEFAULT_PROMPT_TEMPLATE, defaultQuestionFor, questionLanguage } = await import("@/lib/scans/prompt");
+    expect(questionLanguage({ ask_in_language: true, language: "de" })).toBe("de");
+    expect(questionLanguage({ ask_in_language: true, language: "pt-BR" })).toBe("pt");
+    expect(questionLanguage({ ask_in_language: false, language: "de" })).toBe("en");
+    expect(questionLanguage({ ask_in_language: true, language: "ja" })).toBe("en"); // no written question yet
+    expect(defaultQuestionFor({ ask_in_language: true, language: "en" })).toBe(DEFAULT_PROMPT_TEMPLATE);
+  });
+});

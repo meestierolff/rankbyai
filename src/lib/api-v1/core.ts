@@ -59,7 +59,7 @@ export const PAGE_LIMIT_MAX = 200;
 export const PAGE_OFFSET_MAX = 100_000;
 const Page = { limit: z.coerce.number().int().min(1).max(PAGE_LIMIT_MAX).default(50), offset: z.coerce.number().int().min(0).max(PAGE_OFFSET_MAX).default(0) };
 
-const BUSINESS_COLS = "id, client_id, name, address, city, region, country, lat, lng, language, website, phone, primary_category, rating, reviews_count, source, created_at";
+const BUSINESS_COLS = "id, client_id, name, address, city, region, country, lat, lng, language, ask_in_language, website, phone, primary_category, rating, reviews_count, source, created_at";
 
 // ───────────────────────── businesses ─────────────────────────
 
@@ -139,6 +139,8 @@ export const UpdateBusiness = z.strictObject({
   lng: z.number().min(-180).max(180).optional(),
   /** Language for text written for the business (Fix Kit, fix prompt); null = its country's language. */
   language: z.string().refine(isLanguageCode, "must be a language code such as de, nl or fr").nullable().optional(),
+  /** Ask AI assistants in the business's language (where a written question exists) instead of English. */
+  ask_in_language: z.boolean().optional(),
 }).refine((b) => (b.lat == null) === (b.lng == null), { message: "Send lat and lng together.", path: ["lat"] });
 
 /** Change the name, address, city, client, map point or language of a business. Free. Only the fields that are sent change. */
@@ -148,7 +150,7 @@ export async function updateBusiness(c: ApiCaller, id: string, input: unknown): 
   if (!p.success) return invalid(p.error);
   const { lat, lng, ...fields } = p.data;
   const patch = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
-  if (!Object.keys(patch).length && lat == null) return fail(400, "invalid_request", "Send at least one of: name, address, city, client_id, lat and lng, language.");
+  if (!Object.keys(patch).length && lat == null) return fail(400, "invalid_request", "Send at least one of: name, address, city, client_id, lat and lng, language, ask_in_language.");
   const admin = dbAdmin();
   if (typeof patch.client_id === "string") {
     const { data: client } = await admin.from("clients").select("id").eq("id", patch.client_id).eq("workspace_id", c.workspaceId).maybeSingle();

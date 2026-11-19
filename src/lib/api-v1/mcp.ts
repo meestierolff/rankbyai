@@ -86,6 +86,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
       lat: z.number().min(-90).max(90).optional().describe("New map point latitude (send with lng)"),
       lng: z.number().min(-180).max(180).optional().describe("New map point longitude (send with lat)"),
       language: z.string().nullable().optional().describe("Language code for text written for the business, e.g. de, nl, fr; null = the country's language"),
+      ask_in_language: z.boolean().optional().describe("true asks the AI assistants in the business's language (German, Dutch, French, Spanish, Italian, Portuguese, Swedish, Danish, Norwegian, Polish); false asks in English. Changing it makes the next AI scan not comparable point by point with earlier ones."),
     }),
     outputSchema: open({ business: businessOut }),
   }, ({ business_id, ...fields }) => reply("update_business", () => core.updateBusiness(caller, business_id, fields)));

@@ -227,3 +227,29 @@ describe("keys never leak (acceptance d)", () => {
     expect(isMockMode()).toBe(true);
   });
 });
+
+describe("the question's language", () => {
+  const germanBusiness = async (ask: boolean | null) => {
+    const row: Record<string, unknown> = { workspace_id: u.workspaceId, name: "Zahnarztpraxis Kollwitzplatz", city: "Berlin", country: "DE", lat: 52.5389, lng: 13.4246, primary_category: "Zahnarzt" };
+    if (ask !== null) row.ask_in_language = ask;
+    const { data, error } = await admin.from("businesses").insert(row).select("id").single();
+    if (error) throw error;
+    return data.id as string;
+  };
+  const askedWith = async (id: string, over: Record<string, unknown> = {}) => {
+    const r = await createScan(base({ kind: "ai", grid: 1, engines: ["openai"] }, { businessId: id, keyword: "Zahnarzt", ...over }));
+    if (!r.ok) throw new Error(r.message);
+    return (await sql<{ prompt_template: string }>("select prompt_template from public.scans where id = $1", [r.scanId]))[0].prompt_template;
+  };
+
+  it("asks a new business outside English-speaking countries in its own language", async () => {
+    expect(await askedWith(await germanBusiness(null))).toMatch(/^Ich bin in der Nähe von \{area\}/);
+  });
+  it("keeps English for a business set to English, and for an English-speaking country", async () => {
+    expect(await askedWith(await germanBusiness(false))).toMatch(/^I'm in \{neighbourhood\}/);
+    expect(await askedWith(businessId)).toMatch(/^I'm in \{neighbourhood\}/);
+  });
+  it("uses the user's own wording when there is one", async () => {
+    expect(await askedWith(await germanBusiness(true), { promptTemplate: "Welche {service} gibt es in {city}? Nenne 5." })).toBe("Welche {service} gibt es in {city}? Nenne 5.");
+  });
+});

@@ -14,6 +14,8 @@ import { ScanForm, type FormBusiness } from "./scan-form";
 import { ScanResult } from "./scan-result";
 import { EmptyState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatusChip, fmtUsd } from "./ui";
 import { isServiceArea } from "@/lib/service-area";
+import { businessLanguage, languageName } from "@/lib/countries";
+import { QUESTIONS, defaultQuestionFor, questionLanguage } from "@/lib/scans/prompt";
 
 /* Server-side page bodies shared by the AI Visibility and Maps Grid sections. */
 
@@ -34,13 +36,20 @@ const COPY = {
   },
 } as const;
 
+/** The default AI question for a business, the language it is in, and an example service word. */
+function questionFor(b: { ask_in_language: boolean | null; language: string | null; country: string | null }) {
+  const q = { ask_in_language: b.ask_in_language, language: businessLanguage(b) };
+  const lang = questionLanguage(q);
+  return { question: defaultQuestionFor(q), questionLanguage: lang === "en" ? null : (languageName(lang) ?? null), serviceExample: QUESTIONS[lang]?.serviceExample ?? null };
+}
+
 export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionContext; kind: "ai" | "maps"; businessId?: string }) {
   const copy = COPY[kind];
   const ws = ctx.workspace;
   // Every read is filtered by the session's workspace id and goes through memberRead: a failed
   // read throws (the page's error state shows) instead of looking like "Add a business first".
   const [{ data: bizRows }, keyRows, credits, included, { data: scanRows }, { data: scheduleRows }] = await Promise.all([
-    memberRead("Businesses", ws.id, (db) => db.from("businesses").select("id, name, city, country, address, cid, primary_category, lat, lng").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(500)),
+    memberRead("Businesses", ws.id, (db) => db.from("businesses").select("id, name, city, country, address, cid, primary_category, lat, lng, language, ask_in_language").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(500)),
     getKeyStatuses(ws.id),
     getCreditBalance(ws.id),
     includedScans(ws.id),
@@ -58,10 +67,11 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
     ),
   ]);
   const schedules = (scheduleRows ?? []) as unknown as { id: string; keyword: string | null; niche: string | null; grid_size: number; skip_points: number[] | null; schedule: string; next_run_at: string | null; active: boolean; funding: string; businesses: { name: string } | null }[];
-  type BizRow = { id: string; name: string; city: string | null; country: string | null; address: string | null; cid: string | null; primary_category: string | null; lat: number | null; lng: number | null };
+  type BizRow = { id: string; name: string; city: string | null; country: string | null; address: string | null; cid: string | null; primary_category: string | null; lat: number | null; lng: number | null; language: string | null; ask_in_language: boolean | null };
   const businesses: FormBusiness[] = ((bizRows ?? []) as BizRow[]).map((b) => ({
     id: b.id, name: b.name, city: b.city, category: b.primary_category, lat: b.lat, lng: b.lng, country: b.country,
     serviceArea: isServiceArea(b),
+    ...questionFor(b),
   }));
   const scans = (scanRows ?? []) as unknown as (ScanRow & { skip_points?: number[] | null })[];
   const mock = isMockMode();

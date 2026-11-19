@@ -28,6 +28,11 @@ export interface FormBusiness {
   country?: string | null;
   /** No street address on the Google listing: the map point is approximate. */
   serviceArea?: boolean;
+  /** The default AI question for this business (in its language when it is asked in it). */
+  question?: string;
+  /** Name of that language when it is not English ("German"), and a service word in it. */
+  questionLanguage?: string | null;
+  serviceExample?: string | null;
 }
 
 interface Estimate {
@@ -68,7 +73,7 @@ export function ScanForm({
 
   const [businessId, setBusinessId] = useState(first?.id ?? "");
   const [keyword, setKeyword] = useState(first?.category ? first.category.toLowerCase() : "");
-  const [template, setTemplate] = useState(DEFAULT_PROMPT_TEMPLATE);
+  const [template, setTemplate] = useState(first?.question ?? DEFAULT_PROMPT_TEMPLATE);
   const [funding, setFunding] = useState<FundingChoice>(firstFunding);
   const [engines, setEngines] = useState<Engine[]>(() => enginesFor(firstFunding));
   const [grid, setGrid] = useState<number>(firstGrid);
@@ -90,6 +95,8 @@ export function ScanForm({
   const activeEngines = engines.filter(usable);
   const engineKey = activeEngines.join(",");
   const business = businesses.find((b) => b.id === businessId) ?? null;
+  // This business's own default question: sent as "no custom prompt" when unchanged.
+  const defaultQuestion = business?.question ?? DEFAULT_PROMPT_TEMPLATE;
   const businessAt = business?.lat != null && business?.lng != null ? { lat: business.lat, lng: business.lng } : null;
   // Where the grid is centred: the chosen point, else the business.
   const center = centre ?? businessAt;
@@ -115,9 +122,9 @@ export function ScanForm({
       business_id: businessId, kind, keyword, grid_size: grid, radius_miles: radius, funding, confirm,
       ...(skip.length ? { skip_points: skip } : {}),
       ...(centre ? { center_lat: centre.lat, center_lng: centre.lng } : {}),
-      ...(kind === "ai" ? { engines: engineKey ? engineKey.split(",") : [], prompt_template: template === DEFAULT_PROMPT_TEMPLATE ? null : template } : { mode }),
+      ...(kind === "ai" ? { engines: engineKey ? engineKey.split(",") : [], prompt_template: template === defaultQuestion ? null : template } : { mode }),
     }),
-    [businessId, kind, keyword, grid, skip, radius, funding, mode, template, engineKey, centre],
+    [businessId, kind, keyword, grid, skip, radius, funding, mode, template, defaultQuestion, engineKey, centre],
   );
 
   // Live estimate: ask the server (no confirm) whenever the setup changes.
@@ -173,6 +180,8 @@ export function ScanForm({
               setSkip([]); // skipped points belong to one business's surroundings
               setCentre(null); // a chosen centre belongs to one business too
               const b = businesses.find((x) => x.id === e.target.value);
+              // An unedited question follows the business (its language); an edited one is kept.
+              if (template === defaultQuestion) setTemplate(b?.question ?? DEFAULT_PROMPT_TEMPLATE);
               if (b?.category && !keyword) setKeyword(b.category.toLowerCase());
             }}
             className={inputClass}
@@ -186,7 +195,11 @@ export function ScanForm({
         <label className="flex flex-col gap-[6px]">
           <span className={labelClass}>{kind === "ai" ? "Service people ask for" : "Maps keyword"}</span>
           <input value={keyword} onChange={(e) => setKeyword(e.target.value)} maxLength={120} placeholder={kind === "ai" ? "dentists" : "dentist near me"} className={inputClass} />
-          {kind === "ai" ? <span className="text-[13px] text-dim">Used as {"{service}"} in the prompt, e.g. “Who are the best {keyword || "dentists"} near me?”</span> : null}
+          {kind === "ai" ? (
+            business?.questionLanguage ? (
+              <span className="text-[13px] text-dim">AI assistants are asked in {business.questionLanguage}, so type the service in {business.questionLanguage}, e.g. “{business.serviceExample}”. Change the language on the business page.</span>
+            ) : <span className="text-[13px] text-dim">Used as {"{service}"} in the prompt, e.g. “Who are the best {keyword || "dentists"} near me?”</span>
+          ) : null}
         </label>
 
         {kind === "ai" ? (
@@ -206,9 +219,9 @@ export function ScanForm({
               {funding === "credits" && includedOpen && ENGINES.some((e) => !included.engines.includes(e)) ? <span className="text-[13px] text-dim">Greyed-out engines are not available on included scans today.</span> : null}
             </div>
             <details className="rounded-xl border border-border bg-inset px-4 py-3">
-              <summary className="text-[14px] font-medium">Prompt</summary>
+              <summary className="text-[14px] font-medium">Prompt{business?.questionLanguage ? <span className="font-normal text-dim"> · in {business.questionLanguage}</span> : null}</summary>
               <textarea value={template} onChange={(e) => setTemplate(e.target.value)} rows={3} maxLength={400} className={`${inputClass} mt-3 font-mono text-[13px]`} />
-              <span className="mt-2 block text-[13px] text-dim">Must contain {"{service}"} and {"{neighbourhood}"} or {"{city}"}. The same prompt is sent to every engine and stored with each answer.</span>
+              <span className="mt-2 block text-[13px] text-dim">Must contain {"{service}"} and {"{neighbourhood}"}, {"{area}"} or {"{city}"}. The same prompt is sent to every engine and stored with each answer.</span>
             </details>
           </>
         ) : null}

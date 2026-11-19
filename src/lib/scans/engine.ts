@@ -18,7 +18,8 @@ import { buildGrid, MAX_CENTRE_MILES, milesBetween, validCoord } from "./grid";
 import { findInMaps, mentionedInText, namesMatch, positionInNames, type BusinessIdentity } from "./match";
 import { PARSE_INSTRUCTIONS, PARSE_SCHEMA, parseNamedBusinesses } from "./parse";
 import { fetchPlaces, labelPoints } from "./places";
-import { DEFAULT_PROMPT_TEMPLATE, buildPrompt, validateTemplate } from "./prompt";
+import { buildPrompt, defaultQuestionFor, validateTemplate } from "./prompt";
+import { businessLanguage } from "@/lib/countries";
 import { normalizeSkip } from "./skip";
 import { summarizeAi, summarizeMaps, type AiSampleRow, type MapsPointRow } from "./summary";
 
@@ -47,6 +48,9 @@ export interface BusinessRow extends BusinessIdentity {
   cid: string | null;
   place_id: string | null;
   primary_category: string | null;
+  /** Language setting (null = the country's) and whether AI assistants are asked in it. */
+  language?: string | null;
+  ask_in_language?: boolean | null;
 }
 
 export interface CreateScanInput {
@@ -105,14 +109,17 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
   const keyword = input.keyword.trim();
   if (keyword.length < 2 || keyword.length > 120) return fail(400, "invalid_keyword", "Enter a service or keyword (2–120 characters).");
   if (!(input.radiusMiles > 0 && input.radiusMiles <= 50)) return fail(400, "invalid_radius", "The radius must be between 0.1 and 50 miles.");
-  const template = spec.kind === "ai" ? (input.promptTemplate?.trim() || DEFAULT_PROMPT_TEMPLATE) : null;
-  if (template) {
-    const tErr = validateTemplate(template);
+  const customTemplate = spec.kind === "ai" ? (input.promptTemplate?.trim() || null) : null;
+  if (customTemplate) {
+    const tErr = validateTemplate(customTemplate);
     if (tErr) return fail(400, "invalid_prompt", tErr);
   }
 
   const { data: business } = await admin.from("businesses").select("*").eq("id", input.businessId).maybeSingle<BusinessRow>();
   if (!business || business.workspace_id !== input.workspaceId) return fail(404, "business_not_found", "That business was not found in this workspace.");
+  // The question: the user's own wording, else the default for this business (its language, when it
+  // is asked in it; see lib/scans/prompt). Stored with the scan, so a scan always shows what was asked.
+  const template = spec.kind === "ai" ? (customTemplate ?? defaultQuestionFor({ ask_in_language: business.ask_in_language, language: businessLanguage(business) })) : null;
   const businessAt = business.lat != null && business.lng != null ? { lat: Number(business.lat), lng: Number(business.lng) } : null;
   if (!chosenCentre && !businessAt) return fail(400, "business_has_no_location", "This business has no map location yet. Set it on the business page, or choose where to centre the grid.");
   if (chosenCentre && businessAt) {

@@ -39,7 +39,8 @@ export default async function BrandingPage() {
           canEdit={ctx.role === "owner" && !locked}
           initial={{
             brand_name: ws.brand_name ?? "", brand_color_hex: ws.brand_color_hex ?? "", brand_website: ws.brand_website ?? "",
-            reply_to_email: ws.reply_to_email ?? "", hide_rankbyai_branding: ws.hide_rankbyai_branding, logoUrl,
+            reply_to_email: ws.reply_to_email ?? "", hide_rankbyai_branding: ws.hide_rankbyai_branding,
+            report_default_view: ws.report_default_view === "grid" ? "grid" : "map", logoUrl,
           }}
         />
       </Panel>

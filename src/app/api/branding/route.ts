@@ -21,6 +21,7 @@ const Body = z.object({
   brand_website: httpUrl.nullable(),
   reply_to_email: z.email().max(254).nullable(),
   hide_rankbyai_branding: z.boolean(),
+  report_default_view: z.enum(["map", "grid"]),
 });
 
 /** White-label settings for share links and PDFs. Only http(s) websites are accepted (the report links to it). */
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
         brand_website: blankToNull(raw.brand_website),
         reply_to_email: blankToNull(raw.reply_to_email),
         hide_rankbyai_branding: raw.hide_rankbyai_branding === true,
+        report_default_view: raw.report_default_view === "grid" ? "grid" : "map",
       },
     );
     if (!parsed.success) return err(400, "invalid_body", parsed.error.issues[0]?.message ?? "Check the branding fields.");

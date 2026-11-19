@@ -98,6 +98,7 @@ export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHr
               </div>
               <MapSection
                 businessName={business.name}
+                initialView={view.defaultView ?? "map"}
                 pin={target ?? aiGrid?.center ?? mapsGrid?.center ?? null}
                 ai={aiGrid ? {
                   n: aiGrid.n, points: aiGrid.points,

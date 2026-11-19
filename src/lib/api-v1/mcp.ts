@@ -45,7 +45,7 @@ const scanOut = open({ id: z.string(), business_id: z.string(), kind: z.enum(["a
 const auditOut = open({ id: z.string(), business_id: z.string(), status: z.enum(["queued", "running", "done", "failed"]), score: num, checks_ran: z.number(), checks_total: z.number(), funding: z.string(), est_cost_usd: num, cost_usd: num, service: text, months: num, created_at: z.string(), finished_at: text });
 const batchOut = open({ id: z.string(), mode: z.string(), niche: text, city: text, funding: z.string(), total: z.number(), done: z.number(), failed: z.number(), status: z.enum(["queued", "running", "done", "partial", "failed"]), created_at: z.string(), finished_at: text });
 const estimateOut = open({ totalUsd: z.number(), highUsd: z.number().optional(), credits: z.number().optional(), basis: z.string().optional(), lines: z.array(open({ provider: z.string().optional(), label: z.string(), usd: z.number() })) });
-const brandingOut = open({ branding: open({ brand_name: text, brand_color_hex: text, brand_website: text, reply_to_email: text, hide_rankbyai_branding: z.boolean(), has_logo: z.boolean() }) });
+const brandingOut = open({ branding: open({ brand_name: text, brand_color_hex: text, brand_website: text, reply_to_email: text, hide_rankbyai_branding: z.boolean(), report_default_view: z.enum(["map", "grid"]).optional(), has_logo: z.boolean() }) });
 
 export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: string): McpServer {
   // Stateless and POST only: there is no stream to announce a changed tool list on, so listChanged is off.
@@ -250,6 +250,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
       brand_website: z.string().max(300).nullable().optional().describe("Full web address starting with https://"),
       reply_to_email: z.string().max(254).nullable().optional().describe("Address replies to report emails go to"),
       hide_rankbyai_branding: z.boolean().optional().describe("true removes RankbyAI's name from reports"),
+      report_default_view: z.enum(["map", "grid"]).optional().describe("Whether report links open on the map or on the rank grid"),
     }),
     outputSchema: brandingOut,
   }, (a) => reply("update_branding", () => core.updateBranding(caller, a)));

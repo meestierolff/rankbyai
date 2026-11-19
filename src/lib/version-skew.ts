@@ -18,26 +18,36 @@ const KEY = "rbai_skew_reload_at";
 export const SKEW_RELOAD_GAP_MS = 60_000;
 
 type Win = { sessionStorage?: Storage; location: { reload: () => void } };
+const browser = (): Win | null => (typeof window === "undefined" ? null : window);
 
-/** Whether a quiet reload is allowed now (none in the last minute). `win` is injectable for tests. */
-export function skewReloadAllowed(win: Win = window, now = Date.now()): boolean {
-  if (reloadedThisPage) return false;
-  let last = 0;
+/**
+ * Whether a quiet reload is allowed now: in a browser, with session storage that works (so the limit
+ * survives the reload), and none in the last minute. Fails closed: when in doubt, no reload and the
+ * error shows. `win` is injectable for tests.
+ */
+export function skewReloadAllowed(win: Win | null = browser(), now = Date.now()): boolean {
+  if (!win || reloadedThisPage) return false;
   try {
-    last = Number(win.sessionStorage?.getItem(KEY) ?? 0) || 0;
+    const store = win.sessionStorage;
+    if (!store) return false;
+    const last = Number(store.getItem(KEY) ?? 0) || 0;
+    return now - last >= SKEW_RELOAD_GAP_MS;
   } catch {
-    // Storage blocked: the in-page flag still allows only one reload.
+    return false;
   }
-  return now - last >= SKEW_RELOAD_GAP_MS;
 }
 
 /** Reloads the page unless it already did so in the last minute. Returns true when it reloads. */
-export function reloadOnce(win: Win = window, now = Date.now()): boolean {
-  if (!skewReloadAllowed(win, now)) return false;
-  reloadedThisPage = true;
+export function reloadOnce(win: Win | null = browser(), now = Date.now()): boolean {
+  if (!win || !skewReloadAllowed(win, now)) return false;
   try {
-    win.sessionStorage?.setItem(KEY, String(now));
-  } catch {}
+    // Record the reload first and read it back: if the record does not stick, do not reload.
+    win.sessionStorage!.setItem(KEY, String(now));
+    if (win.sessionStorage!.getItem(KEY) !== String(now)) return false;
+  } catch {
+    return false;
+  }
+  reloadedThisPage = true;
   win.location.reload();
   return true;
 }

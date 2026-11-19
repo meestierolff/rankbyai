@@ -15,6 +15,8 @@ export interface MapSectionProps {
   ai: { n: number; points: AiPoint[]; caption: string; initial: number | null } | null;
   maps: { n: number; points: MapsPoint[]; keyword: string | null; caption: string; initial: number | null } | null;
   pin: { lat: number; lng: number } | null;
+  /** Shown first: the map (default) or the grid. */
+  initialView?: "map" | "grid";
 }
 
 const segWell = "inline-flex rounded-[10px] border border-lp-border bg-lp-well p-[3px]";
@@ -67,10 +69,10 @@ export function LayerLegend({ layer }: { layer: LayerKey }) {
  * The dot grid is rendered on the server first: it is what shows before the map has loaded, without
  * JavaScript, without WebGL, and in print.
  */
-export function MapSection({ businessName, ai, maps, pin }: MapSectionProps) {
+export function MapSection({ businessName, ai, maps, pin, initialView = "map" }: MapSectionProps) {
   const layers = useMemo(() => [ai ? ("ai" as const) : null, maps ? ("maps" as const) : null].filter((x): x is LayerKey => !!x), [ai, maps]);
   const [layer, setLayer] = useState<LayerKey>(layers[0]);
-  const [view, setView] = useState<"map" | "grid">("map");
+  const [view, setView] = useState<"map" | "grid">(initialView);
   const [mapState, setMapState] = useState<"loading" | "ready" | "failed">("loading");
   const [sel, setSel] = useState<Record<LayerKey, string | null>>({
     ai: ai?.initial != null ? String(ai.initial) : null,

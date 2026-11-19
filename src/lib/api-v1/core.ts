@@ -458,7 +458,7 @@ export async function getProspects(c: ApiCaller, id: string, siteUrl: string, de
 
 // ───────────────────────── branding ─────────────────────────
 
-const BRANDING_COLS = "brand_name, brand_color_hex, brand_website, reply_to_email, hide_rankbyai_branding";
+const BRANDING_COLS = "brand_name, brand_color_hex, brand_website, reply_to_email, hide_rankbyai_branding, report_default_view";
 const httpUrl = z.string().trim().max(300).refine((v) => {
   try {
     const u = new URL(v);
@@ -475,6 +475,8 @@ export const UpdateBranding = z.strictObject({
   brand_website: z.preprocess(blankToNull, httpUrl.nullable()).optional(),
   reply_to_email: z.preprocess(blankToNull, z.email().max(254).nullable()).optional(),
   hide_rankbyai_branding: z.boolean().optional(),
+  /** Whether report links open on the map or on the rank grid. */
+  report_default_view: z.enum(["map", "grid"]).optional(),
 });
 
 const brandingOf = (row: Record<string, unknown>) => {

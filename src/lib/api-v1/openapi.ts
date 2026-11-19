@@ -199,6 +199,7 @@ export function openApiSpec(siteUrl: string) {
             brand_website: nullable("string", { format: "uri", description: "Full web address starting with http:// or https://." }),
             reply_to_email: nullable("string", { format: "email", description: "Address replies go to." }),
             hide_rankbyai_branding: { type: "boolean", description: "true removes RankbyAI's name from reports." },
+            report_default_view: { type: "string", enum: ["map", "grid"], description: "Whether report links open on the map or on the rank grid." },
           })) },
           responses: { "200": { description: "The branding after the change.", content: json(obj({ branding: ref("Branding") })) }, ...errors },
         },
@@ -286,7 +287,7 @@ export function openApiSpec(siteUrl: string) {
         }, ["business", "status"]),
         Branding: obj({
           brand_name: nullable("string"), brand_color_hex: nullable("string"), brand_website: nullable("string"), reply_to_email: nullable("string"),
-          hide_rankbyai_branding: { type: "boolean" }, has_logo: { type: "boolean", description: "Whether a logo is uploaded. The logo is managed in the app." },
+          hide_rankbyai_branding: { type: "boolean" }, report_default_view: { type: "string", enum: ["map", "grid"] }, has_logo: { type: "boolean", description: "Whether a logo is uploaded. The logo is managed in the app." },
         }, ["hide_rankbyai_branding", "has_logo"]),
         Usage: obj({
           period_start: { ...dateTime, description: "Start of the calendar month, UTC." },

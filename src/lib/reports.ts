@@ -44,7 +44,7 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
   const [{ data: business }, { data: ws }] = await Promise.all([
     admin.from("businesses").select("id, name, city, region, primary_category, lat, lng, website").eq("id", report.business_id).maybeSingle(),
     report.workspace_id
-      ? admin.from("workspaces").select("brand_name, brand_logo_path, brand_color_hex, brand_website, hide_rankbyai_branding, plan").eq("id", report.workspace_id).maybeSingle()
+      ? admin.from("workspaces").select("brand_name, brand_logo_path, brand_color_hex, brand_website, hide_rankbyai_branding, report_default_view, plan").eq("id", report.workspace_id).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
   if (!business) return null;
@@ -132,6 +132,7 @@ export async function getReportView(slug: string): Promise<ReportView | null> {
       hideRankbyai: lifetime && report.kind !== "free_check" && !!ws?.hide_rankbyai_branding,
     },
     opener: report.opener ?? null,
+    defaultView: ws?.report_default_view === "grid" ? "grid" : "map",
     ai,
     maps,
     audit,

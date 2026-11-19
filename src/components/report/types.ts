@@ -85,6 +85,8 @@ export interface ReportView {
   business: { name: string; city: string | null; region: string | null; category: string | null; lat: number | null; lng: number | null; website?: string | null };
   brand: { name: string | null; logoUrl: string | null; color: string | null; website: string | null; hideRankbyai: boolean };
   opener: string | null;
+  /** What the map section shows first: the map or the rank grid (workspace setting). */
+  defaultView?: "map" | "grid";
   ai: {
     date: string;
     service: string | null;

@@ -369,11 +369,15 @@ describe("REST: branding", () => {
   it("reads and changes the white-label fields of the caller's workspace only", async () => {
     const empty = await rest("GET", "/branding");
     expect(empty.status).toBe(200);
-    expect(empty.body).toEqual({ branding: { brand_name: null, brand_color_hex: null, brand_website: null, reply_to_email: null, hide_rankbyai_branding: false, has_logo: false } });
+    expect(empty.body).toEqual({ branding: { brand_name: null, brand_color_hex: null, brand_website: null, reply_to_email: null, hide_rankbyai_branding: false, report_default_view: "map", has_logo: false } });
 
     const set = await rest("PATCH", "/branding", { body: { brand_name: " Northside SEO ", brand_color_hex: "#1A2b3C", brand_website: "https://northside.example", reply_to_email: "hello@northside.example", hide_rankbyai_branding: true } });
     expect(set.status).toBe(200);
-    expect(set.body.branding).toEqual({ brand_name: "Northside SEO", brand_color_hex: "#1A2b3C", brand_website: "https://northside.example", reply_to_email: "hello@northside.example", hide_rankbyai_branding: true, has_logo: false });
+    expect(set.body.branding).toEqual({ brand_name: "Northside SEO", brand_color_hex: "#1A2b3C", brand_website: "https://northside.example", reply_to_email: "hello@northside.example", hide_rankbyai_branding: true, report_default_view: "map", has_logo: false });
+    // Report links can open on the rank grid instead of the map.
+    expect((await rest("PATCH", "/branding", { body: { report_default_view: "grid" } })).body.branding.report_default_view).toBe("grid");
+    expect((await rest("PATCH", "/branding", { body: { report_default_view: "table" } })).status).toBe(400);
+    await rest("PATCH", "/branding", { body: { report_default_view: "map" } });
     // Only the fields that are sent change: the hide flag and the rest stay as they were.
     const partial = await rest("PATCH", "/branding", { body: { brand_name: "Northside", reply_to_email: "" } });
     expect(partial.body.branding).toMatchObject({ brand_name: "Northside", brand_color_hex: "#1A2b3C", brand_website: "https://northside.example", reply_to_email: null, hide_rankbyai_branding: true });

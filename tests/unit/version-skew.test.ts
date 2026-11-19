@@ -30,4 +30,12 @@ describe("old-version errors after a deploy", () => {
     expect(reloadOnce(win, 1_000_000 + SKEW_RELOAD_GAP_MS + 1)).toBe(true);
     expect(win.location.reload).toHaveBeenCalledTimes(2);
   });
+
+  it("does not reload when storage is blocked or outside a browser (fails closed, no loop)", () => {
+    const blocked = { sessionStorage: { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } } as unknown as Storage, location: { reload: vi.fn() } };
+    expect(reloadOnce(blocked, 1)).toBe(false);
+    expect(blocked.location.reload).not.toHaveBeenCalled();
+    expect(skewReloadAllowed(null)).toBe(false);
+    expect(reloadOnce(null)).toBe(false);
+  });
 });

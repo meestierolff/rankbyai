@@ -98,6 +98,7 @@ export interface BrandValues {
   brand_website: string;
   reply_to_email: string;
   hide_rankbyai_branding: boolean;
+  report_default_view: "map" | "grid";
   logoUrl: string | null;
 }
 
@@ -118,6 +119,7 @@ export function BrandingForm({ initial, canEdit }: { initial: BrandValues; canEd
       body: JSON.stringify({
         brand_name: form.get("brand_name"), brand_color_hex: useColor ? color : null, brand_website: form.get("brand_website"),
         reply_to_email: form.get("reply_to_email"), hide_rankbyai_branding: form.get("hide") === "on",
+        report_default_view: form.get("report_view") === "grid" ? "grid" : "map",
       }),
     });
     const json = (await res.json().catch(() => ({}))) as { message?: string };
@@ -176,6 +178,14 @@ export function BrandingForm({ initial, canEdit }: { initial: BrandValues; canEd
           <input type="checkbox" name="hide" defaultChecked={initial.hide_rankbyai_branding} className="mt-1 size-4 accent-[var(--rb-fg)]" disabled={!canEdit} />
           <span>Hide RankbyAI branding on reports. The badge becomes “Data: Google Maps + AI assistants, {"{date}"}”.</span>
         </label>
+        <fieldset className="m-0 flex flex-col gap-[6px] border-0 p-0">
+          <legend className={labelClass}>Report links open on</legend>
+          <div className="flex flex-wrap gap-4 text-[14px] text-muted-foreground">
+            <label className="flex items-center gap-2"><input type="radio" name="report_view" value="map" defaultChecked={initial.report_default_view !== "grid"} className="size-4 accent-[var(--rb-fg)]" disabled={!canEdit} /> The map</label>
+            <label className="flex items-center gap-2"><input type="radio" name="report_view" value="grid" defaultChecked={initial.report_default_view === "grid"} className="size-4 accent-[var(--rb-fg)]" disabled={!canEdit} /> The rank grid</label>
+          </div>
+          <span className="text-[13px] text-dim">What a client sees first in the map section of a report. They can switch between the two.</span>
+        </fieldset>
         <div className="flex items-center gap-3">
           <button type="submit" disabled={busy || !canEdit} className={ctaClass("sm", "cursor-pointer border-0")}><span>{busy ? "Saving…" : "Save branding"}</span></button>
           {msg ? <span role={msg.ok ? "status" : "alert"} className={`text-[14px] ${msg.ok ? "text-g1" : "text-danger"}`}>{msg.text}</span> : null}

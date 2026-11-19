@@ -22,6 +22,8 @@ export interface Workspace {
   reply_to_email: string | null;
   hide_rankbyai_branding: boolean;
   share_scans_for_regional_pages: boolean;
+  /** Whether report links open on the map or on the grid. */
+  report_default_view: "map" | "grid";
   stripe_customer_id: string | null;
   created_at: string;
 }

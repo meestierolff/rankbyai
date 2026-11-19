@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { AnalyticsProvider } from "@/components/analytics/analytics-provider";
 import { VercelAnalytics } from "@/components/analytics/vercel-analytics";
+import { SkewReload } from "@/components/app/skew-reload";
 import { miscEnv, publicEnv } from "@/lib/env";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"], display: "swap" });
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AnalyticsProvider />
         {/* Vercel Web Analytics: page views without cookies; report slugs and query strings are never sent. */}
         <VercelAnalytics />
+        <SkewReload />
         {/* Ship or Die hackathon tracker: mandatory on every page. */}
         {tracker ? <Script id="sod-tracker" src={tracker} strategy="afterInteractive" /> : null}
       </body>

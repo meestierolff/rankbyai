@@ -75,7 +75,8 @@ const bad = (error: string, description: string): RegisterResult => ({ ok: false
 export async function registerClient(input: unknown, ip: string): Promise<RegisterResult> {
   // Open registration is an invitation to fill the table: a few registrations an hour per address.
   const { data: allowed, error: limitError } = await dbAdmin().rpc("rate_limit_hit", { p_key: `oauth-register:${hashIdentifier(ip)}`, p_window_seconds: 3600, p_limit: 30 });
-  if (limitError || allowed !== true) return { ok: false, status: 429, error: "too_many_requests", description: "Too many registrations from this address. Try again later." };
+  if (limitError) return { ok: false, status: 503, error: "temporarily_unavailable", description: "Registration is unavailable right now. Try again." };
+  if (allowed !== true) return { ok: false, status: 429, error: "too_many_requests", description: "Too many registrations from this address. Try again later." };
 
   if (!input || typeof input !== "object" || Array.isArray(input)) return bad("invalid_client_metadata", "Send the client metadata as a JSON object.");
   const m = input as Record<string, unknown>;

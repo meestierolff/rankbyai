@@ -1,0 +1,17 @@
+{
+  "name": "rankbyai",
+  "owner": {
+    "name": "RankbyAI",
+    "url": "https://rankbyai.live"
+  },
+  "metadata": {
+    "description": "The RankbyAI plugin: AI and Google Maps visibility for local businesses, as an MCP server plus a skill."
+  },
+  "plugins": [
+    {
+      "name": "rankbyai",
+      "source": "./plugins/rankbyai",
+      "description": "Check whether ChatGPT, Perplexity, Gemini and Google Maps recommend a local business, point by point on a map grid, and turn the results into a ranked fix plan."
+    }
+  ]
+}

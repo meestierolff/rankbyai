@@ -34,9 +34,9 @@ export async function registerPOST(request: Request): Promise<Response> {
 }
 
 /** 60 token requests a minute per client is generous for refreshes and stops guessing. */
-async function tokenRateOk(clientId: string): Promise<boolean> {
+async function tokenRate(clientId: string): Promise<"ok" | "limited" | "error"> {
   const { data, error } = await dbAdmin().rpc("rate_limit_hit", { p_key: `oauth-token:${clientId}`, p_window_seconds: 60, p_limit: 60 });
-  return !error && data === true;
+  return error ? "error" : data === true ? "ok" : "limited";
 }
 
 export async function tokenPOST(request: Request): Promise<Response> {
@@ -45,7 +45,9 @@ export async function tokenPOST(request: Request): Promise<Response> {
   if (!p) return oauthError(400, "invalid_request", "Send the parameters as application/x-www-form-urlencoded.");
   const auth = await authenticateClient(request, p);
   if (!auth.ok) return oauthError(auth.status, auth.error, auth.description, auth.status === 401 ? { "WWW-Authenticate": 'Basic realm="RankbyAI OAuth"' } : {});
-  if (!(await tokenRateOk(auth.client.client_id))) return oauthError(429, "slow_down", "Too many token requests. Try again in a minute.", { "Retry-After": "60" });
+  const rate = await tokenRate(auth.client.client_id);
+  if (rate === "error") return oauthError(503, "temporarily_unavailable", "Try again in a moment.");
+  if (rate === "limited") return oauthError(429, "slow_down", "Too many token requests. Try again in a minute.", { "Retry-After": "60" });
   const r = p.grant_type === "authorization_code" ? await exchangeCode(p, auth.client)
     : p.grant_type === "refresh_token" ? await refresh(p, auth.client)
     : { ok: false as const, status: 400, error: "unsupported_grant_type", description: "Use authorization_code or refresh_token." };

@@ -60,3 +60,6 @@ next-env.d.ts
 /db/local/.env
 .env.neon.local
 .env.neon.preview.local
+
+# Built plugin packages (scripts/build-openai-plugin.mjs)
+/dist

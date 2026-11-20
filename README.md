@@ -47,7 +47,7 @@ Both ways use `Authorization: Bearer …`.
 | `get_branding`, `update_branding` | White-label branding on reports | read-only / destructive (overwrites) |
 | `get_usage` | This month's own-key spend and credits left | read-only |
 
-Every tool carries MCP annotations: `title`, `readOnlyHint`, `destructiveHint` (when not read-only), `idempotentHint` and `openWorldHint`. The source of truth is `MCP_TOOL_HINTS` in `src/lib/api-v1/mcp-tools.ts`.
+Every tool carries MCP annotations: `title`, `readOnlyHint`, `destructiveHint` and `openWorldHint`, plus `idempotentHint` on the tools that change something. The source of truth is `MCP_TOOL_HINTS` in `src/lib/api-v1/mcp-tools.ts`.
 
 ### Connect a client
 
@@ -85,10 +85,25 @@ claude mcp add --transport http rankbyai https://rankbyai.live/api/mcp \
 
 **Gemini CLI:** `gemini extensions install https://github.com/meestierolff/rankbyai` (the manifest is [`gemini-extension.json`](gemini-extension.json)).
 
+**Grok:** at grok.com/connectors → New Connector → Custom, paste `https://rankbyai.live/api/mcp`. Through the xAI API, add it as a remote MCP tool with an API key:
+
+```json
+{ "type": "mcp", "server_url": "https://rankbyai.live/api/mcp", "server_label": "rankbyai", "authorization": "rbai_live_YOUR_KEY" }
+```
+
+**Claude Code and Codex plugin** (MCP server plus the RankbyAI skill, in [`plugins/rankbyai`](plugins/rankbyai)):
+
+```bash
+claude plugin marketplace add meestierolff/rankbyai && claude plugin install rankbyai@rankbyai
+codex plugin marketplace add meestierolff/rankbyai
+```
+
 ### Directory listings
 
 - [`server.json`](server.json): the entry for the official MCP Registry, named `io.github.meestierolff/rankbyai`, with one `streamable-http` remote. To publish, run `mcp-publisher login github` as `meestierolff`, then `mcp-publisher publish`.
 - [`gemini-extension.json`](gemini-extension.json): the Gemini CLI extension. The gallery lists repositories that carry the `gemini-cli-extension` topic.
+- [`plugins/rankbyai`](plugins/rankbyai): the plugin for Claude Code, the Claude directory and Grok Build (`.claude-plugin/plugin.json`, `.mcp.json`, `skills/rankbyai/SKILL.md`). Marketplaces: [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) (Claude Code) and [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) (Codex).
+- [`plugins/openai`](plugins/openai): the OpenAI plugin directory manifests; `node scripts/build-openai-plugin.mjs --demo-url <recording>` builds the ZIP to upload. Domain verification is served at `/.well-known/openai-apps-challenge` from `OPENAI_APPS_CHALLENGE`.
 - Support: [rankbyai.live/support](https://rankbyai.live/support) (mees@rankbyai.live). Privacy: [/privacy](https://rankbyai.live/privacy). Terms: [/terms](https://rankbyai.live/terms).
 
 ## Stack

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "rankbyai",
+  "version": "1.2.0",
+  "description": "Check whether ChatGPT, Perplexity, Gemini and Google Maps recommend a local business, point by point on a map grid, and turn the results into a ranked fix plan.",
+  "author": {
+    "name": "RankbyAI",
+    "url": "https://rankbyai.live"
+  },
+  "homepage": "https://rankbyai.live",
+  "repository": "https://github.com/meestierolff/rankbyai",
+  "license": "MIT",
+  "keywords": [
+    "rankbyai",
+    "local-seo",
+    "ai-visibility",
+    "google-maps"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "RankbyAI",
+        "shortDescription": "Local AI and Maps visibility",
+        "longDescription": "RankbyAI shows whether AI assistants (ChatGPT, Perplexity, Gemini) and Google Maps recommend a local business, point by point on a map grid around it. Ask it which businesses you track, what a scan would cost, where a business is missing from AI answers and who is named instead, how it ranks on Google Maps, and what to fix first. Audits rank the fixes P0 to P3, each with its evidence, and the Fix Kit has copy-ready schema, FAQs and an llms.txt draft. Every tool that costs money returns an estimate first and runs only after you confirm. AI answers vary between runs, places and time; results are observations from a date, not guarantees.",
+        "developerName": "RankbyAI",
+        "category": "Productivity",
+        "websiteURL": "https://rankbyai.live",
+        "supportURL": "https://rankbyai.live/support",
+        "privacyPolicyURL": "https://rankbyai.live/privacy",
+        "termsOfServiceURL": "https://rankbyai.live/terms",
+        "logo": "./assets/logo.png",
+        "defaultPrompt": [
+          "Which of my businesses are missing from AI answers?",
+          "What would a 3x3 AI visibility scan cost for my first business?",
+          "Turn my latest finished audit into a fix plan."
+        ]
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "List tracked businesses",
+              "prompt": "Which businesses does RankbyAI track for me?",
+              "tools_triggered": "list_businesses",
+              "expected_behavior": "Lists the workspace's businesses with name and city, and nothing else is changed."
+            },
+            {
+              "description": "Estimate before running",
+              "prompt": "What would a 3x3 AI visibility scan for 'dentist' cost for my first business?",
+              "tools_triggered": "list_businesses, estimate_scan",
+              "expected_behavior": "Shows the estimated cost per engine and in total; no scan is started."
+            },
+            {
+              "description": "Explain where a business is missing",
+              "prompt": "In my latest AI scan, where was the business not named and who was named instead?",
+              "tools_triggered": "list_scans, get_scan",
+              "expected_behavior": "Names the grid points where no engine named the business and the businesses named there instead, with the caveat that AI answers vary."
+            },
+            {
+              "description": "Fix plan from an audit",
+              "prompt": "Turn my latest finished audit into a prioritised fix plan.",
+              "tools_triggered": "list_audits, get_audit",
+              "expected_behavior": "Gives the findings in order P0 to P3 with their evidence and fixes, starting with identity (name, address, phone) problems."
+            },
+            {
+              "description": "Monthly spend",
+              "prompt": "How much have my RankbyAI scans cost on my own API keys this month?",
+              "tools_triggered": "get_usage",
+              "expected_behavior": "Reports this month's spend per provider and the included credits left."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Unrelated weather question",
+              "prompt": "What's the weather in Austin tomorrow?"
+            },
+            {
+              "description": "Creative writing",
+              "prompt": "Write a short poem about a dentist."
+            },
+            {
+              "description": "Booking request outside the product",
+              "prompt": "Book me an appointment with the best dentist near me."
+            }
+          ]
+        },
+        "demo_recording_url": "REPLACE_WITH_DEMO_RECORDING_URL"
+      },
+      "publication": {
+        "release_notes": "Initial release: AI and Google Maps visibility grids, audits with ranked fixes, Fix Kits and prospect reports, with OAuth sign-in."
+      }
+    }
+  }
+}

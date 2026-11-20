@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { usd0, usdSmart, type ScenarioCosts } from "@/lib/cost/estimate";
 import { fmtPrice } from "@/lib/ladder";
-import { COMPETITORS, COMPETITOR_PRICES_DATE, REFUND_DAYS, SCENARIO } from "@/lib/pricing-constants";
+import { COMPETITORS, REFUND_DAYS, SCENARIO } from "@/lib/pricing-constants";
 import { CreamLink } from "./lp";
 import { useReducedMotion } from "./lp-motion";
 import { BUY_HREF, CtaLabel, useOffer } from "./offer-context";
@@ -73,9 +73,9 @@ const STRUCK = "font-mono text-[clamp(30px,3.6vw,42px)] leading-none font-semibo
 /**
  * Hero. The offer is the first thing a visitor sees: two competitor list prices struck through
  * and ours next to them, for one published scenario. `costs` holds the data cost of that scenario
- * and of its AI row [estimate], computed on the server from the same constants the compare table uses.
- * The AI row sits right under our figure: the headline sells AI visibility, so the Maps-only number
- * is never shown alone.
+ * [estimate], computed on the server from the same constants the compare table uses. The whole card
+ * links to #compare, where the competitor prices carry their source and date and the AI row is shown.
+ * (The AI row and the source line under the card were removed on the owner's request, 20 Nov 2026.)
  */
 export function Hero({ costs }: { costs: ScenarioCosts }) {
   const { offer } = useOffer();
@@ -98,7 +98,7 @@ export function Hero({ costs }: { costs: ScenarioCosts }) {
 
       <p className="m-0 mt-5 max-w-[660px] text-center text-[clamp(16px,1.6vw,18px)] leading-[1.55] text-pretty text-[#cfc8bf]">
         See where ChatGPT, Perplexity and Gemini recommend your clients, point by point on a map, next to their Google Maps rank.{" "}
-        <span className="text-lp-fg">Pay once.</span> Scans run on your own API keys at cost.
+        <span className="text-lp-fg">Pay once.</span>
       </p>
 
       <a
@@ -124,19 +124,6 @@ export function Hero({ costs }: { costs: ScenarioCosts }) {
               {priced ? "RankbyAI, on your own keys" : "RankbyAI data on your own keys, plus the one-time price"}
             </div>
           </div>
-        </div>
-        <div className="mt-[16px] flex flex-wrap items-baseline justify-center gap-x-2 gap-y-[2px] border-t border-[rgba(255,255,255,0.08)] pt-[12px] text-center text-[13.5px] leading-[1.45] text-[#bdbdbd]">
-          <span>Add AI grids ({SCENARIO.aiLabel}):</span>
-          <span className="font-mono font-semibold whitespace-nowrap text-lp-ours">≈ {usd0(once + costs.mapsUsd + costs.aiUsd)}</span>
-          <span className="whitespace-nowrap text-lp-dim">{priced ? "in year one" : "a year, plus the one-time price"}</span>
-        </div>
-        {/* Required with every competitor price: its source and date. Also says what our number is made of. */}
-        <div className="mt-[10px] text-center text-[12px] leading-[1.4] text-lp-dim">
-          Yearly list prices from their pricing pages, {COMPETITOR_PRICES_DATE}.
-          {priced
-            ? ` Ours: ${fmtPrice(priced.currentPriceUsd)} once plus ≈ ${usd0(costs.mapsUsd)} of Maps data, or ≈ ${usd0(costs.mapsUsd + costs.aiUsd)} with the AI grids [estimate].`
-            : " Ours is an estimate."}{" "}
-          <span className="underline underline-offset-[3px]">How we calculated this</span>
         </div>
       </a>
 

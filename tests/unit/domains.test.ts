@@ -82,8 +82,8 @@ describe("which hosts are first-party", () => {
   });
 
   it("the old proxy paths are exactly the old matcher", () => {
-    for (const p of ["/app", "/app/settings/branding", "/admin", "/free-check/x", "/r", `/r/${SLUG_A}`, "/ai/dentist/austin", "/ai/dentist/austin/"]) expect(isPrimaryProxyPath(p), p).toBe(true);
-    for (const p of ["/", "/login", "/api/scans", "/application", "/app.foo", "/ai", "/ai/dentist", "/ai/a/b/c", "/pricing", "/robots.txt", "/_next/static/x.js"]) expect(isPrimaryProxyPath(p), p).toBe(false);
+    for (const p of ["/app", "/app/settings/branding", "/admin", "/free-check/run", "/r", `/r/${SLUG_A}`, "/ai/dentist/austin", "/ai/dentist/austin/"]) expect(isPrimaryProxyPath(p), p).toBe(true);
+    for (const p of ["/", "/login", "/free-check", "/free-check/unsubscribe", "/api/scans", "/application", "/app.foo", "/ai", "/ai/dentist", "/ai/a/b/c", "/pricing", "/robots.txt", "/_next/static/x.js"]) expect(isPrimaryProxyPath(p), p).toBe(false);
   });
 });
 

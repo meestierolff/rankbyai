@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { failStalledAudits } from "@/lib/audit/run";
 import { cronEnv } from "@/lib/env";
+import { cleanUpFreeChecks } from "@/lib/free-check-public";
 import { findOpenBatches, processBatch } from "@/lib/prospects/batch";
 import { rebuildRegionalPages } from "@/lib/regional";
 import { runDueSchedules } from "@/lib/schedules";
@@ -46,6 +47,9 @@ export async function GET(request: Request) {
 
   // 7. Housekeeping: old rate-limit windows.
   await admin.from("rate_limits").delete().lt("window_start", new Date(Date.now() - 2 * 86_400_000).toISOString());
+
+  // 8. Retention of the public free check (privacy policy): old anonymous results, records and addresses.
+  report.free_checks_cleaned = await cleanUpFreeChecks().catch(() => null);
 
   return Response.json({ ok: true, ...report });
 }

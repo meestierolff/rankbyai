@@ -13,4 +13,15 @@ export const publicEnv = {
   posthogKey: process.env.NEXT_PUBLIC_POSTHOG_KEY || "",
   posthogHost: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.i.posthog.com",
   turnstileSiteKey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "",
+  /**
+   * Google tags (GA4 and Google Ads conversions). Empty = not loaded at all. When set, they load only
+   * after the visitor's consent where consent is asked (components/analytics/google-tags.tsx).
+   */
+  gaMeasurementId: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "",
+  googleAdsId: process.env.NEXT_PUBLIC_GOOGLE_ADS_ID || "",
+  googleAdsLabels: {
+    free_check_completed: process.env.NEXT_PUBLIC_GOOGLE_ADS_LABEL_FREE_CHECK || "",
+    sign_up: process.env.NEXT_PUBLIC_GOOGLE_ADS_LABEL_SIGNUP || "",
+    purchase: process.env.NEXT_PUBLIC_GOOGLE_ADS_LABEL_PURCHASE || "",
+  },
 };

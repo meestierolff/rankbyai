@@ -62,11 +62,15 @@ export function packsOpen(): boolean {
   });
 }
 
-/** The free check needs our own data key, and on the live site also bot protection (it refuses to run without). */
+/**
+ * The free check needs our own data key and bot protection. It runs without an account on the house's
+ * paid keys, so Turnstile is required on EVERY deployment that uses real keys, previews included
+ * (a public preview address would otherwise be an open, paid endpoint). Mock mode (local only) is exempt.
+ */
 export function freeCheckOpen(): boolean {
   if (isMockMode()) return true;
   const house = houseKeysEnv.get();
   const hasData = !!(house.HOUSE_DATAFORSEO_LOGIN && house.HOUSE_DATAFORSEO_PASSWORD);
-  const botProtection = process.env.VERCEL_ENV !== "production" || (!!miscEnv.turnstileSiteKey() && turnstileEnv.isConfigured());
+  const botProtection = !!miscEnv.turnstileSiteKey() && turnstileEnv.isConfigured();
   return hasData && botProtection;
 }

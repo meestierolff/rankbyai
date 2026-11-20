@@ -193,6 +193,10 @@ export default function PrivacyPage() {
             <td>Ship or Die tracker</td>
             <td>A third-party script that measures traffic for the Ship or Die hackathon, which RankbyAI takes part in. See section 6.</td>
           </tr>
+          <tr>
+            <td>CodeHype</td>
+            <td>The &ldquo;Featured on CodeHype&rdquo; badge in the site footer. Your browser loads the badge image from CodeHype, which then sees your IP address and browser type.</td>
+          </tr>
         </tbody>
       </table>
       <p>

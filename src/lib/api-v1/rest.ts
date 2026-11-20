@@ -52,6 +52,11 @@ async function rateState(keyId: string): Promise<RateState> {
 export async function authenticate(request: Request): Promise<{ caller: ApiCaller; rate: RateState } | { response: Response }> {
   const caller = await verifyApiKey(bearer(request));
   if (!caller) return { response: error(401, "unauthorized", "Send your API key as: Authorization: Bearer rbai_live_…  Create one in the app under API & MCP.", { "WWW-Authenticate": 'Bearer realm="RankbyAI API"' }) };
+  return rateLimit(caller);
+}
+
+/** 60 requests a minute per caller (an API key, or an OAuth grant on /api/mcp). */
+export async function rateLimit(caller: ApiCaller): Promise<{ caller: ApiCaller; rate: RateState } | { response: Response }> {
   const allowed = await withinRateLimit(caller.keyId);
   const rate = await rateState(caller.keyId);
   if (!allowed) {

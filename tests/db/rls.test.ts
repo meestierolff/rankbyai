@@ -14,7 +14,7 @@ const PRIVATE_TABLES = [
   "scans", "scan_points", "ai_samples", "audits", "audit_findings", "fix_kits", "prospect_batches", "reports",
   "orders", "entitlements", "credit_ledger", "ladder_lock", "ladder_holds", "stripe_events", "api_keys",
   "free_checks", "spend_log", "jobs", "rate_limits", "geo_cache", "removal_requests", "feature_request_votes",
-  "workspace_domains",
+  "workspace_domains", "oauth_clients", "oauth_grants", "oauth_codes", "oauth_tokens",
 ];
 
 let a: TestUser;

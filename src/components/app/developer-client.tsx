@@ -113,3 +113,41 @@ export function Snippets({ items }: { items: { id: string; title: string; where:
     </div>
   );
 }
+
+export interface GrantRow { id: string; client_name: string; client_host: string | null; created_at: string; last_used_at: string | null }
+
+/** MCP clients connected with OAuth (Claude, ChatGPT, Cursor, ...). Disconnecting ends their tokens at once. */
+export function ConnectedApps({ grants, canManage }: { grants: GrantRow[]; canManage: boolean }) {
+  const router = useRouter();
+  const [problem, setProblem] = useState<string | null>(null);
+  const disconnect = async (id: string) => {
+    setProblem(null);
+    const res = await fetch(`/api/developer/oauth-grants/${id}`, { method: "DELETE" });
+    if (!res.ok) setProblem(((await res.json().catch(() => ({}))) as { message?: string }).message ?? "The app could not be disconnected.");
+    router.refresh();
+  };
+  return (
+    <div className="flex flex-col gap-4">
+      {grants.length === 0 ? (
+        <p className="m-0 text-[15px] text-muted-foreground">No apps connected. Add RankbyAI as a connector in Claude, ChatGPT or Cursor with the server URL below, and sign in when it asks.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] border-collapse text-left text-[14px]">
+            <thead><tr className="text-[13px] text-dim">{["App", "Connected", "Last used", ""].map((h, i) => <th key={i} scope="col" className="border-b border-line px-3 py-2 font-medium first:pl-0">{h}</th>)}</tr></thead>
+            <tbody>
+              {grants.map((g) => (
+                <tr key={g.id} className="border-b border-line last:border-0">
+                  <td className="px-3 py-3 pl-0"><span className="font-medium">{g.client_name}</span>{g.client_host ? <span className="ml-2 font-mono text-[12.5px] text-dim">{g.client_host}</span> : null}</td>
+                  <td className="px-3 py-3 text-muted-foreground"><LocalTime iso={g.created_at} mode="date" /></td>
+                  <td className="px-3 py-3 text-muted-foreground">{g.last_used_at ? <LocalTime iso={g.last_used_at} mode="date" /> : "never"}</td>
+                  <td className="px-3 py-3 text-right">{canManage ? <button type="button" onClick={() => disconnect(g.id)} className="cursor-pointer rounded-[8px] border border-danger/50 bg-transparent px-[10px] py-[5px] text-[13px] font-medium text-danger">Disconnect</button> : null}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {problem ? <p role="alert" className="m-0 text-[14px] text-danger">{problem}</p> : null}
+    </div>
+  );
+}

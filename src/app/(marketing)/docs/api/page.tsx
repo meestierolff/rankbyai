@@ -4,10 +4,11 @@ import { ApiReference, McpToolList } from "@/components/api-reference";
 import { MCP_TOOLS } from "@/lib/api-v1/mcp-tools";
 import { Eyebrow } from "@/components/brand/primitives";
 import { PageShell } from "@/components/marketing/page-shell";
-import { mcpSnippets } from "@/lib/api-v1/snippets";
+import { mcpOAuthSnippets, mcpSnippets } from "@/lib/api-v1/snippets";
 import { gridSizesText, largerMapsGridsText, largestOneCreditMapsGrid } from "@/lib/cost/credits";
 import { AI_GRID_SIZES, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 import { publicEnv } from "@/lib/env-public";
+import { oauthOpen } from "@/lib/oauth/config";
 
 export const metadata: Metadata = {
   title: "API and MCP documentation",
@@ -54,12 +55,20 @@ export default function ApiDocsPage() {
           <p className={p}>
             The MCP server is at <code className={code}>{site}/api/mcp</code> and uses the same API key. It has {MCP_TOOLS.length} tools and one prompt, <code className={code}>fix_plan</code>, which turns a finished audit into a prioritised fix list with guardrails. Tools marked “needs confirm” return the estimate when called without <code className={code}>confirm: true</code> and do nothing else, so an agent has to show you the cost before it can spend anything.
           </p>
+          {oauthOpen() ? (
+            <p className={p}>
+              <strong className="text-fg">Sign in instead of a key (OAuth 2.1).</strong> Claude, ChatGPT, Cursor and other MCP clients can connect with just the URL: the server answers <code className={code}>401</code> with <code className={code}>WWW-Authenticate: Bearer resource_metadata=…</code>, the client finds the authorization server at <code className={code}>{site}/.well-known/oauth-authorization-server</code>, registers itself (dynamic client registration or a Client ID Metadata Document), and opens a RankbyAI sign-in where the workspace owner approves it. Authorization code with PKCE (S256) only; the scope is <code className={code}>mcp</code>; tokens are bound to <code className={code}>{site}/api/mcp</code> and work for this one workspace. Access tokens last an hour, refresh tokens 30 days and rotate on every use. Owners see and disconnect apps under API & MCP in the app. OAuth tokens do not open the REST API.
+            </p>
+          ) : null}
+          <p className={p}>
+            Every tool carries MCP annotations: a <code className={code}>title</code>, <code className={code}>readOnlyHint</code> (true for the list, get, estimate and compare tools), <code className={code}>destructiveHint</code> (true for update_business, update_branding and delete_business), and <code className={code}>idempotentHint</code> and <code className={code}>openWorldHint</code> where they apply.
+          </p>
           <p className={p}>
             Transport: stateless Streamable HTTP, POST only. Each POST is answered on its own. There are no sessions (no <code className={code}>Mcp-Session-Id</code>) and no GET notification stream, so <code className={code}>GET</code> answers <code className={code}>405</code> and the server does not announce changes to its tool list. Results come as <code className={code}>structuredContent</code> and as the same JSON in a text block.
           </p>
           <div className="rounded-2xl border border-border bg-surface p-5"><McpToolList /></div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {mcpSnippets(site).map((s) => (
+            {[...(oauthOpen() ? mcpOAuthSnippets(site) : []), ...mcpSnippets(site)].map((s) => (
               <div key={s.id} className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-5">
                 <span className="text-[16px] font-semibold">{s.title}</span>
                 <span className="text-[13px] text-dim">{s.where}</span>

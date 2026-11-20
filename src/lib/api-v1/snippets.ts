@@ -23,3 +23,14 @@ export function mcpSnippets(siteUrl: string, key = "rbai_live_YOUR_KEY") {
     },
   ];
 }
+
+/** Setup with OAuth sign-in (MCP_OAUTH on): the client needs only the URL and opens a RankbyAI sign-in itself. */
+export function mcpOAuthSnippets(siteUrl: string) {
+  const url = `${siteUrl}/api/mcp`;
+  return [
+    { id: "claude_connector", title: "Claude (web and desktop)", where: "Settings → Connectors → Add custom connector, paste the URL, then Connect", code: url },
+    { id: "chatgpt", title: "ChatGPT", where: "Create an app or connector in developer mode with this URL and OAuth authentication", code: url },
+    { id: "cursor_oauth", title: "Cursor", where: "~/.cursor/mcp.json, then sign in when Cursor asks", code: JSON.stringify({ mcpServers: { rankbyai: { url } } }, null, 2) },
+    { id: "claude_code_oauth", title: "Claude Code", where: "Run in a terminal, then /mcp to sign in", code: `claude mcp add --transport http rankbyai ${url}` },
+  ];
+}

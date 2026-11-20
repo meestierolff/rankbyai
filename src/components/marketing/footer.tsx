@@ -18,6 +18,7 @@ const LEGAL_LINKS = [
   { href: "/refunds", label: "Refunds" },
   { href: "/disclaimer", label: "Disclaimer" },
   { href: "/removal", label: "Removal" },
+  { href: "/support", label: "Support" },
 ];
 /** Guide pages shown as the third column; every other guide goes in the row below. */
 const GUIDE_COLUMN = ["/ai-rank-tracker", "/map-rank-tracker", "/local-seo-software", "/blog/how-to-show-up-in-chatgpt"];

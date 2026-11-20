@@ -3,7 +3,7 @@ import Link from "next/link";
 import { McpToolList } from "@/components/api-reference";
 import { ApiKeys, ConnectedApps, Snippets, type GrantRow, type KeyRow } from "@/components/app/developer-client";
 import { PageHeader, Panel, SecondaryLink } from "@/components/app/ui";
-import { mcpSnippets } from "@/lib/api-v1/snippets";
+import { mcpOAuthSnippets, mcpSnippets } from "@/lib/api-v1/snippets";
 import { dbAdmin } from "@/lib/db/clients";
 import { oauthOpen } from "@/lib/oauth/config";
 import { requireSession } from "@/lib/auth";
@@ -64,7 +64,7 @@ export default async function Page() {
             {oauth ? <>Claude, ChatGPT, Cursor and other MCP clients can connect with just that URL: they open a RankbyAI sign-in and you approve them. For scripts and clients without sign-in, </> : null}
             Replace <code className="font-mono text-fg">rbai_live_YOUR_KEY</code> with a key from above. Limit: 60 requests a minute per key or connected app.
           </p>
-          <Snippets items={mcpSnippets(publicEnv.siteUrl)} />
+          <Snippets items={oauth ? [...mcpOAuthSnippets(publicEnv.siteUrl), ...mcpSnippets(publicEnv.siteUrl)] : mcpSnippets(publicEnv.siteUrl)} />
         </Panel>
         <Panel title="MCP tools">
           <McpToolList />

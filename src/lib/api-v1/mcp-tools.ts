@@ -22,7 +22,8 @@ export interface ToolHints {
   openWorldHint: boolean;
 }
 
-const read: ToolHints = { readOnlyHint: true, openWorldHint: false };
+/** Changes nothing. destructiveHint is spelled out as false: some directories require all three hints on every tool. */
+const read: ToolHints = { readOnlyHint: true, destructiveHint: false, openWorldHint: false };
 /** Starts paid work that queries outside services and adds new records; nothing existing is changed. */
 const run: ToolHints = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
 /** Overwrites fields of an existing record with the values given. */

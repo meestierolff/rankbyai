@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rankbyai": {
+      "type": "http",
+      "url": "https://rankbyai.live/api/mcp"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+/**
+ * Builds the ZIP for the OpenAI plugin directory (ChatGPT and Codex) from:
+ *   plugins/openai/plugin.json, plugins/openai/mcp.json      (OpenAI's own manifests)
+ *   plugins/rankbyai/skills/rankbyai/SKILL.md                 (the skill, shared with the Claude/Grok plugin)
+ *   plugins/rankbyai/assets/logo.png
+ * The ZIP holds only these files (no .claude-plugin/ or .mcp.json), as OpenAI's submission expects.
+ *
+ *   node scripts/build-openai-plugin.mjs --demo-url https://…   → dist/rankbyai-openai-plugin.zip
+ *
+ * Refuses to build while the demo recording URL is missing, or the text limits or test-case counts
+ * of the submission are not met.
+ */
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { zipSync } from "fflate";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const read = (p) => readFileSync(join(root, p));
+const plugin = JSON.parse(read("plugins/openai/plugin.json").toString("utf8"));
+
+const i = process.argv.indexOf("--demo-url");
+const demo = i > -1 ? process.argv[i + 1] : plugin.extensions["com.openai"].review.demo_recording_url;
+const problems = [];
+if (!demo || !/^https:\/\//.test(demo) || demo.includes("REPLACE_WITH")) problems.push("demo recording URL: pass --demo-url https://…");
+const ui = plugin.extensions["com.openai"].interface;
+const tc = plugin.extensions["com.openai"].review.test_cases;
+if (ui.displayName.length > 30) problems.push("displayName is over 30 characters");
+if (ui.shortDescription.length > 30) problems.push("shortDescription is over 30 characters");
+if (ui.longDescription.length > 4000) problems.push("longDescription is over 4000 characters");
+if (ui.defaultPrompt.length > 3 || ui.defaultPrompt.some((p) => p.length > 128 || p.includes("@"))) problems.push("defaultPrompt: at most 3, each at most 128 characters, no @");
+if (tc.positive.length !== 5 || tc.negative.length !== 3) problems.push("exactly 5 positive and 3 negative test cases are required");
+if (problems.length) {
+  console.error("Not built:\n- " + problems.join("\n- "));
+  process.exit(1);
+}
+plugin.extensions["com.openai"].review.demo_recording_url = demo;
+
+const zip = zipSync({
+  "plugin.json": Buffer.from(JSON.stringify(plugin, null, 2) + "\n"),
+  "mcp.json": read("plugins/openai/mcp.json"),
+  "skills/rankbyai/SKILL.md": read("plugins/rankbyai/skills/rankbyai/SKILL.md"),
+  "assets/logo.png": read("plugins/rankbyai/assets/logo.png"),
+});
+mkdirSync(join(root, "dist"), { recursive: true });
+writeFileSync(join(root, "dist/rankbyai-openai-plugin.zip"), zip);
+console.log(`dist/rankbyai-openai-plugin.zip (${zip.length} bytes)`);

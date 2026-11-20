@@ -22,8 +22,22 @@ const LEGAL_LINKS = [
   { href: "/support", label: "Support" },
 ];
 /** Guide pages shown as the third column; every other guide goes in the row below. */
-const GUIDE_COLUMN = ["/ai-rank-tracker", "/map-rank-tracker", "/local-seo-software", "/blog/how-to-show-up-in-chatgpt"];
-const SHORT_TITLE: Record<string, string> = { "/blog/how-to-show-up-in-chatgpt": "Show up in ChatGPT" };
+const GUIDE_COLUMN = ["/local-rank-tracker", "/ai-rank-tracker", "/map-rank-tracker", "/local-seo-software", "/blog/how-to-show-up-in-chatgpt"];
+const SHORT_TITLE: Record<string, string> = {
+  "/blog/how-to-show-up-in-chatgpt": "Show up in ChatGPT",
+  "/local-rank-tracker": "Local Rank Tracker",
+  "/ai-rank-tracker": "AI Rank Tracker",
+  "/alternatives/local-viking": "Local Viking Alternative",
+  "/alternatives/peec-ai": "Peec AI Alternative",
+  "/alternatives/profound": "Profound Alternative",
+  "/alternatives/otterly": "Otterly Alternatives",
+  "/peec-ai-vs-profound": "Peec AI vs Profound",
+  "/semrush-ai-visibility": "Semrush AI Visibility",
+  "/blog/brightlocal-pricing": "BrightLocal Pricing",
+  "/blog/peec-ai-pricing": "Peec AI Pricing",
+  "/blog/profound-pricing": "Profound Pricing",
+  "/blog/otterly-pricing": "Otterly Pricing",
+};
 
 const shortTitle = (path: string, title: string) =>
   SHORT_TITLE[path] ?? title.split(":")[0].replace(/ You Pay For Once| for Local Businesses| for Agencies, Paid Once| \(and Two Other Options\)/, "");

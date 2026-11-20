@@ -23,7 +23,7 @@ export default function TermsPage() {
     <ProsePage
       eyebrow="Legal"
       title="Terms of Service"
-      updated="17 November 2026"
+      updated="20 November 2026"
       intro="These terms are the agreement between you and the operator of RankbyAI. They are written in plain English. By creating an account or buying, you agree to them."
     >
       <h2>1. Who we are</h2>
@@ -123,8 +123,9 @@ export default function TermsPage() {
 
       <h2>6. The free check</h2>
       <p>
-        The free check is a small sample report that needs no purchase. It is limited to one per Google account and three per IP address per day. We run it on our own keys within a daily
-        budget, so a check may be delayed to the next day. We may refuse or pause free checks to stop abuse.
+        The free check is a small sample report that needs no account and no purchase. It is limited to one per person (one per browser and per device), three per network per day, and one
+        check of the same business per day. We run it on our own keys within a daily and a monthly budget; when a budget is used up, checks wait until there is room again and nothing is
+        charged. The result is shown only to the browser that ran the check. We may refuse or pause free checks to stop abuse.
       </p>
 
       <h2>7. Payment and tax</h2>

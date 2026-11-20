@@ -4,14 +4,27 @@ import { MCP_PAID_TOOLS, MCP_TOOLS } from "@/lib/api-v1/mcp-tools";
 import { openApiSpec } from "@/lib/api-v1/openapi";
 
 describe("documentation redirects", () => {
-  it("sends /api/reference and /docs permanently to /docs/api, and nothing else", async () => {
+  it("sends /api/reference and /docs permanently to /docs/api", async () => {
     const redirects = await nextConfig.redirects!();
-    expect(redirects).toEqual([
+    expect(redirects.slice(0, 2)).toEqual([
       { source: "/api/reference", destination: "/docs/api", permanent: true },
       { source: "/docs", destination: "/docs/api", permanent: true },
     ]);
     // Exact paths: the docs page itself and the in-app reference are not caught.
     for (const r of redirects) expect(r.source).not.toMatch(/[:*(]/);
+  });
+
+  it("every other redirect is a close variant of a search page: 301, exact path, to a real page, never over one", async () => {
+    const { SEO_PAGES } = await import("@/lib/seo-pages");
+    const { STATIC_PAGES } = await import("@/lib/site-pages");
+    const pages = new Set([...STATIC_PAGES.map((p) => p.path), "/free-check", "/login", "/signup", "/app"]);
+    const variants = (await nextConfig.redirects!()).slice(2);
+    expect(variants.length).toBeGreaterThan(0);
+    for (const r of variants) {
+      expect(r, r.source).toMatchObject({ statusCode: 301 });
+      expect(SEO_PAGES.some((p) => p.path === r.destination), r.destination).toBe(true);
+      expect(pages.has(r.source), r.source).toBe(false);
+    }
   });
 });
 

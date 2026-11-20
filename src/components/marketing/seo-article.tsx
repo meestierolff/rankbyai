@@ -3,36 +3,15 @@ import { JsonLd } from "@/components/json-ld";
 import { CtaLink, Eyebrow, SampleTag } from "@/components/brand/primitives";
 import { AiGridMock } from "@/components/marketing/feature-mocks";
 import { PageShell } from "@/components/marketing/page-shell";
+import { cellFor, ROW_LABEL, ROWS, VENDOR_NAME, VERIFIED_ON } from "@/lib/competitors";
 import { fmtPrice } from "@/lib/ladder";
 import { getOfferCached } from "@/lib/offer";
-import { COMPETITOR_PRICES_DATE, COMPETITORS, MAPS_GRID_RANGE } from "@/lib/pricing-constants";
-import { breadcrumbLd, faqLd, graph } from "@/lib/seo";
+import { breadcrumbLd, faqLd, graph, organizationLd } from "@/lib/seo";
 import { publicEnv } from "@/lib/env-public";
-import { seoPage, type CompareColumn, type SeoPage } from "@/lib/seo-pages";
+import { seoPage, type SeoPage } from "@/lib/seo-pages";
 
-const UNKNOWN = "See their site";
-const COLUMN_NAME: Record<CompareColumn, string> = { rankbyai: "RankbyAI", localfalcon: "Local Falcon", brightlocal: "BrightLocal", semrush: "Semrush Map Rank Tracker" };
-
-/** Comparison rows. Competitor cells hold only what the brief verified; everything else says "See their site". */
-function rows(ourPrice: string): { label: string; cells: Record<CompareColumn, string> }[] {
-  const lf = COMPETITORS.localfalcon;
-  const bl = COMPETITORS.brightlocal;
-  return [
-    { label: "How you pay", cells: { rankbyai: "Once, for lifetime access", localfalcon: "Subscription with scan credits", brightlocal: "Subscription, by plan and number of locations", semrush: "Subscription, inside the Semrush platform" } },
-    { label: `Published price (${COMPETITOR_PRICES_DATE})`, cells: {
-      rankbyai: ourPrice,
-      localfalcon: `${lf.plan}: ${lf.monthlyEquivalent} ($${lf.yearUsd.toFixed(2)} a year). Source: ${lf.source}`,
-      brightlocal: `${bl.plan}: ${bl.monthlyEquivalent} ($${bl.yearUsd} a year). Source: ${bl.source}`,
-      semrush: COMPETITORS.semrush.yearLabel,
-    } },
-    { label: "What the scans cost", cells: { rankbyai: "What your API vendors charge, on your own keys, with an estimate before every scan. Or packs of included scans", localfalcon: "Credits included in the plan", brightlocal: "Included in the plan", semrush: "Included in the plan" } },
-    { label: "AI recommendation grid", cells: { rankbyai: "Yes: ChatGPT, Perplexity and Gemini, 1×1 to 5×5 points", localfalcon: "Yes (AI visibility module)", brightlocal: "Yes (inside the Track plan)", semrush: "Not part of Map Rank Tracker" } },
-    { label: "Google Maps grid", cells: { rankbyai: `Yes, ${MAPS_GRID_RANGE} points`, localfalcon: "Yes, and Apple Maps", brightlocal: "Yes", semrush: "Yes" } },
-    { label: "Citations and review management", cells: { rankbyai: "No", localfalcon: UNKNOWN, brightlocal: "Yes", semrush: "Other Semrush tools" } },
-    { label: "Bulk white-label prospect reports", cells: { rankbyai: "Yes", localfalcon: UNKNOWN, brightlocal: UNKNOWN, semrush: UNKNOWN } },
-    { label: "API and MCP server", cells: { rankbyai: "Yes, both", localfalcon: UNKNOWN, brightlocal: UNKNOWN, semrush: UNKNOWN } },
-  ];
-}
+/** "https://www.brightlocal.com/pricing/" → "brightlocal.com/pricing" (the visible source label). */
+const sourceLabel = (url: string) => url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 
 export async function SeoArticle({ page }: { page: SeoPage }) {
   const result = await getOfferCached();
@@ -44,9 +23,9 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
   const site = publicEnv.siteUrl;
   return (
     <PageShell>
-      <JsonLd data={graph(breadcrumbLd(trail), faqLd(page.faqs, `${site}${page.path}#faq`), {
-        "@type": "Article", headline: page.h1, description: page.description, dateModified: page.updated, datePublished: page.updated,
-        mainEntityOfPage: `${site}${page.path}`, author: { "@type": "Organization", name: "RankbyAI", url: site }, publisher: { "@type": "Organization", name: "RankbyAI", url: site },
+      <JsonLd data={graph(organizationLd(), breadcrumbLd(trail), faqLd(page.faqs, `${site}${page.path}#faq`), {
+        "@type": "Article", headline: page.h1, description: page.description, dateModified: page.updated, datePublished: page.published ?? page.updated,
+        mainEntityOfPage: `${site}${page.path}`, author: { "@id": `${site}/#organization` }, publisher: { "@id": `${site}/#organization` },
       })} />
       <article className="container-page flex flex-col gap-12 pt-[clamp(48px,7vw,96px)] pb-[var(--rb-section-y)]">
         <header className="flex max-w-[820px] flex-col gap-5">
@@ -74,25 +53,39 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
           <section className="flex flex-col gap-4" aria-labelledby="compare">
             <h2 id="compare" className="m-0 text-[clamp(24px,3vw,34px)] leading-[1.1] font-semibold tracking-[-0.03em]">{page.table.caption}</h2>
             <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
-              <table className="w-full min-w-[720px] border-collapse text-left text-[14px]">
+              <table className="w-full border-collapse text-left text-[14px]" style={{ minWidth: 200 + page.table.columns.length * 210 }}>
                 <thead>
                   <tr>
                     <th scope="col" className="border-b border-line px-4 py-3 text-[13px] font-medium text-dim"><span className="sr-only">Feature</span></th>
-                    {page.table.columns.map((c) => <th key={c} scope="col" className={`border-b border-line px-4 py-3 text-[15px] font-semibold ${c === "rankbyai" ? "text-g1" : ""}`}>{COLUMN_NAME[c]}</th>)}
+                    {page.table.columns.map((c) => <th key={c} scope="col" className={`border-b border-line px-4 py-3 text-[15px] font-semibold ${c === "rankbyai" ? "text-g1" : ""}`}>{VENDOR_NAME[c]}</th>)}
                   </tr>
                 </thead>
                 <tbody>
-                  {rows(ourPrice).map((r) => (
-                    <tr key={r.label} className="border-b border-line align-top last:border-0">
-                      <th scope="row" className="w-[200px] px-4 py-3 text-[14px] font-medium text-muted-foreground">{r.label}</th>
-                      {page.table!.columns.map((c) => <td key={c} className={`px-4 py-3 leading-normal ${r.cells[c] === UNKNOWN ? "text-dim" : "text-fg-2"}`}>{r.cells[c]}</td>)}
+                  {(page.table.rows ?? ROWS).map((row) => (
+                    <tr key={row} className="border-b border-line align-top last:border-0">
+                      <th scope="row" className="w-[200px] px-4 py-3 text-[14px] font-medium text-muted-foreground">{ROW_LABEL[row]}</th>
+                      {page.table!.columns.map((c) => {
+                        const cell = cellFor(c, row, ourPrice);
+                        return (
+                          <td key={c} className={`px-4 py-3 leading-normal ${cell.unknown ? "text-dim" : "text-fg-2"}`}>
+                            {cell.text}
+                            {cell.source ? (
+                              <a href={cell.source} rel="nofollow noopener noreferrer" target="_blank" className="mt-1 block font-mono text-[11.5px] text-dim underline underline-offset-2 hover:text-fg">
+                                {sourceLabel(cell.source)}
+                              </a>
+                            ) : null}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <p className="m-0 max-w-[820px] text-[13px] leading-normal text-dim">
-              Competitor prices are the figures we verified on each vendor&apos;s public pricing page on {COMPETITOR_PRICES_DATE}; the Semrush figure was verified by the operator of this site on that date. Plans and prices change, so check each vendor before you decide. “See their site” means we hold no verified information and will not guess. We make RankbyAI.
+              Every cell about another tool was read on that vendor&apos;s own public page on {VERIFIED_ON}; the link under it is the page. Plans and prices change, so check the
+              vendor&apos;s page before you decide. &ldquo;No mention found&rdquo; means the page we read says nothing about it; &ldquo;See their site&rdquo; means we hold no
+              verified information and will not guess. We make RankbyAI.
             </p>
           </section>
         ) : null}
@@ -144,5 +137,6 @@ export function seoMetadata(page: SeoPage) {
     description: page.description,
     alternates: { canonical: page.path },
     openGraph: { title: page.h1, description: page.description, url: page.path, type: "article" as const },
+    twitter: { card: "summary_large_image" as const, title: page.h1, description: page.description },
   };
 }

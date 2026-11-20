@@ -281,7 +281,9 @@ export async function crawlSite(website: string, maxPages = 20, deadline = Date.
   const origin = new URL(homePage.url).origin;
   // Fetched first, before the page budget can run out: it decides whether search and AI crawlers may read the site at all.
   const robotsPage = await fetchPage(`${origin}/robots.txt`, "text/plain");
-  const robots = robotsPage ? { status: robotsPage.status, text: robotsPage.html.slice(0, 200_000) } : null;
+  // A 200 with no readable body (an unexpected content type, or an empty file) is treated as unknown,
+  // never as "nothing blocked": the check then says it could not read the file.
+  const robots = robotsPage && !(robotsPage.status === 200 && !robotsPage.html.trim()) ? { status: robotsPage.status, text: robotsPage.html.slice(0, 200_000) } : null;
 
   let candidates: string[] = [];
   const sitemap = await fetchPage(`${origin}/sitemap.xml`, "application/xml");

@@ -59,6 +59,13 @@ describe("crawler access for the audit", () => {
 
   it("a crawler blocked only from a money page is reported with that page", () => {
     const a = crawlerAccess({ status: 200, text: "User-agent: Bingbot\nDisallow: /services" }, ["/", "/services/drain-cleaning"])!;
-    expect(a.blocked).toEqual([{ agent: "Bingbot", tier: "search", serves: "Bing, Copilot and ChatGPT search results", paths: ["/services/drain-cleaning"] }]);
+    expect(a.blocked).toEqual([{ agent: "Bingbot", tier: "search", serves: "Bing and Microsoft Copilot", paths: ["/services/drain-cleaning"] }]);
+  });
+});
+
+describe("Google-Extended is its own tier", () => {
+  it("is reported as 'gemini', not as a search or training crawler", () => {
+    const a = crawlerAccess({ status: 200, text: "User-agent: Google-Extended\nDisallow: /" }, ["/"])!;
+    expect(a.blocked).toEqual([{ agent: "Google-Extended", tier: "gemini", serves: "Gemini training and Gemini app answers", paths: ["/"] }]);
   });
 });

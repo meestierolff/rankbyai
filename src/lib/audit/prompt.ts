@@ -22,8 +22,8 @@ export interface AuditPromptInput {
 /** What each priority means, in the order to work: the 80/20 of local search, most leverage first. */
 export const PLAYBOOK: Record<Priority, string> = {
   P0: "fix first: the business's identity, and whether search engines and AI assistants may read the site",
-  P1: "the biggest gaps against the businesses in the map pack",
-  P2: "the website's pages, schema and FAQ",
+  P1: "the biggest gaps against the map pack, and what keeps AI search away from the site",
+  P2: "profile details, the website's pages, schema and FAQ",
   P3: "nice to have",
 };
 

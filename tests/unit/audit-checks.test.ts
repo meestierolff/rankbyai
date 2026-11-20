@@ -186,6 +186,17 @@ describe("findability: crawler access, service page, money pages", () => {
     expect(check(withSite({ robots: { status: 200, text: "User-agent: GPTBot\nUser-agent: ClaudeBot\nDisallow: /" } }), "ai_crawlers").status).toBe("pass");
   });
 
+  it("Cloudflare's managed 'block AI training' file: only Google-Extended costs answers, at P2 with the trade-off explained", () => {
+    // The block Cloudflare prepends when Training is set to Disallow (developers.cloudflare.com, managed robots.txt).
+    const cloudflare = "User-Agent: *\nContent-signal: search=yes, ai-train=no, use=reference\nAllow: /\n\n" +
+      ["Amazonbot", "Applebot-Extended", "Bytespider", "CCBot", "ClaudeBot", "Google-Extended", "GPTBot", "meta-externalagent"].map((a) => `User-agent: ${a}\nDisallow: /`).join("\n\n");
+    const c = check(withSite({ robots: { status: 200, text: cloudflare } }), "ai_crawlers");
+    expect(c).toMatchObject({ status: "fail", priority: "P2", title: "robots.txt blocks Google-Extended, which also feeds Gemini app answers" });
+    expect(c.fix).toContain("keep a site out of AI training");
+    expect(c.fix).not.toContain("Remove the Disallow rules"); // nothing else to remove
+    expect(c.evidence.find((e) => e.label.startsWith("Training-only"))?.value).toBe("GPTBot, ClaudeBot, CCBot");
+  });
+
   it("a search engine crawler blocked is P0; no robots.txt passes; an unreadable one is not checked", () => {
     expect(check(withSite({ robots: { status: 200, text: "User-agent: *\nDisallow: /" } }), "ai_crawlers")).toMatchObject({ status: "fail", priority: "P0" });
     expect(check(withSite({ robots: { status: 404, text: "" } }), "ai_crawlers").status).toBe("pass");
@@ -218,9 +229,24 @@ describe("findability: crawler access, service page, money pages", () => {
     const wall = "We are proud to serve our community with care and attention to every detail of every visit " .repeat(8);
     const poor = servicePage(`<h1>Welcome</h1><p>${wall}</p><h2>About our dentists</h2><p>${wall}.</p><h3>Team</h3>`);
     const bad = withSite({ pages: [poor] });
-    expect(check(bad, "money_opening")).toMatchObject({ status: "fail", title: "The opening words of 1 of 2 money pages miss the service or the city" });
-    expect(check(bad, "money_subheadings")).toMatchObject({ status: "fail", title: "2 of 2 money pages have fewer than 2 subheadings" });
+    expect(check(bad, "money_opening")).toMatchObject({ status: "fail", title: "The opening words of 1 of 2 main pages miss the service or the city" });
+    expect(check(bad, "money_subheadings")).toMatchObject({ status: "fail", title: "2 of 2 main pages have fewer than 2 subheadings" });
     expect(check(bad, "answer_first").status).toBe("not_checked"); // one section in all: too few to judge
+  });
+
+  it("a German site audited for the English category 'Dentist' is not checked, not failed; 'Zahnarzt' is matched", () => {
+    const de = page("https://zahn.example/", `<html><head><title>Zahnarztpraxis Dr. Weber | Berlin-Mitte</title></head><body><h1>Ihr Zahnarzt in Berlin</h1><p>Moderne Zahnmedizin in Berlin-Mitte.</p>
+      <h2>Prophylaxe</h2><p>Professionelle Zahnreinigung für die ganze Familie.</p><h2>Termine</h2><p>Termine erhalten Sie meist innerhalb einer Woche.</p></body></html>`);
+    const base = inputs({ business: { ...inputs().business, city: "Berlin", language: "de" }, site: { home: de, pages: [{ url: "https://zahn.example/team", title: "Team", h1: ["Unser Team"] }], hasLlmsTxt: false, knownPages: 2 } });
+    for (const key of ["service_page", "money_opening"]) {
+      const c = check({ ...base, service: "Dentist" }, key);
+      expect(c.status, key).toBe("not_checked");
+      expect(c.reason).toContain("another language (de)");
+    }
+    expect(check({ ...base, service: "Zahnarzt" }, "service_page").status).toBe("pass");
+    expect(check({ ...base, service: "Zahnarzt" }, "money_opening").status).toBe("pass");
+    // An English business with no such page still gets the finding.
+    expect(check({ ...base, business: { ...base.business, language: "en" }, service: "Dentist" }, "service_page").status).toBe("fail");
   });
 
   it("new findings state no number that is missing from their evidence", () => {

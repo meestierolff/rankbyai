@@ -12,6 +12,7 @@ import { namesMatch, normalizeName } from "@/lib/scans/match";
 import { fetchPlaces } from "@/lib/scans/places";
 import { CATEGORY_LABEL, runChecks, scoreAudit, type AuditInputs, type CheckResult } from "./checks";
 import { crawlSite, extractFacts, fetchPage, type PageFacts, type SiteCrawl } from "./crawl";
+import { languageCodeFor } from "@/lib/countries";
 import { heuristicServices, llmServices, missingServices, type ServicePage } from "./services";
 
 /**
@@ -379,7 +380,7 @@ export async function processAudit(auditId: string): Promise<void> {
     const ai = await aiPending;
 
     const inputs: AuditInputs = {
-      business: { name: business.name, website, phone: business.phone, address: business.address ?? null, city: business.city, category: business.primary_category },
+      business: { name: business.name, website, phone: business.phone, address: business.address ?? null, city: business.city, category: business.primary_category, language: business.language ?? languageCodeFor(business.country) },
       service, months, profile, competitors,
       site: crawl ? { home: crawl.home, pages: crawl.pages.map((p) => ({ url: p.url, title: p.title, h1: p.h1, intro: p.intro, h2Sections: p.h2Sections })), hasLlmsTxt: crawl.hasLlmsTxt, knownPages: crawl.fetched, robots: crawl.robots } : null,
       ai: ai.ai, services, areas,

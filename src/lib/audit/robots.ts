@@ -68,19 +68,27 @@ export function isAllowed(groups: RobotsGroup[], agent: string, path: string): b
 
 /**
  * The crawlers that matter for being found and cited, by what blocking them costs.
- * Sources (checked 20 Nov 2026): developers.google.com crawler docs (Googlebot feeds Search, AI
- * Overviews and AI Mode; Google-Extended governs Gemini training and grounding in Gemini apps),
- * developers.openai.com/api/docs/bots (OAI-SearchBot is ChatGPT search; GPTBot is training only;
- * ChatGPT-User acts for a user and may not follow robots.txt), support.claude.com/articles/8896518
- * (Claude-SearchBot is search, Claude-User fetches for a user, ClaudeBot is training).
+ *
+ * Read on 20 Nov 2026:
+ *  - developers.google.com/search/docs/crawling-indexing/google-common-crawlers: Googlebot serves
+ *    "Google Search (including Discover and all Google Search features)". Google-Extended controls
+ *    use for training Gemini models AND for grounding in Gemini Apps and Grounding with Google Search
+ *    on Vertex AI; it "does not impact a site's inclusion in Google Search nor is it used as a
+ *    ranking signal". So it is its own tier: blocking it is a common, deliberate training opt-out
+ *    (Cloudflare's managed robots.txt blocks it when Training is set to Disallow), with a real cost.
+ *  - developers.openai.com/api/docs/bots: OAI-SearchBot is ChatGPT search; GPTBot is training only;
+ *    ChatGPT-User acts for a user and robots.txt may not apply to it (so it is not checked).
+ *  - support.claude.com/en/articles/8896518 (as summarised by Search Engine Land): Claude-SearchBot
+ *    indexes for Claude's search, Claude-User fetches for a user, ClaudeBot is training.
+ * Bingbot's index also feeds Microsoft Copilot (Bing Webmaster Tools reports Copilot citations).
  */
 export const CRAWLERS = [
-  { agent: "Googlebot", tier: "search", serves: "Google Search, AI Overviews and Gemini" },
-  { agent: "Bingbot", tier: "search", serves: "Bing, Copilot and ChatGPT search results" },
+  { agent: "Googlebot", tier: "search", serves: "Google Search and its AI features" },
+  { agent: "Bingbot", tier: "search", serves: "Bing and Microsoft Copilot" },
   { agent: "OAI-SearchBot", tier: "ai_search", serves: "ChatGPT search" },
   { agent: "PerplexityBot", tier: "ai_search", serves: "Perplexity" },
   { agent: "Claude-SearchBot", tier: "ai_search", serves: "Claude search" },
-  { agent: "Google-Extended", tier: "ai_search", serves: "answers in the Gemini app" },
+  { agent: "Google-Extended", tier: "gemini", serves: "Gemini training and Gemini app answers" },
   { agent: "Claude-User", tier: "user_fetch", serves: "pages Claude opens for a user" },
   { agent: "Perplexity-User", tier: "user_fetch", serves: "pages Perplexity opens for a user" },
   { agent: "GPTBot", tier: "training", serves: "OpenAI model training" },

@@ -3,7 +3,7 @@ import type { BusinessInfo } from "@/lib/providers/dataforseo";
 import { normalizeName, normalizePhone } from "@/lib/scans/match";
 import type { PageFacts } from "./crawl";
 import { median, pageMath, reviewTarget } from "./math";
-import { DIRECT_ANSWER, isDirectAnswer, moneyPages, namesService, pageIsAbout, pathOf, type PageSummary } from "./onpage";
+import { DIRECT_ANSWER, isDirectAnswer, moneyPages, namesService, pageIsAbout, pathOf, pathWords, type PageSummary } from "./onpage";
 import { crawlerAccess, type CrawlerTier } from "./robots";
 
 /**
@@ -43,7 +43,7 @@ export interface CheckResult {
 }
 
 export interface AuditInputs {
-  business: { name: string; website: string | null; phone: string | null; address: string | null; city: string | null; category: string | null };
+  business: { name: string; website: string | null; phone: string | null; address: string | null; city: string | null; category: string | null; /** Language code of the business ("de"), when known. */ language?: string | null };
   service: string;
   months: number;
   profile: BusinessInfo | null;
@@ -352,8 +352,12 @@ export function runChecks(inp: AuditInputs): CheckResult[] {
   return out;
 }
 
-const TIER_PRIORITY: Record<Exclude<CrawlerTier, "training">, Priority> = { search: "P0", ai_search: "P1", user_fetch: "P2" };
-const TIER_LABEL: Record<Exclude<CrawlerTier, "training">, string> = { search: "search engine crawlers", ai_search: "AI search crawlers", user_fetch: "AI assistants opening pages for a user" };
+type CostlyTier = Exclude<CrawlerTier, "training">;
+const TIER_ORDER: CostlyTier[] = ["search", "ai_search", "gemini", "user_fetch"];
+const TIER_PRIORITY: Record<CostlyTier, Priority> = { search: "P0", ai_search: "P1", gemini: "P2", user_fetch: "P2" };
+const TIER_LABEL: Record<CostlyTier, string> = {
+  search: "search engine crawlers", ai_search: "AI search crawlers", gemini: "Google-Extended, which also feeds Gemini app answers", user_fetch: "AI assistants opening pages for a user",
+};
 
 /** Short opening of a text for evidence: its first `n` words. */
 const firstWords = (s: string, n: number) => {
@@ -373,8 +377,8 @@ function findabilityChecks(inp: AuditInputs): CheckResult[] {
   const keys = [
     ["ai_crawlers", "P0", "Search and AI crawlers may read the site"],
     ["service_page", "P1", "A page is about the audited service"],
-    ["money_opening", "P2", "Money pages name the service and the city in their opening words"],
-    ["money_subheadings", "P2", "Money pages are split into sections with subheadings"],
+    ["money_opening", "P2", "Main pages name the service and the city in their opening words"],
+    ["money_subheadings", "P2", "Main pages are split into sections with subheadings"],
     ["answer_first", "P2", "Sections open with a short, direct answer"],
   ] as const;
   if (!home || !inp.site) return keys.map(([key, pr, t]) => skip(key, "website", pr, t, noSite));
@@ -390,7 +394,7 @@ function findabilityChecks(inp: AuditInputs): CheckResult[] {
   else {
     const hurting = access.blocked.filter((b) => b.tier !== "training");
     const training = access.blocked.filter((b) => b.tier === "training");
-    const worst = (["search", "ai_search", "user_fetch"] as const).find((t) => hurting.some((b) => b.tier === t));
+    const worst = TIER_ORDER.find((t) => hurting.some((b) => b.tier === t));
     const evidence: Evidence[] = [
       { label: "/robots.txt", value: access.hasRobots ? "found" : "none (nothing is blocked by it)", source_url: robotsUrl },
       { label: "Pages checked", value: access.paths.join(", ") },
@@ -401,13 +405,27 @@ function findabilityChecks(inp: AuditInputs): CheckResult[] {
     if (!worst) out.push(ok({ key: "ai_crawlers", category: "website", priority: "P0", title: keys[0][2], evidence, fix: "", impact }));
     else {
       const names = hurting.filter((b) => b.tier === worst).map((b) => b.agent);
+      const others = hurting.filter((b) => b.tier !== "gemini").map((b) => b.agent);
+      const gemini = hurting.some((b) => b.tier === "gemini");
+      const fix = [
+        others.length ? `Remove the Disallow rules for ${others.join(", ")} in robots.txt, or give each its own group with “Allow: /”.` : "",
+        gemini ? "Google-Extended is often blocked on purpose to keep a site out of AI training (Cloudflare's “block AI training” setting does this). It also keeps the site out of answers in the Gemini app, so allow it if those answers matter more to the business." : "",
+        "Blocking training-only crawlers (GPTBot, ClaudeBot, CCBot) is fine and does not affect answers. Also check the firewall or bot protection, which robots.txt does not show.",
+      ].filter(Boolean).join(" ");
       out.push(bad({
-        key: "ai_crawlers", category: "website", priority: TIER_PRIORITY[worst], evidence, impact,
-        title: `robots.txt blocks ${TIER_LABEL[worst]}: ${names.join(", ")}`,
-        fix: `Remove the Disallow rules for ${hurting.map((b) => b.agent).join(", ")} in robots.txt, or give each its own group with “Allow: /”. Blocking training-only crawlers (GPTBot, ClaudeBot, CCBot) is fine and does not affect answers. Also check the firewall or bot protection, for example a “block AI bots” setting, which robots.txt does not show.`,
+        key: "ai_crawlers", category: "website", priority: TIER_PRIORITY[worst], evidence, impact, fix,
+        title: worst === "gemini" ? "robots.txt blocks Google-Extended, which also feeds Gemini app answers" : `robots.txt blocks ${TIER_LABEL[worst]}: ${names.join(", ")}`,
       }));
     }
   }
+
+  // A business outside English often has its Google category (the default service) in English while
+  // the site is in its own language: "Dentist" never appears on a German "Zahnarzt" site. Then the
+  // service checks cannot judge anything, and say so instead of reporting a missing page.
+  const language = inp.business.language?.toLowerCase() ?? null;
+  const serviceAnywhere = namesService(service, [home.text, ...pages.map((p) => [pathWords(p.url), p.title, ...p.h1, p.intro].join(" "))]);
+  const otherLanguage = !!language && !language.startsWith("en") && !serviceAnywhere;
+  const languageReason = `“${service}” appears nowhere on the site, which is probably written in another language (${language}). Run the audit with the service as the site names it.`;
 
   // ── A page for the service ──
   const aboutPage = [home, ...pages].find((p) => pageIsAbout(service, p));
@@ -417,6 +435,8 @@ function findabilityChecks(inp: AuditInputs): CheckResult[] {
   };
   if (aboutPage) {
     out.push(ok({ ...servicePageBase, title: `A page is about ${service}`, fix: "", evidence: [{ label: "Page", value: aboutPage.title ?? pathOf(aboutPage.url), source_url: aboutPage.url }, { label: "Service", value: service }] }));
+  } else if (otherLanguage) {
+    out.push(skip("service_page", "website", "P1", keys[1][2], languageReason));
   } else if (pages.length === 0) {
     out.push(skip("service_page", "website", "P1", keys[1][2], "Only the homepage could be read, and it is not about this service; other pages were not checked."));
   } else {
@@ -430,34 +450,35 @@ function findabilityChecks(inp: AuditInputs): CheckResult[] {
   // ── Opening words of the money pages ──
   const city = inp.business.city?.split(",")[0].trim() ?? "";
   if (!city) out.push(skip("money_opening", "website", "P2", keys[2][2], "The business has no city on record."));
+  else if (otherLanguage) out.push(skip("money_opening", "website", "P2", keys[2][2], languageReason));
   else {
     const rows = money.map((p) => ({ p, service: namesService(service, [p.intro]), city: p.intro.toLowerCase().includes(city.toLowerCase()) }));
     const missing = rows.filter((r) => !r.service || !r.city);
     const evidence: Evidence[] = [
-      { label: "Money pages checked", value: String(rows.length) }, { label: "Pages missing the service or the city", value: String(missing.length) }, { label: "Looked for", value: `${service} · ${city}` },
+      { label: "Main pages checked (homepage and service pages)", value: String(rows.length) }, { label: "Pages missing the service or the city", value: String(missing.length) }, { label: "Looked for", value: `${service} · ${city}` },
       ...rows.map((r) => ({ label: pathOf(r.p.url), value: `service ${r.service ? "yes" : "no"} · city ${r.city ? "yes" : "no"} · opens “${firstWords(r.p.intro, 12) || "(no text found)"}”`, source_url: r.p.url })),
     ];
     const base = { key: "money_opening", category: "website" as const, priority: "P2" as const, evidence, impact: "The opening of a page is the passage search and AI systems read first and quote most." };
     out.push(missing.length === 0
       ? ok({ ...base, title: keys[2][2], fix: "" })
-      : bad({ ...base, title: `The opening words of ${missing.length} of ${rows.length} money pages miss the service or the city`, fix: `Start each money page with the service and the city in the H1 and the first sentence, for example “${service} in ${city}”.` }));
+      : bad({ ...base, title: rows.length === 1 ? "The homepage's opening words don't name the service and the city" : `The opening words of ${missing.length} of ${rows.length} main pages miss the service or the city`, fix: `Start each money page with the service and the city in the H1 and the first sentence, for example “${service} in ${city}”.` }));
   }
 
   // ── Subheadings ──
   const MIN_H2 = 2;
   const thin = money.filter((p) => p.h2Sections.length < MIN_H2);
   const subEvidence: Evidence[] = [
-    { label: "Money pages checked", value: String(money.length) }, { label: "Pages with too few subheadings", value: String(thin.length) }, { label: "Needed per page", value: `${MIN_H2} or more H2 subheadings` },
+    { label: "Main pages checked (homepage and service pages)", value: String(money.length) }, { label: "Pages with too few subheadings", value: String(thin.length) }, { label: "Needed per page", value: `${MIN_H2} or more H2 subheadings` },
     ...money.map((p) => ({ label: pathOf(p.url), value: `${p.h2Sections.length} H2 subheadings`, source_url: p.url })),
   ];
   const subBase = { key: "money_subheadings", category: "website" as const, priority: "P2" as const, evidence: subEvidence, impact: "Subheadings split a page into passages that each answer one question, which is the unit AI assistants take." };
   out.push(thin.length === 0
     ? ok({ ...subBase, title: keys[3][2], fix: "" })
-    : bad({ ...subBase, title: `${thin.length} of ${money.length} money pages have fewer than ${MIN_H2} subheadings`, fix: "Split each money page into sections with H2 subheadings for the questions customers ask: prices, the areas served, emergencies, how it works." }));
+    : bad({ ...subBase, title: money.length === 1 ? `The homepage has fewer than ${MIN_H2} subheadings` : `${thin.length} of ${money.length} main pages have fewer than ${MIN_H2} subheadings`, fix: "Split each money page into sections with H2 subheadings for the questions customers ask: prices, the areas served, emergencies, how it works." }));
 
   // ── A short answer under each subheading ──
   const sections = money.flatMap((p) => p.h2Sections.map((s) => ({ ...s, url: p.url })));
-  if (sections.length < MIN_H2) out.push(skip("answer_first", "website", "P2", keys[4][2], `Fewer than ${MIN_H2} subheadings on the money pages to check.`));
+  if (sections.length < MIN_H2) out.push(skip("answer_first", "website", "P2", keys[4][2], `Fewer than ${MIN_H2} subheadings on the homepage and service pages to check.`));
   else {
     const direct = sections.filter(isDirectAnswer);
     const long = sections.filter((s) => !isDirectAnswer(s));

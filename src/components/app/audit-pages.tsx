@@ -10,7 +10,7 @@ import { userRead } from "./reads";
 import { isMockMode } from "@/lib/mock";
 import { getCreditBalance, getKeyStatuses } from "@/lib/workspace-data";
 import { AuditForm, AuditProgress, CopyAuditPrompt, FixKitPanel, PagePlanEditor, ReviewMath, type KitView } from "./audit-client";
-import { auditFixPrompt } from "@/lib/audit/prompt";
+import { auditFixPrompt, PLAYBOOK } from "@/lib/audit/prompt";
 import { languageName, languageNameFor } from "@/lib/countries";
 import { EmptyState, ErrorState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatusChip, fmtUsd } from "./ui";
 import { LocalTime } from "./local-time";
@@ -88,7 +88,8 @@ export async function AuditIndexPage({ ctx, businessId }: { ctx: SessionContext;
 interface FindingRow { id: string; priority: Priority; category: string; title: string; evidence: { label: string; value: string; source_url?: string }[]; fix: string; impact_note: string | null; check_key: string; data: Record<string, unknown> }
 
 const safeUrl = (u: string | undefined) => (u && /^https?:\/\//i.test(u) ? u : null);
-const PRIORITY_NOTE: Record<Priority, string> = { P0: "Broken or inconsistent identity", P1: "Biggest gaps against the map pack", P2: "Schema, FAQ and on-page", P3: "Nice to have" };
+/** Captions under each priority: the same playbook the copied prompt and the MCP prompt use. */
+const PRIORITY_NOTE = (p: Priority) => PLAYBOOK[p][0].toUpperCase() + PLAYBOOK[p].slice(1);
 
 function Finding({ f }: { f: FindingRow }) {
   return (
@@ -160,18 +161,21 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
   const [findingRows, { data: previousRows }, { data: kitRows }] = await Promise.all([
     userRead("Audit findings", (db) => db.from("audit_findings").select("id, priority, category, title, evidence, fix, impact_note, check_key, data").eq("audit_id", audit.id)),
     memberRead<unknown[]>("Previous audit", ws, (db) =>
-      db.from("audits").select("id, score, created_at").eq("workspace_id", ws).eq("business_id", audit.business_id).eq("status", "done").lt("created_at", audit.created_at).order("created_at", { ascending: false }).limit(1),
+      db.from("audits").select("id, score, created_at, checks_total, inputs->checks").eq("workspace_id", ws).eq("business_id", audit.business_id).eq("status", "done").lt("created_at", audit.created_at).order("created_at", { ascending: false }).limit(1),
     ),
     memberRead<unknown[]>("Fix kit", ws, (db) =>
       db.from("fix_kits").select("id, description, faqs, jsonld_localbusiness, jsonld_faq, llms_txt, checklist").eq("workspace_id", ws).eq("audit_id", audit.id).order("created_at", { ascending: false }).limit(1),
     ),
   ]);
   const findings = ((findingRows ?? []) as FindingRow[]).sort((a, b) => a.priority.localeCompare(b.priority));
-  const previous = ((previousRows ?? []) as { id: string; score: number | null; created_at: string }[])[0];
+  const previous = ((previousRows ?? []) as { id: string; score: number | null; created_at: string; checks_total: number; checks: { key: string }[] | null }[])[0];
   const kit = ((kitRows ?? []) as KitView[])[0] ?? null;
   const scores = audit.category_scores as Record<Category, { score: number | null; ran: number; total: number }>;
   const score = audit.score ?? 0;
-  const delta = previous?.score != null ? score - previous.score : null;
+  // Scores are comparable only when both audits ran the same checks: when checks were added since,
+  // a lower score can mean "more was checked", not "the business got worse".
+  const sameChecks = !!previous && (previous.checks ?? []).map((c) => c.key).sort().join() === (inputs.checks ?? []).map((c: CheckResult) => c.key).sort().join();
+  const delta = previous?.score != null && sameChecks ? score - previous.score : null;
   const ranPct = audit.checks_total ? Math.round((audit.checks_ran / audit.checks_total) * 100) : 0;
   const checks = inputs.checks ?? [];
   const passed = checks.filter((c: CheckResult) => c.status === "pass");
@@ -202,6 +206,8 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
                   <span className="font-mono text-[15px]" style={{ color: delta > 0 ? "var(--rb-g1)" : delta < 0 ? "var(--rb-orange)" : undefined }}>
                     {delta > 0 ? `▲ ${delta}` : delta < 0 ? `▼ ${Math.abs(delta)}` : "No change"} <span className="text-dim">since <LocalTime iso={previous!.created_at} mode="date" /></span>
                   </span>
+                ) : previous ? (
+                  <span className="text-[14px] text-dim">Not comparable with <LocalTime iso={previous.created_at} mode="date" />: new checks were added since</span>
                 ) : <span className="text-[14px] text-dim">First audit of this business</span>}
                 <span className="text-[14px] text-muted-foreground">{ranPct}% of checks ran ({audit.checks_ran} of {audit.checks_total})</span>
                 <span className="text-[13px] text-dim">Service: {inputs.service} · <LocalTime iso={audit.finished_at ?? audit.created_at} /></span>
@@ -236,7 +242,7 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
             <div className="flex flex-col gap-6">
               {(["P0", "P1", "P2", "P3"] as Priority[]).filter((p) => findings.some((f) => f.priority === p)).map((p) => (
                 <section key={p} className="flex flex-col gap-3" aria-label={`${p} findings`}>
-                  <div className="flex items-center gap-2 text-[13px] text-dim"><PriorityBadge priority={p} /> {PRIORITY_NOTE[p]}</div>
+                  <div className="flex items-center gap-2 text-[13px] text-dim"><PriorityBadge priority={p} /> {PRIORITY_NOTE(p)}</div>
                   <ul className="m-0 flex list-none flex-col gap-3 p-0">{findings.filter((f) => f.priority === p).map((f) => <Finding key={f.id} f={f} />)}</ul>
                 </section>
               ))}

@@ -9,7 +9,7 @@ import { memberRead } from "@/lib/db/member-read";
 import { userRead } from "./reads";
 import { isMockMode } from "@/lib/mock";
 import { getCreditBalance, getKeyStatuses } from "@/lib/workspace-data";
-import { AuditForm, AuditProgress, CopyAuditPrompt, FixKitPanel, PagePlanEditor, ReviewMath, type KitView } from "./audit-client";
+import { AuditForm, AuditProgress, CopyAuditPrompt, FixKitPanel, PagePlanEditor, ReviewKit, ReviewMath, type KitView } from "./audit-client";
 import { auditFixPrompt, PLAYBOOK } from "@/lib/audit/prompt";
 import { languageName, languageNameFor } from "@/lib/countries";
 import { EmptyState, ErrorState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatusChip, fmtUsd } from "./ui";
@@ -132,11 +132,11 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
   const { data: audit } = await memberRead<AuditDetailRow>("Audit", ctx.workspace.id, (db) =>
     db
       .from("audits")
-      .select("id, business_id, status, score, category_scores, checks_ran, checks_total, inputs, funding, est_cost_usd, cost_usd, error, created_at, finished_at, businesses(id, name, city, website, primary_category, language, country)")
+      .select("id, business_id, status, score, category_scores, checks_ran, checks_total, inputs, funding, est_cost_usd, cost_usd, error, created_at, finished_at, businesses(id, name, city, website, primary_category, language, country, place_id)")
       .eq("id", auditId).eq("workspace_id", ctx.workspace.id).maybeSingle(),
   );
   if (!audit) notFound();
-  type AuditBusiness = { id: string; name: string; city: string | null; website: string | null; primary_category: string | null; language: string | null; country: string | null };
+  type AuditBusiness = { id: string; name: string; city: string | null; website: string | null; primary_category: string | null; language: string | null; country: string | null; place_id: string | null };
   const business = one(audit.businesses as unknown as AuditBusiness | AuditBusiness[]);
   const header = (
     <PageHeader
@@ -278,6 +278,12 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
         {inputs.profile?.reviews != null && rivalsWithReviews.length ? (
           <Panel title="Review maths">
             <ReviewMath you={inputs.profile.reviews} competitors={rivalsWithReviews} initialMonths={inputs.months} />
+          </Panel>
+        ) : null}
+
+        {business?.place_id ? (
+          <Panel title="Ask for reviews">
+            <ReviewKit name={business.name} placeId={business.place_id} />
           </Panel>
         ) : null}
 

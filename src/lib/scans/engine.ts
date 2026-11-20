@@ -580,12 +580,13 @@ async function finalizeIfComplete(scan: ScanRow, business: BusinessRow) {
     return;
   }
 
-  const { data } = await admin.from("scan_points").select("idx, status, rank, top, cost_usd").eq("scan_id", scan.id);
+  const { data } = await admin.from("scan_points").select("idx, status, rank, top, cost_usd, lat, lng").eq("scan_id", scan.id);
   const points = (data ?? []) as (MapsPointRow & { cost_usd: number | null })[];
   if (points.some((p) => p.status === "pending" || p.status === "posted")) return;
   // Skipped points are not part of the result: `points` in the summary counts the active ones only,
   // so the 80% refund rule and the done/partial status are measured against what was asked for.
-  const summary = summarizeMaps(points, business.name);
+  // Reach is measured from the business's own pin, not from a grid centre that may have been moved.
+  const summary = summarizeMaps(points, business.name, business.lat != null && business.lng != null ? { lat: business.lat, lng: business.lng } : null);
   const cost = points.reduce((s, r) => s + Number(r.cost_usd ?? 0), 0);
   const status = summary.points_done === 0 ? "failed" : summary.points_failed === 0 ? "done" : "partial";
   if (house && scan.credits_used > 0 && summary.points_done / Math.max(1, summary.points) < 0.8) await admin.rpc("refund_credits", { p_scan_id: scan.id });

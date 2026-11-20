@@ -74,6 +74,7 @@ export function auditFixPrompt(a: AuditPromptInput): string | null {
   lines.push("- Use only facts I give you or that are already on the website or the Google profile. Do not invent reviews, ratings, prices, awards or claims; ask me when you need a fact.");
   lines.push("- Do not add keywords or a city to the business name on the Google profile unless that is its real, registered name: Google suspends profiles for it.");
   lines.push("- Do not suggest buying reviews, asking only happy customers for reviews, or creating listings for places the business does not have.");
+  lines.push("- Do not suggest fake engagement (paid clicks, direction requests or visits to the profile), link schemes (private blog networks, bought or hacked links), or a second location that is not a real, staffed place where the business serves customers.");
   lines.push("- Never block search engine or AI search crawlers in robots.txt. Blocking crawlers used only for training (GPTBot, ClaudeBot, CCBot) is fine.");
   const language = oneLine(a.language, 40);
   if (language && language !== "English") lines.push(`- Write every text for the website, the Google profile and other listings in ${language}.`);

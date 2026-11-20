@@ -122,6 +122,9 @@ export interface MapsPointRow {
   status: "pending" | "posted" | "done" | "failed" | "skipped";
   rank: number | null;
   top: { rank: number; name: string; cid?: string | null; rating?: number | null; reviews?: number | null }[] | null;
+  /** Where the point is; needed for the top-3 reach, absent in older callers. */
+  lat?: number;
+  lng?: number;
 }
 
 export interface MapsSummary {
@@ -140,11 +143,77 @@ export interface MapsSummary {
   solv: number | null;
   /** `share` = that business's top-3 placements ÷ all top-3 slots (same definition as `solv`). */
   top_competitors: { name: string; cid: string | null; top3_points: number; avg_rank: number; share: number | null; rating: number | null; reviews: number | null }[];
+  /** Miles from the business's pin out to which it holds the top 3 (top3Reach); null when it cannot be said. Absent on older scans. */
+  top3_reach_mi?: number | null;
+  /** True when the reach is the grid's edge: the real reach is at least that. */
+  top3_reach_at_least?: boolean;
 }
 
 export const NOT_RANKED = 21;
 
-export function summarizeMaps(allRows: MapsPointRow[], businessName: string): MapsSummary {
+export interface Top3Reach {
+  /** Miles from the business's pin out to which it holds the top 3 (see top3Reach). */
+  miles: number;
+  /** True when every ring of the grid held: the reach is at least this, the grid's edge. */
+  atLeast: boolean;
+}
+
+/**
+ * How far from its own pin a business holds the Google Maps top 3, measured on one grid rather than
+ * assumed from a rule of thumb.
+ *
+ * Done points are grouped into rings by distance from the pin. The pin and its nearest neighbours
+ * (everything within one grid step) form the first ring, so one noisy point cannot decide the
+ * result. Walking outward, a ring holds when the business is top 3 at half or more of its points;
+ * the reach is the distance of the last ring before the first that does not hold. Chosen on 20 Nov
+ * 2026 against real 5×5 grids, where "farthest top-3 point" and "half of everything within r" both
+ * overstated what the grid showed.
+ *
+ * Null when the grid does not cover the pin (a grid moved more than a step away from it), when
+ * fewer than four points are done, or when the business does not hold the top 3 around its pin.
+ */
+export function top3Reach(points: { lat: number; lng: number; rank: number | null }[], pin: { lat: number; lng: number }): Top3Reach | null {
+  if (points.length < 4) return null;
+  const d = points.map((p) => ({ miles: milesApart(p, pin), top3: p.rank != null && p.rank <= 3 }));
+  // One grid step: the smallest distance between two points (the grid is evenly spaced).
+  let step = Infinity;
+  for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) step = Math.min(step, milesApart(points[i], points[j]) || Infinity);
+  if (!Number.isFinite(step)) return null;
+  const nearest = Math.min(...d.map((x) => x.miles));
+  if (nearest > step * 0.75) return null;
+
+  // Rings: the core (within one step and a little), then every distinct distance beyond it.
+  const core = step * 1.05;
+  const key = (m: number) => (m <= core ? 0 : Math.round(m * 20) / 20);
+  const rings = new Map<number, { miles: number; total: number; top3: number }>();
+  for (const x of d) {
+    const k = key(x.miles);
+    const r = rings.get(k) ?? { miles: 0, total: 0, top3: 0 };
+    r.miles = Math.max(r.miles, x.miles);
+    r.total++;
+    if (x.top3) r.top3++;
+    rings.set(k, r);
+  }
+  const ordered = [...rings.entries()].sort((a, b) => a[0] - b[0]).map(([, r]) => r);
+  let reach: number | null = null;
+  for (const r of ordered) {
+    if (r.top3 * 2 < r.total) break;
+    reach = r.miles;
+  }
+  if (reach == null) return null;
+  return { miles: Math.round(reach * 10) / 10, atLeast: reach === ordered[ordered.length - 1].miles };
+}
+
+/** Great-circle distance in miles. */
+function milesApart(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLng = (b.lng - a.lng) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * 3958.8 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+export function summarizeMaps(allRows: MapsPointRow[], businessName: string, pin?: { lat: number; lng: number } | null): MapsSummary {
   const pointRows = allRows.filter((p) => p.status !== "skipped");
   const done = pointRows.filter((p) => p.status === "done");
   const ranks = done.map((p) => p.rank ?? NOT_RANKED);
@@ -164,7 +233,10 @@ export function summarizeMaps(allRows: MapsPointRow[], businessName: string): Ma
       rivals.set(key, cur);
     }
   }
+  const located = done.filter((p): p is MapsPointRow & { lat: number; lng: number } => p.lat != null && p.lng != null);
+  const reach = pin && located.length === done.length ? top3Reach(located, pin) : null;
   return {
+    ...(pin ? { top3_reach_mi: reach?.miles ?? null, top3_reach_at_least: reach?.atLeast ?? false } : {}),
     points: pointRows.length,
     points_skipped: allRows.length - pointRows.length,
     points_done: done.length,

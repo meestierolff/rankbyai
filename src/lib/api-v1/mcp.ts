@@ -25,7 +25,7 @@ const GUIDE =
   "list_scans, list_audits and list_prospect_batches find earlier work; update_business and delete_business manage the tracked businesses; get_branding and update_branding manage the white-label fields on reports. " +
   "Always show the user the estimate before calling a tool with confirm: true. AI answers vary between runs, places and time; report them as observations, not guarantees. " +
   "When advising on an audit, use the prompt fix_plan (or follow the same order): P0 first (the business's identity, and whether search engines and AI crawlers may read the site), then P1 (gaps against the map pack), then P2 (pages, schema, FAQ), then P3. " +
-  "Guardrails: never suggest adding keywords or a city to the Google Business Profile name unless it is the registered name, buying or gating reviews, fake listings, or blocking search or AI search crawlers; use only facts from the audit, the website or the user.";
+  "Guardrails: never suggest adding keywords or a city to the Google Business Profile name unless it is the registered name, buying or gating reviews, fake listings or second locations that are not real staffed places, fake clicks or visits, link schemes, or blocking search or AI search crawlers; use only facts from the audit, the website or the user.";
 
 const funding = z.enum(["byok", "credits"]).default("byok").describe("byok = the user's own API keys; credits = included scans");
 const confirm = z.boolean().default(false).describe("false returns the cost estimate only. true runs it and spends money: ask the user first.");

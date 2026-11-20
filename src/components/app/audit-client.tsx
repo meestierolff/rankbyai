@@ -6,6 +6,8 @@ import { ctaClass, secondaryClass } from "@/components/brand/primitives";
 import { Segmented } from "@/components/brand/segmented";
 import { pageMath, reviewTarget } from "@/lib/audit/math";
 import { track } from "@/lib/analytics";
+import QRCode from "qrcode";
+import { googleReviewLink, mapsPlaceUrl, REVIEW_ASK, REVIEW_RULES } from "@/lib/reviews";
 import { inputClass, labelClass } from "./ui";
 import { CREDIT_COST } from "@/lib/pricing-constants";
 import { plural } from "./first-run";
@@ -280,6 +282,75 @@ function CopyBlock({ section, title, hint, text, mono = true }: { section: strin
         <button type="button" onClick={copy} className={secondaryClass("cursor-pointer py-[6px] text-[13px]")} aria-live="polite">{copied ? "Copied" : "Copy"}</button>
       </div>
       <pre tabIndex={0} className={`m-0 max-h-[320px] overflow-auto rounded-lg bg-bg p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-fg-2 ${mono ? "font-mono" : "font-sans"}`}>{text}</pre>
+    </div>
+  );
+}
+
+/** One SVG path for the dark modules of a QR code, drawn from the matrix (no innerHTML). */
+function qrPath(text: string): { size: number; d: string } {
+  const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
+  const n = qr.modules.size;
+  let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.modules.get(r, c)) d += `M${c + 2} ${r + 2}h1v1h-1z`;
+  return { size: n + 4, d };
+}
+
+/**
+ * Ask for reviews in person, inside Google's rules (lib/reviews): the link (the Maps page by
+ * default, or the direct review link pasted from the profile), a QR code for a counter card, and
+ * what to say. Everything happens in the browser; nothing is stored.
+ */
+export function ReviewKit({ name, placeId }: { name: string; placeId: string }) {
+  const [pasted, setPasted] = useState("");
+  const [copied, setCopied] = useState<string | null>(null);
+  const direct = pasted.trim() ? googleReviewLink(pasted) : null;
+  const link = direct ?? mapsPlaceUrl(name, placeId);
+  const qr = qrPath(link);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${qr.size} ${qr.size}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${qr.d}" fill="#000"/></svg>`;
+  const copy = async (what: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(what);
+      track("fixkit_copied", { section: `review_${what}` });
+      setTimeout(() => setCopied(null), 2000);
+    } catch {
+      // Both texts are on the page to select by hand.
+    }
+  };
+  return (
+    <div className="flex flex-wrap gap-6">
+      <div className="flex flex-col items-center gap-2">
+        <svg viewBox={`0 0 ${qr.size} ${qr.size}`} width={168} height={168} shapeRendering="crispEdges" role="img" aria-label={`QR code for ${direct ? "the review link" : "the Google Maps page"}`} className="rounded-lg">
+          <rect width="100%" height="100%" fill="#fff" />
+          <path d={qr.d} fill="#000" />
+        </svg>
+        <a href={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} download="review-qr.svg" className={secondaryClass("py-[6px] text-[13px] no-underline")}>Download QR (SVG)</a>
+      </div>
+      <div className="flex min-w-[260px] flex-1 flex-col gap-3">
+        <label className="flex flex-col gap-1">
+          <span className={labelClass}>Direct review link (optional)</span>
+          <input value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="https://g.page/r/…/review" className={inputClass} inputMode="url" />
+          <span className="text-[12.5px] leading-normal text-dim">
+            {pasted.trim() && !direct
+              ? "That is not a Google link. Paste the link from the profile, or leave this empty to use the Maps page."
+              : direct
+                ? "Using the direct link: it opens the review form."
+                : "Without it, the code opens the business on Google Maps, one tap from “Write a review”. For a direct link: Google Business Profile → Read reviews → Get more reviews → Share → Copy."}
+          </span>
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <code className="max-w-full truncate rounded-md bg-bg px-2 py-1 font-mono text-[12px] text-fg-2">{link}</code>
+          <button type="button" onClick={() => copy("link", link)} className={secondaryClass("cursor-pointer py-[6px] text-[13px]")} aria-live="polite">{copied === "link" ? "Copied" : "Copy link"}</button>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className={labelClass}>What to say, at the end of every visit</span>
+          <p className="m-0 rounded-lg bg-bg px-3 py-2 text-[14px] leading-relaxed text-fg-2">{REVIEW_ASK}</p>
+          <button type="button" onClick={() => copy("ask", REVIEW_ASK)} className={secondaryClass("w-fit cursor-pointer py-[6px] text-[13px]")} aria-live="polite">{copied === "ask" ? "Copied" : "Copy text"}</button>
+        </div>
+        <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-[13px] leading-normal text-muted-foreground">
+          {REVIEW_RULES.map((r) => <li key={r}>{r}</li>)}
+        </ul>
+      </div>
     </div>
   );
 }

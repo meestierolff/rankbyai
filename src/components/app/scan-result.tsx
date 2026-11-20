@@ -345,7 +345,7 @@ function MapsResult({ data, businessName, view, setView, sel, setSel }: ViewProp
   const { scan, points } = data;
   const n = scan.grid_size;
   const [overlay, setOverlay] = useState<string>("");
-  const summary = scan.summary as { avg_rank?: number | null; top3_share?: number | null; top3_points?: number; solv?: number | null; points_done?: number; found_points?: number; top_competitors?: { name: string; cid: string | null; top3_points: number; avg_rank: number; share?: number | null; rating?: number | null; reviews?: number | null }[] };
+  const summary = scan.summary as { avg_rank?: number | null; top3_share?: number | null; top3_points?: number; solv?: number | null; points_done?: number; found_points?: number; top3_reach_mi?: number | null; top3_reach_at_least?: boolean; top_competitors?: { name: string; cid: string | null; top3_points: number; avg_rank: number; share?: number | null; rating?: number | null; reviews?: number | null }[] };
   const rivals = summary.top_competitors ?? [];
 
   const rankAt = (p: ScanData["points"][number]): number | null => {
@@ -374,6 +374,15 @@ function MapsResult({ data, businessName, view, setView, sel, setSel }: ViewProp
         <StatTile label="Top-3 share" value={pct(summary.top3_share)} hint={summary.points_done ? `${summary.top3_points ?? 0}/${summary.points_done} points` : "Running"} tone={(summary.top3_share ?? 0) >= 0.5 ? "good" : undefined} />
         <StatTile label="Share of Local Voice" value={pct(summary.solv)} hint="Your top-3 placements ÷ all top-3 slots" />
         <StatTile label="Found in top 20" value={summary.points_done ? `${summary.found_points ?? 0}/${summary.points_done}` : "…"} hint="Points where the listing appears" />
+        {/* Older scans have no reach (the key is absent); a null reach means it does not hold the top 3 around its own pin. */}
+        {summary.top3_reach_mi !== undefined ? (
+          <StatTile
+            label="Top-3 reach"
+            value={summary.top3_reach_mi == null ? "None" : `${summary.top3_reach_at_least ? "≥ " : ""}${summary.top3_reach_mi} mi`}
+            hint={summary.top3_reach_mi == null ? "Not top 3 at half the points around its pin" : summary.top3_reach_at_least ? "Top 3 to the grid's edge: run a wider grid to find the limit" : "From its pin, ring by ring: top 3 at half the points or more"}
+            tone={summary.top3_reach_mi != null ? "good" : undefined}
+          />
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.25fr_1fr]">

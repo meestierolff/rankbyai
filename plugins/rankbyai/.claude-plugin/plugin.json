@@ -3,10 +3,19 @@
   "displayName": "RankbyAI",
   "version": "1.2.0",
   "description": "Check whether ChatGPT, Perplexity, Gemini and Google Maps recommend a local business, point by point on a map grid, and turn the results into a ranked fix plan.",
-  "author": { "name": "RankbyAI", "url": "https://rankbyai.live" },
+  "author": {
+    "name": "RankbyAI",
+    "url": "https://rankbyai.live"
+  },
   "homepage": "https://rankbyai.live",
   "repository": "https://github.com/meestierolff/rankbyai",
-  "keywords": ["rankbyai", "local-seo", "ai-visibility", "google-maps"],
+  "license": "MIT",
+  "keywords": [
+    "rankbyai",
+    "local-seo",
+    "ai-visibility",
+    "google-maps"
+  ],
   "icon": "./assets/logo.png",
   "documentationUrl": "https://rankbyai.live/docs/api#mcp",
   "supportUrl": "https://rankbyai.live/support",

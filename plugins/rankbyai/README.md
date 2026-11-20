@@ -18,3 +18,5 @@ Your assistant sends tool calls (business names, cities, keywords, scan and audi
 - Any MCP client: add `https://rankbyai.live/api/mcp` as a remote MCP server.
 
 Documentation: [rankbyai.live/docs/api#mcp](https://rankbyai.live/docs/api#mcp). Support: [rankbyai.live/support](https://rankbyai.live/support).
+
+This plugin folder (not the rest of the repository) is licensed under the MIT License; see [LICENSE](LICENSE).

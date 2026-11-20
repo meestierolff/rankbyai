@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { JsonLd } from "@/components/json-ld";
 import { Calculator } from "@/components/marketing/calculator";
 import { Compare } from "@/components/marketing/compare";
+import { DemoVideo } from "@/components/marketing/demo-video";
 import { Faq } from "@/components/marketing/faq";
 import { Features } from "@/components/marketing/features";
 import { FinalCta, StickyBar } from "@/components/marketing/final-cta";
@@ -54,6 +55,7 @@ export default async function HomePage() {
         <Header />
         <main>
           <Hero costs={costs} />
+          <DemoVideo />
           <Tour />
           <RealDataLink />
           <Problem />

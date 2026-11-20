@@ -102,7 +102,7 @@ export function Tour() {
 
   const cur = STEPS[step];
   return (
-    <section id="tour" aria-label="Product tour with sample data" className="relative px-6 pt-6 pb-10 text-lp-fg">
+    <section id="sample-tour" aria-label="Product tour with sample data" className="relative px-6 pt-6 pb-10 text-lp-fg">
       <div className="mx-auto w-full max-w-(--lp-container-wide)">
         <Bezel
           ref={frameRef}

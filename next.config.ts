@@ -47,6 +47,13 @@ const nextConfig: NextConfig = {
   // sends a browser on with must not leak through a Referer header.
   headers: async () => [
     {
+      source: "/free-check/:path*",
+      headers: [
+        { key: "Cache-Control", value: "private, no-store" },
+        { key: "X-Robots-Tag", value: "noindex" },
+      ],
+    },
+    {
       source: "/oauth/:path*",
       headers: [
         { key: "X-Frame-Options", value: "DENY" },

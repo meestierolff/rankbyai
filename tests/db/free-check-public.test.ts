@@ -49,6 +49,16 @@ async function start(v: Visitor, businessName = "Northgate Family Dental", city 
 }
 
 describe("public free check: without an account", () => {
+  it("keeps budget and claim functions executable only by the server", async () => {
+    for (const signature of ["public.free_check_budget()", "public.free_check_claim(uuid,numeric,numeric,numeric,integer)"]) {
+      const [permissions] = await sql(
+        "select has_function_privilege('anonymous', $1, 'execute') as anonymous, has_function_privilege('authenticated', $1, 'execute') as authenticated, has_function_privilege('service_role', $1, 'execute') as server",
+        [signature],
+      );
+      expect(permissions).toEqual({ anonymous: false, authenticated: false, server: true });
+    }
+  });
+
   it("runs, and the result is private to the browser that ran it", async () => {
     const v = visitor(1);
     expect((await start(v)).ok).toBe(true);

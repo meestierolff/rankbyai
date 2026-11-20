@@ -1,6 +1,4 @@
-import { attributionFromCookieHeader } from "@/lib/attribution";
 import { getSessionContext } from "@/lib/auth";
-import { claimPurchaseConversion } from "@/lib/conversions-server";
 import { memberRead } from "@/lib/db/member-read";
 
 /** Polled by /app/thanks until the webhook has written the order. Access is never granted here. */
@@ -27,13 +25,8 @@ export async function GET(request: Request) {
     console.error(`[api] order status: read failed (${e instanceof Error ? e.name : "unknown"})`);
     return Response.json({ error: "unavailable", message: "Could not load this right now. Try again." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
-  // The purchase conversion is reported once per order, whatever the browser does (reloads, tabs).
-  const order = data as { id: string } | null;
-  const first = order
-    ? (await claimPurchaseConversion({ orderId: order.id, workspaceId: ctx.workspace.id, userId: ctx.user.id, cookie: attributionFromCookieHeader(request.headers.get("cookie")) }).catch(() => ({ first: false }))).first
-    : false;
   return Response.json(
-    data ? { ready: true, order: data, first } : { ready: false },
+    data ? { ready: true, order: data } : { ready: false },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

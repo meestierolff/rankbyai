@@ -48,3 +48,16 @@ describe("attribution", () => {
     expect(attributionFromCookieHeader("a=b")).toBeNull();
   });
 });
+
+describe("landing path", () => {
+  it("never keeps a report address (its slug is an access key) and drops anything that is not a plain path", async () => {
+    const { safeLandingPath } = await import("@/lib/attribution");
+    expect(safeLandingPath("/r/AbCdEfGhIjKl")).toBe("/r/[report]");
+    expect(safeLandingPath("/local-rank-tracker")).toBe("/local-rank-tracker");
+    expect(safeLandingPath("//evil.example/x")).toBeUndefined();
+    expect(safeLandingPath("/x\"><script>")).toBeUndefined();
+    expect(fromSearch("?utm_source=x", "/r/AbCdEfGhIjKl", new Date())?.landing_path).toBe("/r/[report]");
+    expect(parseAttribution(JSON.stringify({ utm_source: "x", landing_path: "/r/AbCdEfGhIjKl" }))?.landing_path).toBe("/r/[report]");
+    expect(parseAttribution(JSON.stringify({ utm_source: "x", landing_path: "//evil.example" }))?.landing_path).toBeUndefined();
+  });
+});

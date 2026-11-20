@@ -28,12 +28,15 @@ export function ThanksClient() {
       tries++;
       try {
         const res = await fetch(`/api/orders/status?session_id=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
-        const json = (await res.json()) as { ready: boolean; order?: Order; first?: boolean };
+        const json = (await res.json()) as { ready: boolean; order?: Order };
         if (json.ready && json.order) {
           const o = json.order;
           setOrder(o);
           // Once per order (the server decides): a reload of this page reports nothing again.
-          if (json.first) {
+          const claim = await fetch("/api/conversions/purchase", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order_id: o.id }) })
+            .then((r) => (r.ok ? (r.json() as Promise<{ first?: boolean }>) : null))
+            .catch(() => null);
+          if (claim?.first) {
             track("purchase_completed", { product_key: o.product_key, amount_cents: o.amount_cents, seat: o.ladder_seat });
             const value = o.amount_cents / 100;
             reportConversion("purchase", {

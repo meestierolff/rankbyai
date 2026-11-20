@@ -15,7 +15,7 @@ export default function PrivacyPage() {
     <ProsePage
       eyebrow="Legal"
       title="Privacy Policy"
-      updated="18 November 2026"
+      updated="20 November 2026"
       intro="This page says what personal data RankbyAI collects, why we collect it, who handles it for us and what your rights are under the EU General Data Protection Regulation (GDPR)."
     >
       <h2>1. Who is responsible</h2>
@@ -234,8 +234,10 @@ export default function PrivacyPage() {
       </p>
       <h3>Ship or Die hackathon tracker</h3>
       <p>
-        RankbyAI takes part in the Ship or Die hackathon. The hackathon requires its tracker script on every page, to measure traffic to the site. The script is run by the hackathon, not by us.
-        It loads on every page and is not controlled by the analytics choice above.
+        RankbyAI takes part in the Ship or Die hackathon, which asks for its tracker script on the site to measure traffic. The script is run by the hackathon, not by us. For each page view
+        it sends the hackathon the page&rsquo;s path, the website you came from (its address only), any utm_source and utm_medium in the link, and whether you arrived from an ad click. It sets
+        no cookies, stores nothing on your device, and does nothing when your browser sends a Global Privacy Control signal. It loads on every page except shared report links, because a
+        report&rsquo;s address is what opens it. It is not controlled by the analytics choice above.
       </p>
 
       <h2>7. How long we keep data</h2>

@@ -3,7 +3,7 @@ import type { BusinessInfo } from "@/lib/providers/dataforseo";
 import { normalizeName, normalizePhone } from "@/lib/scans/match";
 import type { PageFacts } from "./crawl";
 import { median, pageMath, reviewTarget } from "./math";
-import { DIRECT_ANSWER, isDirectAnswer, moneyPages, namesService, pageIsAbout, pathOf, pathWords, type PageSummary } from "./onpage";
+import { DIRECT_ANSWER, isContentSection, isDirectAnswer, moneyPages, namesService, pageIsAbout, pathOf, pathWords, type PageSummary } from "./onpage";
 import { crawlerAccess, type CrawlerTier } from "./robots";
 
 /**
@@ -477,7 +477,7 @@ function findabilityChecks(inp: AuditInputs): CheckResult[] {
     : bad({ ...subBase, title: money.length === 1 ? `The homepage has fewer than ${MIN_H2} subheadings` : `${thin.length} of ${money.length} main pages have fewer than ${MIN_H2} subheadings`, fix: "Split each money page into sections with H2 subheadings for the questions customers ask: prices, the areas served, emergencies, how it works." }));
 
   // ── A short answer under each subheading ──
-  const sections = money.flatMap((p) => p.h2Sections.map((s) => ({ ...s, url: p.url })));
+  const sections = money.flatMap((p) => p.h2Sections.filter(isContentSection).map((s) => ({ ...s, url: p.url })));
   if (sections.length < MIN_H2) out.push(skip("answer_first", "website", "P2", keys[4][2], `Fewer than ${MIN_H2} subheadings on the homepage and service pages to check.`));
   else {
     const direct = sections.filter(isDirectAnswer);

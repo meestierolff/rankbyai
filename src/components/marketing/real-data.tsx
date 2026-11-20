@@ -7,14 +7,16 @@ import { listRegionalPagesCached, type RegionalPage } from "@/lib/regional";
  * sample_count, most first. Return null to show no link.
  */
 export function pickFeaturedPage(pages: RegionalPage[]): RegionalPage | null {
-  // TODO(Mees): choose which page the landing features. Trade-offs:
-  // - most answers (pages[0]): the most robust numbers, but may be a city outside the target markets;
-  // - most recent (last_updated): proves the data is live, but may be the thinnest page;
-  // - target markets first (labels.country US/GB/AU/NZ): matches the agencies being contacted;
-  // - skip pages where one business holds most answers (top_businesses[0].answers / sample_count):
-  //   those usually come from grids centred on that business and read as an advert for it.
-  return pages[0] ?? null;
+  // Only cities in the markets the outreach targets, so a visiting agency sees a place it knows.
+  // A page where one business holds more than half the answers usually comes from grids centred on
+  // that business: it reads as an advert for it, so it is never the example. `pages` is already
+  // sorted by answers, most first, so the first page left is the best-supported one.
+  const balanced = (p: RegionalPage) => (p.top_businesses[0]?.answers ?? 0) <= p.sample_count / 2;
+  return pages.find((p) => FEATURED_COUNTRIES.has((p.labels.country ?? "").toUpperCase()) && balanced(p)) ?? null;
 }
+
+/** The markets RankbyAI's outreach targets: US, UK, Australia, New Zealand, Canada, Ireland. */
+const FEATURED_COUNTRIES = new Set(["US", "GB", "AU", "NZ", "CA", "IE"]);
 
 /**
  * "The tour is sample data; here is real data." Renders nothing until a regional page is public.

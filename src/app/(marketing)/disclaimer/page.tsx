@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function DisclaimerPage() {
   const affiliate = Boolean(miscEnv.dataforseoAffiliateUrl());
   return (
-    <ProsePage eyebrow="Legal" title="Disclaimer" updated="17 November 2026" intro="Please read this before you rely on a RankbyAI result or show one to a client.">
+    <ProsePage eyebrow="Legal" title="Disclaimer" updated="20 November 2026" intro="Please read this before you rely on a RankbyAI result or show one to a client.">
       <h2>AI answers vary</h2>
       <p>
         <strong>{AI_DISCLAIMER_TEXT}</strong>
@@ -116,7 +116,7 @@ export default function DisclaimerPage() {
 
       <h2>Hackathon</h2>
       <p>
-        RankbyAI takes part in the Ship or Die hackathon. A third-party tracker script from the hackathon measures traffic on every page of this site. The{" "}
+        RankbyAI takes part in the Ship or Die hackathon. A third-party tracker script from the hackathon measures traffic on the pages of this site, except shared report links. The{" "}
         <Link href="/privacy">privacy policy</Link> has the details.
       </p>
 

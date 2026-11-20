@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractFacts } from "@/lib/audit/crawl";
-import { namesService, root, serviceRoots } from "@/lib/audit/onpage";
+import { isContentSection, namesService, root, serviceRoots } from "@/lib/audit/onpage";
 
 describe("does a text name the service?", () => {
   it("matches by word root, the way people write service pages", () => {
@@ -39,5 +39,14 @@ describe("page facts for the money-page checks", () => {
       <h2>Prices</h2><ul><li>Call-out from a fixed fee</li></ul><h3>Extras</h3><footer><h2>Contact</h2></footer>`);
     expect(f.intro.startsWith("Plumber in Leeds Fast, local plumbing in Leeds.")).toBe(true);
     expect(f.h2Sections).toEqual([{ heading: "Prices", opening: "Call-out from a fixed fee", words: 5 }]);
+  });
+});
+
+describe("what counts as a content section", () => {
+  it("leaves out one-word headings with nothing under them (rating badges, split headings), keeps real sections", () => {
+    // Headings read from a real dental site on 20 Nov 2026: a "Rated 4.6 on Google" badge and "The Downtown team" split into H2s.
+    for (const h of ["Rated", "4.6", "The", "Downtown", "team"]) expect(isContentSection({ heading: h, words: 0 }), h).toBe(false);
+    expect(isContentSection({ heading: "Our services", words: 0 })).toBe(true); // a real section with no answer: counted, and missing one
+    expect(isContentSection({ heading: "Prices", words: 12 })).toBe(true);
   });
 });

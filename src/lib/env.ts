@@ -178,7 +178,6 @@ export const legalEnv = {
 };
 
 export const miscEnv = {
-  sodTrackerSrc: () => process.env.SOD_TRACKER_SNIPPET_SRC || "",
   earlyAccessNote: () => process.env.EARLY_ACCESS_NOTE || "",
   dataforseoAffiliateUrl: () => process.env.DATAFORSEO_AFFILIATE_URL || "",
   adminUserIds: () =>

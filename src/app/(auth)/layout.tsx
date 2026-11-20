@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { LogoLockup } from "@/components/brand/logo";
+import { HackathonTracker } from "@/components/hackathon-tracker";
 
 /** Login and sign-up: the landing look. Black page, the dot mark, one framed panel, one cream button. */
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="rb-app flex min-h-dvh flex-col bg-bg text-fg">
+      <HackathonTracker />
       <header className="border-b border-line">
         <div className="container-lp flex items-center justify-between gap-4 py-[13px]">
           <Link href="/" className="no-underline" aria-label="RankbyAI home"><LogoLockup /></Link>

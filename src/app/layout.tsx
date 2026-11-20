@@ -1,11 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { AnalyticsProvider } from "@/components/analytics/analytics-provider";
 import { VercelAnalytics } from "@/components/analytics/vercel-analytics";
 import { SkewReload } from "@/components/app/skew-reload";
-import { miscEnv, publicEnv } from "@/lib/env";
+import { publicEnv } from "@/lib/env";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"], display: "swap" });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], display: "swap" });
@@ -36,7 +35,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#0b0b0b", colorScheme: "dark" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const tracker = miscEnv.sodTrackerSrc();
   return (
     <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable} ${archivo.variable}`}>
       <body className="min-h-dvh">
@@ -45,8 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Vercel Web Analytics: page views without cookies; report slugs and query strings are never sent. */}
         <VercelAnalytics />
         <SkewReload />
-        {/* Ship or Die hackathon tracker: mandatory on every page. */}
-        {tracker ? <Script id="sod-tracker" src={tracker} strategy="afterInteractive" /> : null}
+        {/* The Ship or Die hackathon tracker is rendered by the marketing, sign-in and app layouts, not here: never on report links (components/hackathon-tracker.tsx). */}
       </body>
     </html>
   );

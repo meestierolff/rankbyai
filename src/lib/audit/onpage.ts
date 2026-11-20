@@ -75,3 +75,11 @@ export function moneyPages(service: string, home: PageSummary, pages: PageSummar
 export const DIRECT_ANSWER = { sentences: 2, minWords: 5, maxWords: 50, passShare: 0.6 } as const;
 
 export const isDirectAnswer = (s: { words: number }) => s.words >= DIRECT_ANSWER.minWords && s.words <= DIRECT_ANSWER.maxWords;
+
+/**
+ * Whether an H2 is a content section at all. A one-word heading with nothing under it is a widget
+ * or a label (a review badge's "Rated" and "4.6", a "Menu" toggle), not a section a reader or a
+ * model would quote, so it is left out instead of counted as a missing answer. Measured on four
+ * real sites on 20 Nov 2026: this removed the rating-badge headings and nothing else.
+ */
+export const isContentSection = (s: { heading: string; words: number }) => s.words > 0 || s.heading.trim().split(/\s+/).length >= 2;

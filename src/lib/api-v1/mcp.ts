@@ -56,7 +56,7 @@ const hints = (name: McpTool, title: string) => ({ title, ...MCP_TOOL_HINTS[name
 
 export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: string): McpServer {
   // Stateless and POST only: there is no stream to announce a changed tool list on, so listChanged is off.
-  const server = new McpServer({ name: "rankbyai", version: "1.1.0" }, { instructions: GUIDE, capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } } });
+  const server = new McpServer({ name: "rankbyai", version: "1.2.0" }, { instructions: GUIDE, capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } } });
 
   const reply = async (tool: string, run: () => Promise<core.ApiResult>) => {
     const r = await run();

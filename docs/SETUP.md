@@ -116,6 +116,7 @@ The ladder terms live in the database row `ladder_lock` (seeded: $29 base, +$10 
 | `EARLY_ACCESS_NOTE` | Banner text with true ship dates; hidden when empty |
 | `ADMIN_USER_IDS` | Comma-separated user ids (from Neon Auth) allowed into `/admin` |
 | `LEGAL_ENTITY_NAME`, `LEGAL_ADDRESS`, `LEGAL_EMAIL`, `LEGAL_KVK` | Operator identity shown in the footer and legal pages |
+| `MCP_OAUTH` | Set to `1` to switch on OAuth 2.1 for the MCP server (sign-in from Claude, ChatGPT, Cursor and other clients instead of a pasted API key). Needs migration `0012_mcp_oauth.sql` first; while unset, `/.well-known/oauth-*` and `/oauth/*` answer 404 and `/api/mcp` takes API keys only. The issuer is `NEXT_PUBLIC_SITE_URL`. Uses `HASH_PEPPER` for token hashes and consent tickets. See the README section on the MCP server. |
 
 ## 6. Custom report domains (optional)
 

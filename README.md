@@ -103,7 +103,7 @@ codex plugin marketplace add meestierolff/rankbyai
 - [`server.json`](server.json): the entry for the official MCP Registry, named `io.github.meestierolff/rankbyai`, with one `streamable-http` remote. To publish, run `mcp-publisher login github` as `meestierolff`, then `mcp-publisher publish`.
 - [`gemini-extension.json`](gemini-extension.json): the Gemini CLI extension. The gallery lists repositories that carry the `gemini-cli-extension` topic.
 - [`plugins/rankbyai`](plugins/rankbyai): the plugin for Claude Code, the Claude directory and Grok Build (`.claude-plugin/plugin.json`, `.mcp.json`, `skills/rankbyai/SKILL.md`). Marketplaces: [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) (Claude Code) and [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) (Codex).
-- [`plugins/openai`](plugins/openai): the OpenAI plugin directory manifests; `node scripts/build-openai-plugin.mjs --demo-url <recording>` builds the ZIP to upload. Domain verification is served at `/.well-known/openai-apps-challenge` from `OPENAI_APPS_CHALLENGE`.
+- [`plugins/openai`](plugins/openai): the OpenAI plugin directory manifests; `node scripts/build-openai-plugin.mjs --demo-url <recording>` builds the ZIP to upload (without `--demo-url` it builds a draft; the recording is then entered under Review details before Submit for review). Domain verification is served at `/.well-known/openai-apps-challenge` from `OPENAI_APPS_CHALLENGE`.
 - Support: [rankbyai.live/support](https://rankbyai.live/support) (mees@rankbyai.live). Privacy: [/privacy](https://rankbyai.live/privacy). Terms: [/terms](https://rankbyai.live/terms).
 
 ## Stack

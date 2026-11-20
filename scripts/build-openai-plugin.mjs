@@ -8,8 +8,9 @@
  *
  *   node scripts/build-openai-plugin.mjs --demo-url https://…   → dist/rankbyai-openai-plugin.zip
  *
- * Refuses to build while the demo recording URL is missing, or the text limits or test-case counts
- * of the submission are not met.
+ * Without --demo-url the ZIP leaves the recording out (a draft: upload, checks, MCP connect); the
+ * recording must be added before Submit for review. Refuses to build while the text limits or
+ * test-case counts of the submission are not met.
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -23,7 +24,10 @@ const plugin = JSON.parse(read("plugins/openai/plugin.json").toString("utf8"));
 const i = process.argv.indexOf("--demo-url");
 const demo = i > -1 ? process.argv[i + 1] : plugin.extensions["com.openai"].review.demo_recording_url;
 const problems = [];
-if (!demo || !/^https:\/\//.test(demo) || demo.includes("REPLACE_WITH")) problems.push("demo recording URL: pass --demo-url https://…");
+// The recording is optional in the ZIP and required only before "Submit for review"; it can also be
+// entered in the dashboard under Review details. Without one the ZIP is a draft for upload and checks.
+const hasDemo = Boolean(demo) && !demo.includes("REPLACE_WITH");
+if (hasDemo && !/^https:\/\//.test(demo)) problems.push("demo recording URL must start with https://");
 const ui = plugin.extensions["com.openai"].interface;
 const tc = plugin.extensions["com.openai"].review.test_cases;
 if (ui.displayName.length > 30) problems.push("displayName is over 30 characters");
@@ -35,7 +39,11 @@ if (problems.length) {
   console.error("Not built:\n- " + problems.join("\n- "));
   process.exit(1);
 }
-plugin.extensions["com.openai"].review.demo_recording_url = demo;
+if (hasDemo) plugin.extensions["com.openai"].review.demo_recording_url = demo;
+else {
+  delete plugin.extensions["com.openai"].review.demo_recording_url;
+  console.warn("No demo recording URL: built as a draft. Add one (--demo-url or Review details) before Submit for review.");
+}
 
 const zip = zipSync({
   "plugin.json": Buffer.from(JSON.stringify(plugin, null, 2) + "\n"),

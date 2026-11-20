@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "rankbyai",
   "version": "1.2.0",
-  "description": "Check whether ChatGPT, Perplexity, Gemini and Google Maps recommend a local business, point by point on a map grid, and turn the results into a ranked fix plan.",
+  "description": "Check whether AI assistants and Google Maps recommend a local business, point by point on a map grid, and turn the results into a ranked fix plan.",
   "author": {
     "name": "RankbyAI",
     "url": "https://rankbyai.live"
@@ -21,7 +21,7 @@
       "interface": {
         "displayName": "RankbyAI",
         "shortDescription": "Local AI and Maps visibility",
-        "longDescription": "RankbyAI shows whether AI assistants (ChatGPT, Perplexity, Gemini) and Google Maps recommend a local business, point by point on a map grid around it. Ask it which businesses you track, what a scan would cost, where a business is missing from AI answers and who is named instead, how it ranks on Google Maps, and what to fix first. Audits rank the fixes P0 to P3, each with its evidence, and the Fix Kit has copy-ready schema, FAQs and an llms.txt draft. Every tool that costs money returns an estimate first and runs only after you confirm. AI answers vary between runs, places and time; results are observations from a date, not guarantees.",
+        "longDescription": "RankbyAI shows whether AI assistants and Google Maps recommend a local business, point by point on a map grid around it. Ask it which businesses you track, where a business is missing from AI answers and who is named instead, how it ranks on Google Maps, and what to fix first. Audits rank the fixes P0 to P3, each with its evidence, and the Fix Kit has copy-ready schema, FAQs and an llms.txt draft. Scans and audits show an estimate first and run only after you confirm. AI answers vary between runs, places and time; results are observations from a date, not guarantees.",
         "developerName": "RankbyAI",
         "category": "Productivity",
         "websiteURL": "https://rankbyai.live",
@@ -31,7 +31,7 @@
         "logo": "./assets/logo.png",
         "defaultPrompt": [
           "Which of my businesses are missing from AI answers?",
-          "What would a 3x3 AI visibility scan cost for my first business?",
+          "Estimate a 3x3 AI visibility scan for my first business.",
           "Turn my latest finished audit into a fix plan."
         ]
       },

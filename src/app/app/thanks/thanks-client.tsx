@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ctaClass } from "@/components/brand/primitives";
 import { track } from "@/lib/analytics";
+import { reportConversion } from "@/lib/conversions";
 
-interface Order { product_key: string; ladder_seat: number | null; amount_cents: number }
+interface Order { id: string; product_key: string; ladder_seat: number | null; amount_cents: number; tax_cents: number; currency: string }
+
+const ITEM_NAME: Record<string, string> = { lifetime: "RankbyAI lifetime access", pack_25: "RankbyAI 25 scan credits", pack_100: "RankbyAI 100 scan credits" };
 
 /** Polls until the Stripe webhook has written the order. Access is granted by the webhook only. */
 export function ThanksClient() {
@@ -27,8 +30,20 @@ export function ThanksClient() {
         const res = await fetch(`/api/orders/status?session_id=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
         const json = (await res.json()) as { ready: boolean; order?: Order };
         if (json.ready && json.order) {
-          setOrder(json.order);
-          track("purchase_completed", { product_key: json.order.product_key, amount_cents: json.order.amount_cents, seat: json.order.ladder_seat });
+          const o = json.order;
+          setOrder(o);
+          // Once per order (the server decides): a reload of this page reports nothing again.
+          const claim = await fetch("/api/conversions/purchase", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order_id: o.id }) })
+            .then((r) => (r.ok ? (r.json() as Promise<{ first?: boolean }>) : null))
+            .catch(() => null);
+          if (claim?.first) {
+            track("purchase_completed", { product_key: o.product_key, amount_cents: o.amount_cents, seat: o.ladder_seat });
+            const value = o.amount_cents / 100;
+            reportConversion("purchase", {
+              value, tax: (o.tax_cents ?? 0) / 100, currency: (o.currency || "usd").toUpperCase(), transactionId: o.id,
+              items: [{ item_id: o.product_key, item_name: ITEM_NAME[o.product_key] ?? o.product_key, price: value, quantity: 1 }],
+            });
+          }
           return;
         }
       } catch {}

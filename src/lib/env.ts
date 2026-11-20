@@ -138,15 +138,21 @@ export const costEnv = group(
     COST_MAX_PER_CREDIT_USD: num(0.3),
     COST_DAILY_HOUSE_CAP_USD: num(15),
     COST_DAILY_FREE_CAP_USD: num(3),
+    /** Hard monthly ceiling for all free checks together (UTC calendar month). */
+    COST_MONTHLY_FREE_CAP_USD: num(30),
     FREE_CHECKS_PER_EMAIL: num(1),
     FREE_CHECKS_PER_IP_PER_DAY: num(3),
+    /** Completed or running public checks per browser (cookie) and per device fingerprint in 30 days. */
+    FREE_CHECKS_PER_VISITOR: num(1),
   },
   () => ({
     COST_MAX_PER_CREDIT_USD: process.env.COST_MAX_PER_CREDIT_USD,
     COST_DAILY_HOUSE_CAP_USD: process.env.COST_DAILY_HOUSE_CAP_USD,
     COST_DAILY_FREE_CAP_USD: process.env.COST_DAILY_FREE_CAP_USD,
+    COST_MONTHLY_FREE_CAP_USD: process.env.COST_MONTHLY_FREE_CAP_USD,
     FREE_CHECKS_PER_EMAIL: process.env.FREE_CHECKS_PER_EMAIL,
     FREE_CHECKS_PER_IP_PER_DAY: process.env.FREE_CHECKS_PER_IP_PER_DAY,
+    FREE_CHECKS_PER_VISITOR: process.env.FREE_CHECKS_PER_VISITOR,
   }),
 );
 

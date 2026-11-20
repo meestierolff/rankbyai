@@ -7,7 +7,7 @@ import { createScan, processScan } from "@/lib/scans/engine";
 let u: TestUser;
 let businessId: string;
 
-async function aiScan(funding: "byok" | "credits", grid: 1 | 3 = 3) {
+async function aiScan(funding: "byok" | "credits" | "free", grid: 1 | 3 = 3) {
   const r = await createScan({ workspaceId: u.workspaceId, plan: "lifetime", businessId, spec: { kind: "ai", grid, engines: ["openai", "perplexity", "gemini"] }, keyword: "Dentists", radiusMiles: 2, funding, confirm: true });
   if (!r.ok) throw new Error(JSON.stringify(r));
   await processScan(r.scanId);
@@ -45,6 +45,12 @@ describe("what may be published", () => {
     expect((await rebuildRegionalPages()).pages).toBe(1);
     expect(await stored()).toMatchObject({ sample_count: 27, scans_count: 1, indexable: false });
     expect(await getRegionalPage("dentists", "austin")).toBeNull(); // one scan is not enough to be public
+  });
+
+  it("free checks never count, however many there are: anyone can run one without an account", async () => {
+    for (let i = 0; i < 10; i++) await aiScan("free", 1);
+    expect(await rebuildRegionalPages()).toEqual({ pages: 0, indexable: 0, announced: 0 });
+    expect(await sql("select 1 from public.regional_pages")).toEqual([]);
   });
 
   it("scans on our own keys count, and two scans with 27 answers make a page indexable", async () => {

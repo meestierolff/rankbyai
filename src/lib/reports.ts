@@ -39,9 +39,24 @@ const centerOf = (s: ScanLite) => (finite(s.center_lat) != null && finite(s.cent
 
 export async function getReportView(slug: string): Promise<ReportView | null> {
   if (!/^[A-Za-z0-9_-]{12,64}$/.test(slug)) return null;
+  const { data: report } = await dbAdmin().from("reports").select("*").eq("share_slug", slug).eq("revoked", false).maybeSingle();
+  return report ? buildReportView(report) : null;
+}
+
+/**
+ * A public free check's result, by its report id. These reports are stored as revoked (no share link
+ * opens them), so this is the only way to read one, and only lib/free-check-public calls it, after it
+ * has checked the visitor's cookie against the check.
+ */
+export async function getFreeCheckReportView(reportId: string): Promise<ReportView | null> {
+  const { data: report } = await dbAdmin().from("reports").select("*").eq("id", reportId).eq("kind", "free_check").maybeSingle();
+  return report ? buildReportView(report) : null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the reports row as PostgREST returns it
+async function buildReportView(report: any): Promise<ReportView | null> {
+  if (!report.business_id) return null;
   const admin = dbAdmin();
-  const { data: report } = await admin.from("reports").select("*").eq("share_slug", slug).eq("revoked", false).maybeSingle();
-  if (!report || !report.business_id) return null;
 
   const [{ data: business }, { data: ws }] = await Promise.all([
     admin.from("businesses").select("id, name, city, region, primary_category, lat, lng, website, language, country").eq("id", report.business_id).maybeSingle(),

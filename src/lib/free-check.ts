@@ -14,7 +14,13 @@ import { dbAdmin } from "@/lib/db/clients";
 
 /**
  * Free check (brief 10.4): one 1×1 AI check on 3 engines at the business location plus the Maps rank
- * at that point, on house keys. Limits: 1 per verified email, 3 per IP per day, a daily budget.
+ * at that point, on house keys.
+ *
+ * Two ways in, one execution (executeCheck):
+ *  - Public, without an account (lib/free-check-public.ts, the homepage form and /free-check): limits
+ *    per visitor, fingerprint and IP, plus a daily and monthly budget claimed atomically.
+ *  - Signed in (startFreeCheck/runFreeCheck below, /free-check/run): the original flow, kept so links
+ *    issued before the public check existed still work. Limits: 1 per verified email, 3 per IP a day.
  */
 const DISPOSABLE = new Set([
   "mailinator.com", "guerrillamail.com", "guerrillamail.net", "sharklasers.com", "10minutemail.com", "tempmail.com", "temp-mail.org", "yopmail.com",
@@ -129,38 +135,62 @@ export async function runFreeCheck(input: { freeCheckId: string; userEmail: stri
   };
 
   try {
+    const done = await executeCheck({ workspaceId: input.workspaceId, businessName: fc.business_name, city: fc.city, country });
+    if (!done.ok) return failWith(done.message);
+    const report = await saveCheckReport({ workspaceId: input.workspaceId, check: done, unlisted: false });
+    if (!report) return failWith("The report could not be saved. Try again.");
+    await admin.from("free_checks").update({ status: "done", report_id: report.id, finished_at: new Date().toISOString() }).eq("id", fc.id);
+    return { ok: true, slug: report.slug };
+  } catch {
+    return failWith("The check did not complete. Reload this page to try again.");
+  }
+}
+
+export type CheckExecution =
+  | { ok: true; businessId: string; scanId: string | null; service: string; maps: { keyword: string; rank: number | null; checked: boolean; top: { rank: number; name: string }[] } }
+  | { ok: false; code: "unavailable" | "not_on_maps" | "save_failed"; message: string };
+
+/**
+ * The check itself, shared by the signed-in and the public path: find the listing on Google Maps,
+ * look up its Maps rank at its own location, and ask every engine with a house key once at that point.
+ * Every paid Maps call is logged as house spend in `finally`, including calls made before a failure,
+ * so a run of junk names still counts against the free-check budget. AI spend is logged by processScan.
+ */
+export async function executeCheck(input: { workspaceId: string; businessName: string; city: string; country: string }): Promise<CheckExecution> {
+  const admin = dbAdmin();
+  const spend: Record<string, number> = {};
+  try {
     const creds = await resolveCredentials(null, "free");
     const mock = isMockMode();
-    if (!mock && !creds.dataforseo) return failWith("Free checks are not available right now.");
-    const spend: Record<string, number> = {};
+    if (!mock && !creds.dataforseo) return { ok: false, code: "unavailable", message: "Free checks are not available right now." };
 
     // 1. Find the listing.
-    const keyword = `${fc.business_name} ${fc.city}`.trim();
+    const keyword = `${input.businessName} ${input.city}`.trim();
     let listings: MapsItem[];
-    if (mock) listings = mockBusinessSearch(fc.business_name);
+    if (mock) listings = mockBusinessSearch(input.businessName);
     else {
-      const r = await mapsLive(creds.dataforseo!, { keyword, country, depth: 20 });
+      const r = await mapsLive(creds.dataforseo!, { keyword, country: input.country, depth: 20 });
       listings = r.items;
       spend.dataforseo = (spend.dataforseo ?? 0) + r.costUsd;
     }
     const listing = listings.find((l) => l.lat != null && l.lng != null);
-    if (!listing) return failWith("We could not find that business on Google Maps. Check the name and city, then try again.");
+    if (!listing) return { ok: false, code: "not_on_maps", message: "We could not find that business on Google Maps. Check the name and city, then try again." };
 
     const { data: business, error: bErr } = await admin.from("businesses").insert({
-      workspace_id: input.workspaceId, name: listing.name, cid: listing.cid, place_id: listing.placeId, address: listing.address, city: listing.city ?? fc.city,
-      region: listing.region, country: listing.country ?? country, lat: listing.lat, lng: listing.lng,
+      workspace_id: input.workspaceId, name: listing.name, cid: listing.cid, place_id: listing.placeId, address: listing.address, city: listing.city ?? input.city,
+      region: listing.region, country: listing.country ?? input.country, lat: listing.lat, lng: listing.lng,
       website: listing.url ?? (listing.domain ? `https://${listing.domain}` : null), phone: listing.phone, primary_category: listing.category,
       rating: listing.rating, reviews_count: listing.reviews, source: "search",
     }).select("id").single();
-    if (bErr || !business) return failWith("We could not save the business. Try again.");
+    if (bErr || !business) return { ok: false, code: "save_failed", message: "We could not save the business. Try again." };
 
     // 2. Maps rank at the business location for its category.
-    const service = (listing.category ?? "").toLowerCase() || fc.business_name;
+    const service = (listing.category ?? "").toLowerCase() || input.businessName;
     let mapsItems: MapsItem[] = [];
     try {
       if (mock) mapsItems = mockMapsItems(listing.lat!, listing.lng!, { businessName: listing.name, distance: 0 });
       else {
-        const r = await mapsLive(creds.dataforseo!, { keyword: service, lat: listing.lat!, lng: listing.lng!, country: listing.country ?? country });
+        const r = await mapsLive(creds.dataforseo!, { keyword: service, lat: listing.lat!, lng: listing.lng!, country: listing.country ?? input.country });
         mapsItems = r.items;
         spend.dataforseo = (spend.dataforseo ?? 0) + r.costUsd;
       }
@@ -168,9 +198,8 @@ export async function runFreeCheck(input: { freeCheckId: string; userEmail: stri
       // The AI part still has value on its own.
     }
     const hit = findInMaps(mapsItems, { name: listing.name, cid: listing.cid, placeId: listing.placeId, website: listing.url });
-    await logHouseSpend("free", null, spend);
 
-    // 3. 1×1 AI check on every engine we have a house key for.
+    // 3. 1×1 AI check on every engine we have a house key for (spend capped per scan by houseCapUsd).
     const engines = ENGINES.filter((e) => mock || !!creds[e]);
     let scanId: string | null = null;
     if (engines.length) {
@@ -183,16 +212,25 @@ export async function runFreeCheck(input: { freeCheckId: string; userEmail: stri
         await processScan(scan.scanId, 100_000);
       }
     }
-
-    const slug = randomToken(12);
-    const { data: report, error: rErr } = await admin.from("reports").insert({
-      workspace_id: input.workspaceId, business_id: business.id, kind: "free_check", scan_ids: scanId ? [scanId] : [], share_slug: slug, watermark: true, status: "ready",
-      data: { service, maps: { keyword: service, rank: hit?.rank ?? null, checked: mapsItems.length > 0, top: mapsItems.slice(0, 5).map((m) => ({ rank: m.rank, name: m.name })) } },
-    }).select("id").single();
-    if (rErr || !report) return failWith("The report could not be saved. Try again.");
-    await admin.from("free_checks").update({ status: "done", report_id: report.id }).eq("id", fc.id);
-    return { ok: true, slug };
-  } catch {
-    return failWith("The check did not complete. Reload this page to try again.");
+    return {
+      ok: true, businessId: business.id, scanId, service,
+      maps: { keyword: service, rank: hit?.rank ?? null, checked: mapsItems.length > 0, top: mapsItems.slice(0, 5).map((m) => ({ rank: m.rank, name: m.name })) },
+    };
+  } finally {
+    await logHouseSpend("free", null, spend).catch(() => undefined);
   }
+}
+
+/**
+ * The report row a check is read from. `unlisted` (the public check) stores it as revoked, so its
+ * share link never opens: only the browser holding the check's cookie sees it, on /free-check.
+ */
+export async function saveCheckReport(input: { workspaceId: string; check: Extract<CheckExecution, { ok: true }>; unlisted: boolean }): Promise<{ id: string; slug: string } | null> {
+  const slug = randomToken(12);
+  const { check } = input;
+  const { data: report, error } = await dbAdmin().from("reports").insert({
+    workspace_id: input.workspaceId, business_id: check.businessId, kind: "free_check", scan_ids: check.scanId ? [check.scanId] : [], share_slug: slug,
+    watermark: true, status: "ready", revoked: input.unlisted, data: { service: check.service, maps: check.maps },
+  }).select("id").single();
+  return error || !report ? null : { id: report.id, slug };
 }

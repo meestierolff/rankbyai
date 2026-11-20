@@ -2,6 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalAddress, LegalEmail, LegalEntity, LegalKvk } from "@/components/legal-identity";
 import { ProsePage } from "@/components/marketing/page-shell";
+import { publicEnv } from "@/lib/env-public";
+import { RETENTION } from "@/lib/free-check-public";
+
+/** Whether the Google tags are switched on in this deployment, so the policy never describes something that is not running (or the reverse). */
+const GA_ON = !!publicEnv.gaMeasurementId;
+const ADS_ON = !!publicEnv.googleAdsId;
+const state = (on: boolean) => (on ? "Switched on." : "Not switched on at the moment; this page will say so when it is.");
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -76,7 +83,26 @@ export default function PrivacyPage() {
           </tr>
           <tr>
             <td>Free check</td>
-            <td>The business name and city you enter. To enforce the limits we store a hash of the email address of the Google account you sign in with and a hash of the IP address.</td>
+            <td>
+              The business name, city and country you enter, and the result: the listing found on Google Maps, its Maps rank and the AI answers. No account is needed. To enforce the limits we
+              store only keyed hashes, never the raw values: of your IP address (for IPv6, its /64 network), of a random visitor ID kept in a cookie, of a device fingerprint (network, browser
+              type and language), and of the business name and city. A cost log records what each free check cost us, without anything that identifies you. If you use the older signed-in
+              free check, we also store a hash of your Google account&rsquo;s email address.
+            </td>
+          </tr>
+          <tr>
+            <td>Free check email (optional)</td>
+            <td>
+              Only if you ask us to email your free-check result, after you have seen it: the email address, whether you also ticked the separate box for product news, and the date and version
+              of the consent text.
+            </td>
+          </tr>
+          <tr>
+            <td>Campaign parameters</td>
+            <td>
+              Only within your consent: the utm_source, utm_medium, utm_campaign, utm_content and utm_term of the link you arrived on (with analytics consent), and Google click IDs (gclid,
+              gbraid, wbraid; with advertising consent). Kept in a first-party cookie and, if you then sign up or buy, with your account or order, so we can see which campaigns lead to sign-ups.
+            </td>
           </tr>
           <tr>
             <td>Removal requests</td>
@@ -109,7 +135,17 @@ export default function PrivacyPage() {
           <strong>To show which businesses AI assistants name</strong> (legitimate interest): scan results and the public pages described in section 4.
         </li>
         <li>
-          <strong>With your consent</strong>: the analytics cookie, where we ask for it. You can withdraw consent at any time.
+          <strong>To offer the free check without an account and keep it from being abused</strong> (legitimate interest): the hashed visitor, device and network signals, the limits and the
+          cost logs. The free check runs on our own paid API keys; without these limits it could be used to run up costs or as a free proxy to those services.
+        </li>
+        <li>
+          <strong>To email your free-check result</strong> (consent): only when you type an address after seeing the result. We send that one email and use the address for nothing else.
+        </li>
+        <li>
+          <strong>Product news</strong> (consent, a separate box that is never ticked for you): occasional emails about RankbyAI, only if you ticked that box.
+        </li>
+        <li>
+          <strong>With your consent</strong>: the analytics cookie and advertising measurement, where we ask for them, and keeping campaign parameters. You can withdraw consent at any time.
         </li>
       </ul>
 
@@ -162,8 +198,8 @@ export default function PrivacyPage() {
             <td>Payments, tax calculation, invoices and refunds.</td>
           </tr>
           <tr>
-            <td>Resend</td>
-            <td>Sending email, such as receipts.</td>
+            <td>Brevo or Resend</td>
+            <td>Sending email, such as receipts and a free-check result you asked for. Gets the address and the message.</td>
           </tr>
           <tr>
             <td>DataForSEO</td>
@@ -184,6 +220,14 @@ export default function PrivacyPage() {
           <tr>
             <td>PostHog</td>
             <td>Product analytics, on PostHog&rsquo;s EU cloud. See section 6.</td>
+          </tr>
+          <tr>
+            <td>Google (Analytics 4)</td>
+            <td>Measures page views and events such as a completed free check, a sign-up and a purchase, only with your consent where we ask for it. {state(GA_ON)}</td>
+          </tr>
+          <tr>
+            <td>Google (Ads)</td>
+            <td>Measures which Google ads led to a free check, a sign-up or a purchase (with the order value and a reference number), only with your advertising consent where we ask for it. {state(ADS_ON)}</td>
           </tr>
           <tr>
             <td>Cloudflare Turnstile</td>
@@ -218,6 +262,10 @@ export default function PrivacyPage() {
       <ul>
         <li>A sign-in cookie that keeps you logged in.</li>
         <li>Cloudflare Turnstile may store data in your browser to tell people from bots.</li>
+        <li>
+          Two free-check cookies, rb_fc and rb_fv: a random key that lets only your browser open your free-check result, and a random visitor ID that enforces one check per person. They
+          last 30 days and one year.
+        </li>
         <li>Stripe sets its own cookies on its checkout page.</li>
       </ul>
       <p>These do not need consent.</p>
@@ -232,8 +280,22 @@ export default function PrivacyPage() {
           <strong>Visitors elsewhere.</strong> PostHog uses an analytics cookie and local storage from your first visit.
         </li>
         <li>We do not record sessions, and we do not capture clicks or typing automatically.</li>
-        <li>Your choice is saved in your browser&rsquo;s local storage. To change it, clear the site data for rankbyai.live and you will be asked again.</li>
+        <li>Your choice is saved in your browser&rsquo;s local storage. To change it, use <strong>Cookie choices</strong> at the bottom of every page.</li>
       </ul>
+      <h3>Google Analytics and Google Ads</h3>
+      <ul>
+        <li>Google Analytics 4: {state(GA_ON)} Google Ads conversion measurement: {state(ADS_ON)}</li>
+        <li>
+          When switched on, they use Google Consent Mode. In the EU, EEA, United Kingdom and Switzerland the Google tag is not loaded at all until you allow it: analytics storage follows
+          your analytics choice, and ad storage, ad user data and ad personalisation follow a separate advertising choice. A yes to analytics is never taken as a yes to advertising.
+        </li>
+        <li>Elsewhere they run unless you say no in Cookie choices.</li>
+      </ul>
+      <h3>Campaign parameters</h3>
+      <p>
+        If you arrive through a link with utm parameters or a Google click ID, we keep them in a first-party cookie (rb_attr) for up to 90 days, but only as far as your consent allows: utm
+        parameters with analytics consent, click IDs with advertising consent. Without consent nothing is kept, and an existing cookie is removed when you say no.
+      </p>
       <h3>Vercel Web Analytics</h3>
       <p>
         Vercel Web Analytics counts page views, which pages are visited and where visits come from (the referring site, country and device type). It sets no cookies and stores nothing on
@@ -266,7 +328,15 @@ export default function PrivacyPage() {
           <strong>Security logs:</strong> a short time only.
         </li>
         <li>
-          <strong>Free check hashes:</strong> for as long as we need them to enforce the one-per-account limit.
+          <strong>Free check:</strong> results (the listing found, the answers and the report) are deleted after {RETENTION.resultDays} days, the hashed records used for the limits after{" "}
+          {RETENTION.recordDays} days, and the cost log is kept as an accounting record without anything that identifies you. Signed-in free checks stay with the account.
+        </li>
+        <li>
+          <strong>Free check email:</strong> an address given only to receive the result is deleted {RETENTION.resultOnlyEmailDays} days after the email is sent; an address with product-news
+          consent is kept until you withdraw it. The link in the email deletes it at once.
+        </li>
+        <li>
+          <strong>Campaign parameters:</strong> up to 90 days in your browser; with your account or order for as long as those are kept.
         </li>
         <li>
           <strong>If we shut down:</strong> you get at least 60 days&rsquo; notice and an export first.
@@ -291,7 +361,8 @@ export default function PrivacyPage() {
         <li>give it to you in a format you can take elsewhere.</li>
       </ul>
       <p>
-        You can also withdraw consent for analytics at any time. To use any of these rights, email <LegalEmail />. We answer within one month, as the GDPR requires. Using your rights is free.
+        You can also withdraw consent at any time: for analytics and advertising with Cookie choices at the bottom of every page, and for a free-check email or product news with the link in
+        the email. To use any of these rights, email <LegalEmail />. We answer within one month, as the GDPR requires. Using your rights is free.
       </p>
       <p>
         If you are not happy with our answer, you can complain to the Dutch data protection authority (Autoriteit Persoonsgegevens) or to the authority in your own country.

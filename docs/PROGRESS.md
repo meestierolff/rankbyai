@@ -17,6 +17,61 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | P0 / Maps 20+ red | `oklch(0.60 0.19 25)` | 4.5:1 contrast | `oklch(0.56 0.19 25)` so white text passes contrast |
 | Database, sign-in, files | n/a | Supabase (Postgres, magic-link sign-in, Storage) | Neon (Postgres, Neon Auth with Google sign-in, Data API, Object Storage), on the operator's instruction of 17 Nov 2026. The brief's rules are unchanged: RLS on every table, an automated RLS test, secrets on the server only |
 
+## Free check without sign-in, search pages, conversion tracking (20 Nov 2026)
+
+**Status: built and tested locally (mock vendors) on branch `free-check-public-landing-pages`. Needs migration 0013 on Neon before deploy.**
+
+### Free check: new behaviour
+
+- The homepage form (`#free-check`) posts to `POST /api/free-check`, which sets an httpOnly check cookie and answers `{ ok, next: "/free-check" }`. `/free-check` is now a **public** page (noindex, not in the sitemap): it runs the check (`POST /api/free-check/execute`) and shows the result, the same report view as `/r/`, with a sign-up / buy panel and an optional email box under it. No login before the result.
+- `GET /free-check` answers 200 (the form, or this browser's own check). `/free-check/` still 308s once to `/free-check`. Only `/free-check/run` (the old signed-in step, kept for links issued before) still sends signed-out visitors to `/login`.
+- Results are private to the browser that ran them: business, scan and report live in a system workspace without members (`00000000-0000-4000-8000-00000000fc02`), and the report is stored revoked, so its share link never opens.
+- `free_check_completed` fires once per check, only after the result is on screen (`POST /api/free-check/shown`, a conditional UPDATE).
+
+### Free check: limits and caps
+
+| Limit | Value | Why |
+|---|---|---|
+| Turnstile | required on every deployment with real keys (previews too) | without login, a preview URL would be an open paid endpoint |
+| Burst | 8 starts per IP and 5 per fingerprint in 10 min, counted even when refused | stops scripts before a siteverify call |
+| Per visitor | 1 per browser cookie, 1 per device fingerprint in 30 days (`FREE_CHECKS_PER_VISITOR`) | "one check per person" without an account; a business not found on Maps does not use it up |
+| Per IP | 3 starts a day, IPv6 per /64 (`FREE_CHECKS_PER_IP_PER_DAY`) | unchanged value, now also bounding failed attempts |
+| Repeats | the same business + city + country once a day, by anyone | saves cost on repeated look-ups |
+| Input | `lib/free-check-input.ts`: lengths, letters, no URLs/emails/markup/prompt text, no junk | refuse before any paid call |
+| Daily budget | $3 (`COST_DAILY_FREE_CAP_USD`, unchanged) | about 100 checks a day at an estimated ~$0.03 each (ChatGPT and Gemini per-answer costs were measured on 18 Nov; Perplexity and the Maps lookups are from published prices) |
+| Monthly budget | $30 (`COST_MONTHLY_FREE_CAP_USD`, new) | hard ceiling of about one third of a month at the daily cap |
+| Per check | $0.11 reserved while running ($0.10 AI cap + 2 Maps lookups), max 2 attempts | the claim (`free_check_claim`) counts running checks at this bound, under an advisory lock |
+
+Trade-off of the fingerprint: visitors behind one network with the same browser and language (an agency office, some mobile carriers) share one free check for 30 days; they see "This device or network has already had a free check".
+
+When a cap is reached the visitor is told so ("Today's free checks are used up…"), the check waits, and nothing is called. Maps spend on failed checks is logged too (it was not before). Retention (daily cron): results 90 days, hashed records 180 days, result-only email addresses 30 days after sending.
+
+### Search pages
+
+New: `/local-rank-tracker`, `/blog/brightlocal-pricing`, `/alternatives/peec-ai`, `/alternatives/profound`, `/alternatives/otterly`, `/alternatives/local-viking`, `/blog/peec-ai-pricing`, `/blog/profound-pricing`, `/blog/otterly-pricing`, `/peec-ai-vs-profound`, `/semrush-ai-visibility`. Improved: all ten existing search pages. Close variants 301 to one canonical (`next.config.ts`). Not built: `/alternatives/places-scout` (placesscout.com 301s to yext.com; no product page to compare), BrightLocal vs Whitespark/Moz, any Semrush alternative/pricing page, any geogrid construction page.
+
+Competitor facts: `lib/competitors.ts`, each cell read on the vendor's own page on 20 Nov 2026 with that page linked. Not verifiable that day and marked so on the pages: Profound prices (not published), Otterly's billing basis for the displayed prices, Semrush AI Visibility Toolkit monthly-billing price, Local Viking prices (its pricing link redirects to LocalOptics), whether BrightLocal's AI tracker uses a grid (its page says per location).
+
+### Conversion tracking
+
+GA4 + Google Ads for `free_check_completed`, `sign_up`, `purchase` (value before tax, tax, currency, order id), stubbed behind empty `NEXT_PUBLIC_*` IDs. Consent Mode v2 (basic) on the existing `rb_consent` banner, plus a separate `rb_consent_ads` question once an Ads ID exists; "Cookie choices" in the footer. UTMs and gclid/gbraid/wbraid kept within consent (`rb_attr`), stored on `profiles.attribution` at signup and `orders.attribution` at purchase; both reported once (`*_reported_at`).
+
+### Verified
+
+- `pnpm test`: all suites pass, including `tests/db/free-check-public.test.ts` (visitor/device/IP/IPv6/repeat limits, daily and monthly caps, 6 concurrent claims with room for 2 → exactly 2, attempts, result privacy, email once, withdrawal, retention), `tests/db/free-check-route.test.ts` (Turnstile required, missing token rejected, burst limit), `tests/db/conversions.test.ts`, `tests/unit/google-tags.test.ts` (EEA denied state loads nothing).
+- Local run in a browser (mock vendors): form → result without login; second check refused with a link to the result; `/free-check/run` still gated.
+- Turnstile with Cloudflare's always-pass test keys on a production build: the widget renders on a full load and again on a form that mounts after a client-side navigation (it is now rendered explicitly, `components/marketing/turnstile-widget.tsx`); the token reaches the server, siteverify accepts it, and the result appears. A start without a token answers 400. `/free-check` answers `Cache-Control: private, no-store` with or without a result cookie.
+- Regional pages (`/ai/...`) no longer count free-check scans (`lib/regional.ts`, test in `tests/db/regional.test.ts`). They did before for the signed-in free check; without login, any looked-up business could otherwise have reached an indexed page. The six published pages rest on credit-funded scans, so they keep their samples.
+- All 21 search pages: 200, phrase in H1 and first paragraph, unique title, canonical, Twitter tags, FAQPage, links to /pricing and the free check; 9 variants answer 301. Production build: new pages are static; CLS 0, LCP and HTML size below the homepage's (localhost, unthrottled).
+
+### Needs the operator
+
+1. Apply migration 0013 to Neon `preview` and `main` (`node scripts/db.mjs migrate --url …`), then refresh both Data API schema caches.
+2. Turnstile keys on the preview environment, or the free check stays closed there.
+3. Before ads: create GA4 and Google Ads conversion actions and set `NEXT_PUBLIC_GA_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_ADS_ID` and the three `NEXT_PUBLIC_GOOGLE_ADS_LABEL_*` values (Production), then redeploy.
+4. [CONFIRM] Terms §6 and the privacy page changed (free check without an account, email, Google tags, campaign parameters, Brevo as the email processor).
+5. [CONFIRM] The homepage still shows Semrush Map Rank Tracker at €112/mo (operator-verified, 17 Nov); Semrush's Local pricing page showed $30/mo per location billed yearly on 20 Nov (US). The search pages use the latter, with source and date.
+
 ## M6 — REST API and MCP server (17 Nov 2026)
 
 **Status: built and tested, including with the official MCP client library. Connecting from the Claude Desktop or Cursor apps themselves is left for the operator (it needs a key on a reachable deployment).**

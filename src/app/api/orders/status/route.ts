@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     ({ data } = await memberRead("Order status", ctx.workspace.id, (db) =>
       db
         .from("orders")
-        .select("id, product_key, status, ladder_seat, amount_cents")
+        .select("id, product_key, status, ladder_seat, amount_cents, tax_cents, currency")
         .eq("stripe_checkout_session_id", sessionId)
         .eq("workspace_id", ctx.workspace.id)
         .maybeSingle(),

@@ -9,8 +9,9 @@ import { pingIndexNow } from "@/lib/indexnow";
 /**
  * Public regional pages (brief 12): "Which {niche} do AI assistants recommend in {City}?"
  *
- * Built only from scans that may be published: scans that ran on our own keys, and scans from
- * workspaces that opted in. A page never says whose scan contributed. Visitors can read a page only
+ * Built only from scans that may be published: scans that ran on our own keys for the operator or for
+ * credits, and scans from workspaces that opted in. Free checks never count: anyone can run one without
+ * an account, so a looked-up business must not reach a public, indexed page. A page never says whose scan contributed. Visitors can read a page only
  * once it rests on at least 27 answers from at least 2 scans: row-level security hides thinner pages
  * completely, so they are neither reachable nor in the sitemap.
  */
@@ -81,7 +82,8 @@ export async function rebuildRegionalPages(): Promise<{ pages: number; indexable
     .from("scans")
     .select("id, kind, niche, keyword, funding, created_at, summary, businesses(city, region, country), workspaces(share_scans_for_regional_pages)")
     .in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(3000);
-  const publishable = ((data ?? []) as unknown as ScanRow[]).filter((s) => s.funding !== "byok" || one(s.workspaces)?.share_scans_for_regional_pages === true);
+  const publishable = ((data ?? []) as unknown as ScanRow[]).filter((s) =>
+    s.funding === "free" ? false : s.funding !== "byok" || one(s.workspaces)?.share_scans_for_regional_pages === true);
 
   const groups = new Map<string, { labels: RegionalPage["labels"]; ai: ScanRow[]; maps: ScanRow[] }>();
   for (const s of publishable) {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AppShell, ShellSkeleton } from "@/components/app/app-shell";
 import { LockedBanner } from "@/components/app/ui";
+import { SignupConversion } from "@/components/analytics/signup-conversion";
 import { EarlyAccessBanner } from "@/components/marketing/early-access";
 import { HackathonTracker } from "@/components/hackathon-tracker";
 import { Toaster } from "@/components/ui/sonner";
@@ -28,6 +29,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <TooltipProvider>
       <HackathonTracker />
+      <SignupConversion />
       <Suspense fallback={<ShellSkeleton />}>
         <Authed>{children}</Authed>
       </Suspense>

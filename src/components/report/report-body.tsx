@@ -19,7 +19,8 @@ import type { QuotedAnswer, ReportView } from "./types";
  * the finding, then shows where (the map), who instead, the proof (verbatim answers), where the
  * assistants look, what to fix, and what to do next. Pure: everything comes from `view`.
  */
-export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHref: string | null; siteUrl: string }) {
+/** `nextSteps` replaces the closing "What happens next" block (the public free check puts its sign-up and email panel there). */
+export function ReportBody({ view, pdfHref, siteUrl, nextSteps }: { view: ReportView; pdfHref: string | null; siteUrl: string; nextSteps?: ReactNode }) {
   const { business, brand, ai, maps, audit } = view;
   const site = siteUrl.replace(/\/$/, "");
   const whiteLabel = !!brand.name;
@@ -228,7 +229,7 @@ export function ReportBody({ view, pdfHref, siteUrl }: { view: ReportView; pdfHr
         ) : null}
 
         {/* ── What happens next ── */}
-        <NextSteps view={view} site={site} pdfHref={pdfHref} showRankbyai={showRankbyai} eyebrowStyle={eyebrowStyle} nothing={nothing} />
+        {nextSteps ?? <NextSteps view={view} site={site} pdfHref={pdfHref} showRankbyai={showRankbyai} eyebrowStyle={eyebrowStyle} nothing={nothing} />}
 
         {/* ── Method ── */}
         <section aria-labelledby="method-h" className="flex flex-col gap-6 border-t border-lp-line pt-[clamp(40px,6vw,64px)]">

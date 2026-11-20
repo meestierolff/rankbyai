@@ -38,11 +38,13 @@ Scans run through official APIs only (DataForSEO for Google Maps results, OpenAI
 ## Pricing
 - One payment, no subscription. ${pricing}
 - ${open ? `Optional included-scan packs: ${packs}. Credits never expire.` : `Included-scan packs (${packs}) are coming soon and not on sale yet; today every scan needs the customer's own DataForSEO login and at least one AI key.`}
-- ${REFUND_DAYS}-day refund, no questions.
+- ${REFUND_DAYS}-day refund, no questions. API vendor fees for scans already run cannot be refunded.
+- Free check: one map point at a business's own location on three AI engines plus its Google Maps rank, without an account and without a card, at ${site}/#free-check. One per person; results are shown only to the browser that ran them.
 
 ## What it is not
 - Not affiliated with or endorsed by OpenAI, Perplexity, Google or DataForSEO.
-- Not the first or only AI visibility grid tool. Local Falcon and BrightLocal also offer AI visibility tracking. RankbyAI differs in how you pay (once, API usage at cost) and in bulk prospect reports and an open API.
+- Not the first or only AI visibility grid tool. Local Falcon runs AI visibility on its geo-grid and BrightLocal tracks AI visibility per location. RankbyAI differs in how you pay (once, API usage at cost) and in bulk prospect reports.
+- Not a brand-level AI-visibility platform. Peec AI, Profound, Otterly.AI and Semrush's AI Visibility Toolkit track how AI search mentions a brand across more engines and countries; RankbyAI measures local answers point by point on a map grid, next to the Google Maps rank, and does not replace their enterprise features or Semrush as a suite.
 - It does not guarantee rankings or AI recommendations, and it does not contact businesses or send email for its users.
 
 ## Pages

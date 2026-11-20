@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { track } from "@/lib/analytics";
+import { AI_DISCLAIMER_TEXT } from "@/lib/copy";
 import { Bezel } from "./lp";
 import { useOnScreen, useReducedMotion } from "./lp-motion";
 
@@ -19,14 +20,26 @@ export function DemoVideo() {
   const ref = useRef<HTMLVideoElement>(null);
   const onScreen = useOnScreen(ref);
   const reduced = useReducedMotion();
-  const played = useRef(false);
+  const touched = useRef(false);
+  // Autoplay is not an interaction: count only the viewer's own pointer or key input on the player.
+  const onTouch = () => {
+    if (touched.current) return;
+    touched.current = true;
+    track("demo_interacted", { step: "video" });
+  };
 
   useEffect(() => {
     const video = ref.current;
-    if (!video || reduced) return;
+    if (!video) return;
+    if (!onScreen) {
+      video.pause();
+      return;
+    }
+    // Read the media query here as well: right after hydration `reduced` can still hold its
+    // initial false when the observer reports the video on screen (seen in Chrome).
+    if (reduced || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     // Browsers may refuse autoplay (data saver, low power); the poster and controls stay usable.
-    if (onScreen) video.play().catch(() => {});
-    else video.pause();
+    video.play().catch(() => {});
   }, [onScreen, reduced]);
 
   return (
@@ -49,15 +62,12 @@ export function DemoVideo() {
             controls
             preload="none"
             aria-describedby="demo-video-summary"
-            onPlay={() => {
-              if (played.current) return;
-              played.current = true;
-              track("demo_interacted", { step: "video" });
-            }}
+            onPointerDown={onTouch}
+            onKeyDown={onTouch}
           />
         </Bezel>
         <p className="m-0 mt-3 text-center text-[12.5px] leading-[1.5] text-lp-dim">
-          Real screens from the app, on a scan from Nov 18, 2026. AI answers vary between runs, places and time.
+          Real screens from the app, on a scan from Nov 18, 2026. {AI_DISCLAIMER_TEXT}
         </p>
         <div id="demo-video-summary" className="sr-only">
           The video has no sound. Someone in Austin asks ChatGPT who the best dentists near them are; at that spot the answer names

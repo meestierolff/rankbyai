@@ -2,19 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Script from "next/script";
 import { useState } from "react";
 import { track } from "@/lib/analytics";
 import { COUNTRY_OPTION_GROUPS, countryLanguageNote, DEFAULT_COUNTRY } from "@/lib/countries";
 import { creamClass, LpEyebrow } from "./lp";
+import { resetTurnstile, TurnstileWidget } from "./turnstile-widget";
 
 // 16px on a phone (a smaller size makes iOS zoom the page on focus), the design's 15px from there up.
 const field =
   "w-full rounded-[11px] border border-lp-border bg-[#0b0b0b] px-4 py-[14px] text-[16px] text-lp-fg placeholder:text-lp-dim hover:border-lp-border-3 sm:text-[15px]";
 
 const FAILED = "Something went wrong. Try again.";
-
-type TurnstileApi = { reset: (widget?: string | HTMLElement) => void };
 
 /**
  * Free check lead magnet (brief 10.4): one point, three AI engines + Maps rank, no account and no card.
@@ -72,7 +70,7 @@ export function FreeCheck({ turnstileSiteKey, open = true, headingLevel = 2, not
                 setError(FAILED);
               }
               // A Turnstile token is single-use: the next attempt needs a fresh one.
-              (window as unknown as { turnstile?: TurnstileApi }).turnstile?.reset(form.querySelector<HTMLElement>(".cf-turnstile") ?? undefined);
+              resetTurnstile(form);
               setState("idle");
             }}
           >
@@ -95,12 +93,7 @@ export function FreeCheck({ turnstileSiteKey, open = true, headingLevel = 2, not
               </select>
             </label>
             {countryLanguageNote(country) ? <p className="m-0 text-[12.5px] leading-[1.55] text-lp-dim">{countryLanguageNote(country)}</p> : null}
-            {turnstileSiteKey ? (
-              <>
-                <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="lazyOnload" />
-                <div className="cf-turnstile" data-sitekey={turnstileSiteKey} data-theme="dark" />
-              </>
-            ) : null}
+            {turnstileSiteKey ? <TurnstileWidget siteKey={turnstileSiteKey} /> : null}
             {error ? (
               <p role="alert" className="m-0 text-[14px] leading-[1.5] text-lp-strike">
                 {error}{" "}

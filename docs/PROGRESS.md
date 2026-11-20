@@ -38,9 +38,11 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | Per IP | 3 starts a day, IPv6 per /64 (`FREE_CHECKS_PER_IP_PER_DAY`) | unchanged value, now also bounding failed attempts |
 | Repeats | the same business + city + country once a day, by anyone | saves cost on repeated look-ups |
 | Input | `lib/free-check-input.ts`: lengths, letters, no URLs/emails/markup/prompt text, no junk | refuse before any paid call |
-| Daily budget | $3 (`COST_DAILY_FREE_CAP_USD`, unchanged) | about 100 checks a day at the measured ~$0.03 each |
+| Daily budget | $3 (`COST_DAILY_FREE_CAP_USD`, unchanged) | about 100 checks a day at an estimated ~$0.03 each (ChatGPT and Gemini per-answer costs were measured on 18 Nov; Perplexity and the Maps lookups are from published prices) |
 | Monthly budget | $30 (`COST_MONTHLY_FREE_CAP_USD`, new) | hard ceiling of about one third of a month at the daily cap |
 | Per check | $0.11 reserved while running ($0.10 AI cap + 2 Maps lookups), max 2 attempts | the claim (`free_check_claim`) counts running checks at this bound, under an advisory lock |
+
+Trade-off of the fingerprint: visitors behind one network with the same browser and language (an agency office, some mobile carriers) share one free check for 30 days; they see "This device or network has already had a free check".
 
 When a cap is reached the visitor is told so ("Today's free checks are used up…"), the check waits, and nothing is called. Maps spend on failed checks is logged too (it was not before). Retention (daily cron): results 90 days, hashed records 180 days, result-only email addresses 30 days after sending.
 
@@ -58,6 +60,8 @@ GA4 + Google Ads for `free_check_completed`, `sign_up`, `purchase` (value before
 
 - `pnpm test`: all suites pass, including `tests/db/free-check-public.test.ts` (visitor/device/IP/IPv6/repeat limits, daily and monthly caps, 6 concurrent claims with room for 2 → exactly 2, attempts, result privacy, email once, withdrawal, retention), `tests/db/free-check-route.test.ts` (Turnstile required, missing token rejected, burst limit), `tests/db/conversions.test.ts`, `tests/unit/google-tags.test.ts` (EEA denied state loads nothing).
 - Local run in a browser (mock vendors): form → result without login; second check refused with a link to the result; `/free-check/run` still gated.
+- Turnstile with Cloudflare's always-pass test keys on a production build: the widget renders on a full load and again on a form that mounts after a client-side navigation (it is now rendered explicitly, `components/marketing/turnstile-widget.tsx`); the token reaches the server, siteverify accepts it, and the result appears. A start without a token answers 400. `/free-check` answers `Cache-Control: private, no-store` with or without a result cookie.
+- Regional pages (`/ai/...`) no longer count free-check scans (`lib/regional.ts`, test in `tests/db/regional.test.ts`). They did before for the signed-in free check; without login, any looked-up business could otherwise have reached an indexed page. The six published pages rest on credit-funded scans, so they keep their samples.
 - All 21 search pages: 200, phrase in H1 and first paragraph, unique title, canonical, Twitter tags, FAQPage, links to /pricing and the free check; 9 variants answer 301. Production build: new pages are static; CLS 0, LCP and HTML size below the homepage's (localhost, unthrottled).
 
 ### Needs the operator

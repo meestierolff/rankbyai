@@ -59,7 +59,7 @@ export const SEO_PAGES: SeoPage[] = [
     table: { caption: "Local Falcon and RankbyAI side by side", columns: ["rankbyai", "localfalcon"] },
     sections: [
       { h2: "What does Local Falcon do well?", body: [
-        "Local Falcon has been building map grids for years and it shows. It covers Google Maps and Apple Maps on grids up to 21×21, and it runs AI visibility scans on the same geo-grid, from 9 to 441 points. Its pricing page lists an API and an MCP server on every plan. If you want one established tracker with a credit system that includes the data, it is a sound choice.",
+        "Local Falcon has been building map grids for years and it shows. It covers Google Maps and Apple Maps on grids up to 21×21, and it runs AI visibility scans on the same geo-grid, from 9 to 441 points. Its pricing page lists an MCP server on every plan, and an API. If you want one established tracker with a credit system that includes the data, it is a sound choice.",
         "We are not the first tool to show AI recommendations on a grid, and we do not claim to be.",
       ] },
       { h2: "What is different about RankbyAI?", body: [
@@ -522,7 +522,7 @@ export const SEO_PAGES: SeoPage[] = [
         { list: [
           "Price: Peec AI publishes plans from $95 a month; Profound lists only “Custom” prices and retired its published plans in September 2026 (both as read on their pricing pages on 20 November 2026).",
           "Engines: Peec AI lets each plan choose three models from a list that includes ChatGPT, Perplexity, AI Overviews, AI Mode and Gemini; Profound covers up to ten answer engines, including Claude and DeepSeek.",
-          "API and MCP: Peec AI lists MCP on every plan and an API from Pro; Profound includes an API and offers MCP to Enterprise customers.",
+          "API and MCP: Peec AI lists MCP on every plan and an API in its paid tiers (its page is not consistent on which); Profound includes an API and offers MCP to Enterprise customers.",
           "Getting started: Peec AI offers a free trial; Profound starts with a demo.",
         ] },
       ] },

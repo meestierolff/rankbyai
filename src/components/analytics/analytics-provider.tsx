@@ -44,12 +44,18 @@ export function AnalyticsProvider() {
             capture_pageview: true,
             autocapture: false,
             disable_session_recording: true,
-            // A report's slug is its access key: never send it (URLs, paths and referrers alike).
+            // A report's slug is its access key, and so is the token in an email-removal link: never
+            // send either (URLs, paths and referrers alike).
             before_send: (event) => {
               if (!event) return event;
               for (const bag of [event.properties, event.$set, event.$set_once] as (Record<string, unknown> | undefined)[]) {
                 if (!bag) continue;
-                for (const [k, v] of Object.entries(bag)) if (typeof v === "string" && v.includes("/r/")) bag[k] = redactReportSlugs(v);
+                for (const [k, v] of Object.entries(bag)) {
+                  if (typeof v !== "string") continue;
+                  let out = v.includes("/r/") ? redactReportSlugs(v) : v;
+                  if (out.includes("/free-check/unsubscribe")) out = out.replace(/([?&]t=)[^&#]*/g, "$1[redacted]");
+                  bag[k] = out;
+                }
               }
               return event;
             },
@@ -77,7 +83,13 @@ export function AnalyticsProvider() {
       // Google tags only when configured, and only within consent (basic Consent Mode).
       if (googleTagsConfigured()) applyGoogleConsent(a);
       persistAttribution(a);
-      if (initial && (publicEnv.posthogKey || googleTagsConfigured()) && mustAsk(s, askAds)) queueMicrotask(() => setAsk(true));
+      if (initial && (publicEnv.posthogKey || googleTagsConfigured()) && mustAsk(s, askAds)) {
+        // Start from what was already chosen, so "Save choices" never undoes an earlier yes.
+        queueMicrotask(() => {
+          setDraft({ analytics: s.analytics === "granted", ads: s.ads === "granted" });
+          setAsk(true);
+        });
+      }
     };
 
     apply(true);

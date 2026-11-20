@@ -21,16 +21,9 @@ export const maxDuration = 300;
  *     names the protected resource metadata, so MCP clients can start the OAuth flow by themselves.
  * The SDK handler itself trusts its caller, so the credential is checked here first.
  *
- * CORS is open: callers authenticate with a header, never a cookie, and browser-based MCP clients
- * (MCP Inspector, web IDEs) need to read the 401 challenge.
+ * No CORS headers, as on the REST API: MCP clients call this from their servers or apps, not from
+ * other sites' pages. (The OAuth and metadata endpoints do send CORS, for browser-based sign-in flows.)
  */
-const CORS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID",
-  "Access-Control-Expose-Headers": "WWW-Authenticate, Mcp-Session-Id, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After",
-  "Access-Control-Max-Age": "86400",
-};
 
 const handler = createMcpHandler((ctx) => {
   const caller = ctx.authInfo?.extra?.caller as ApiCaller | undefined;
@@ -40,14 +33,14 @@ const handler = createMcpHandler((ctx) => {
 
 const withHeaders = (res: Response, extra: Record<string, string>) => {
   const headers = new Headers(res.headers);
-  for (const [name, value] of Object.entries({ ...CORS, ...extra })) headers.set(name, value);
+  for (const [name, value] of Object.entries(extra)) headers.set(name, value);
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 };
 
 function oauthUnauthorized(tokenSent: boolean): Response {
   return Response.json(
     { error: "unauthorized", message: "Connect through your MCP client's sign-in (OAuth), or send an API key as: Authorization: Bearer rbai_live_…  Create one in the app under API & MCP." },
-    { status: 401, headers: { ...CORS, "Cache-Control": "no-store", "WWW-Authenticate": bearerChallenge(tokenSent ? "invalid_token" : undefined) } },
+    { status: 401, headers: { "Cache-Control": "no-store", "WWW-Authenticate": bearerChallenge(tokenSent ? "invalid_token" : undefined) } },
   );
 }
 
@@ -66,17 +59,15 @@ async function authenticateMcp(request: Request): Promise<{ caller: ApiCaller; r
 
 async function route(request: Request): Promise<Response> {
   const auth = await authenticateMcp(request);
-  if ("response" in auth) return withHeaders(auth.response, {});
+  if ("response" in auth) return auth.response;
   const rate = rateHeaders(auth.rate);
   try {
     const res = await handler.fetch(request, { authInfo: { token: "redacted", clientId: auth.caller.keyId, scopes: [], extra: { caller: auth.caller } } });
     return withHeaders(res, rate);
   } catch (e) {
     console.error("[api/mcp] unexpected error:", e instanceof Error ? e.name : "unknown");
-    return Response.json({ jsonrpc: "2.0", error: { code: -32603, message: "Internal error." }, id: null }, { status: 500, headers: { ...CORS, ...rate, "Cache-Control": "no-store" } });
+    return Response.json({ jsonrpc: "2.0", error: { code: -32603, message: "Internal error." }, id: null }, { status: 500, headers: { ...rate, "Cache-Control": "no-store" } });
   }
 }
 
-const preflight = () => new Response(null, { status: 204, headers: CORS });
-
-export { route as GET, route as POST, route as DELETE, preflight as OPTIONS };
+export { route as GET, route as POST, route as DELETE };

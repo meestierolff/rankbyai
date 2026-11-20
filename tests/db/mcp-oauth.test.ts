@@ -57,7 +57,7 @@ async function appFetch(input: string | URL | Request, init?: RequestInit): Prom
     case "/oauth/register": return r.register.POST(request);
     case "/oauth/token": return r.token.POST(request);
     case "/oauth/revoke": return r.revoke.POST(request);
-    case "/api/mcp": return m === "OPTIONS" ? r.mcp.OPTIONS() : r.mcp.POST(request);
+    case "/api/mcp": return r.mcp.POST(request);
     default: return new Response("not found", { status: 404 });
   }
 }
@@ -180,7 +180,7 @@ describe("discovery", () => {
     expect(challenge).toContain(`resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/api/mcp"`);
     expect(challenge).toContain('scope="mcp"');
     expect(challenge).not.toContain("invalid_token");
-    expect(res.headers.get("access-control-expose-headers")).toContain("WWW-Authenticate");
+    expect(res.headers.get("access-control-allow-origin")).toBeNull(); // no CORS on the MCP endpoint itself
   });
 
   it("a wrong token gets error=\"invalid_token\"", async () => {

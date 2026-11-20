@@ -1,0 +1,5 @@
+# Private working files stay on this machine. The Vercel CLI uploads everything not listed here
+# (it does not read .gitignore); it already skips .env.local and .env.*.local by itself.
+docs/references
+.claude
+.playwright-mcp

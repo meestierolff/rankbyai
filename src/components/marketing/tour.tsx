@@ -9,7 +9,7 @@ import {
   AI_N, MAPS_N, SAMPLE, SAMPLE_AUDIT, SAMPLE_ENGINES, mentionCount, sampleAiGrid, sampleCompare, sampleMapsGrid, top3Count,
 } from "@/lib/sample-data";
 import { cn } from "@/lib/utils";
-import { Bezel, DotMark, LpSampleTag } from "./lp";
+import { Bezel, DotMark, LpEyebrow, LpSampleTag } from "./lp";
 import { useOnScreen } from "./lp-motion";
 import styles from "./tour-demo.module.css";
 
@@ -104,6 +104,10 @@ export function Tour() {
   return (
     <section id="sample-tour" aria-label="Product tour with sample data" className="relative px-6 pt-6 pb-10 text-lp-fg">
       <div className="mx-auto w-full max-w-(--lp-container-wide)">
+        <div className="mb-6 text-center">
+          <LpEyebrow className="block">Try the dashboard</LpEyebrow>
+          <p className="mx-auto mt-3 mb-0 max-w-[560px] text-[15.5px] leading-[1.55] text-lp-muted">Click a step below or switch engines. Sample data.</p>
+        </div>
         <Bezel
           ref={frameRef}
           warm

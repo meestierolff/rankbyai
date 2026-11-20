@@ -56,9 +56,10 @@ export default async function HomePage() {
         <main>
           <Hero costs={costs} />
           <DemoVideo />
-          <Tour />
-          <RealDataLink />
-          <Problem />
+          <Problem>
+            <Tour />
+            <RealDataLink />
+          </Problem>
           <FeatureRows packsOpen={packs} />
           <Features />
           <HowItWorks packsOpen={packs} />

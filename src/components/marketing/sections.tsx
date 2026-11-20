@@ -17,8 +17,11 @@ const PROBLEMS = [
   "You pay every month whether you won the client or not.",
 ];
 
-/** Problem, then the unit-cost band. Every figure is computed from lib/pricing-constants and labelled as an estimate. */
-export function Problem() {
+/**
+ * Problem, then the unit-cost band. Every figure is computed from lib/pricing-constants and labelled as an estimate.
+ * `children` (the interactive dashboard tour) sits between the problem list and the cost band.
+ */
+export function Problem({ children }: { children?: ReactNode }) {
   const perPoint = AI_SAMPLE_EST_USD.openai + AI_SAMPLE_EST_USD.perplexity + AI_SAMPLE_EST_USD.geminiFree;
   const g3 = estimateAiGrid(3, ENGINES).rangeUsd;
   const maps = estimateMapsGrid(7, "standard").totalUsd;
@@ -52,6 +55,7 @@ export function Problem() {
           ))}
         </ul>
       </div>
+      {children ? <div className="mt-[100px]">{children}</div> : null}
       <div className="container-lp mt-[110px]">
         <h3 className="m-0 text-[clamp(30px,3.6vw,40px)] leading-[1.08] font-semibold tracking-[-0.04em]">
           The data costs cents.

@@ -15,7 +15,7 @@ export const publicEnv = {
   turnstileSiteKey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "",
   /**
    * Google tags (GA4 and Google Ads conversions). Empty = not loaded at all. When set, they load only
-   * after the visitor's consent where consent is asked (components/analytics/google-tags.tsx).
+   * after the visitor's consent where consent is asked (components/analytics/google-tags.ts).
    */
   gaMeasurementId: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "",
   googleAdsId: process.env.NEXT_PUBLIC_GOOGLE_ADS_ID || "",

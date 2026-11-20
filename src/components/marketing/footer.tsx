@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CookieChoicesButton } from "@/components/analytics/cookie-choices";
 import { NOT_AFFILIATED } from "@/lib/copy";
 import { legalEnv } from "@/lib/env";
 import { hasRegionalPages } from "@/lib/regional";
@@ -88,6 +89,7 @@ export async function Footer({ padForStickyBar = false }: { padForStickyBar?: bo
           </div>
           <div className="flex flex-col gap-3">
             {LEGAL_LINKS.map((l) => <Link key={l.href} href={l.href} className={linkClass}>{l.label}</Link>)}
+            <CookieChoicesButton className={`${linkClass} text-[15px]`} />
           </div>
           <div className="flex flex-col gap-3">
             {column.map((p) => <Link key={p.path} href={p.path} className={linkClass}>{shortTitle(p.path, p.title)}</Link>)}

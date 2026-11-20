@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { isAuthConfigured } from "@/lib/auth-neon/server";
+import { reviewerLoginOn } from "@/lib/reviewer-login";
 import { AuthForm } from "../auth-form";
+import { ReviewerLink } from "./reviewer-link";
 
 export const metadata: Metadata = { title: "Log in", robots: { index: false, follow: false }, alternates: { canonical: "/login" } };
 
@@ -14,6 +16,9 @@ export default function Page() {
       </div>
       <AuthForm mode="login" configured={isAuthConfigured()} />
       <p className="m-0 text-[14px] text-muted-foreground">New here? <Link href="/signup" className="text-fg underline underline-offset-[3px]">Create an account</Link></p>
+      {reviewerLoginOn() ? (
+        <p className="m-0 text-[13px] text-dim">Reviewing RankbyAI for an app directory? <ReviewerLink /></p>
+      ) : null}
       <p className="m-0 text-[13px] leading-normal text-dim">
         By continuing you agree to the <Link href="/terms" className="underline underline-offset-[3px]">Terms</Link> and{" "}
         <Link href="/privacy" className="underline underline-offset-[3px]">Privacy Policy</Link>.

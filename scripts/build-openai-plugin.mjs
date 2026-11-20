@@ -8,9 +8,9 @@
  *
  *   node scripts/build-openai-plugin.mjs --demo-url https://…   → dist/rankbyai-openai-plugin.zip
  *
- * Without --demo-url the ZIP leaves the recording out (a draft: upload, checks, MCP connect); the
- * recording must be added before Submit for review. Refuses to build while the text limits or
- * test-case counts of the submission are not met.
+ * The walkthrough URL comes from plugin.json (review.demo_recording_url) or --demo-url. Without one the
+ * ZIP leaves the recording out (a draft: upload, checks, MCP connect) and it must be added before
+ * Submit for review. Refuses to build while the text limits or test-case counts are not met.
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

@@ -108,10 +108,11 @@ The ladder terms live in the database row `ladder_lock` (seeded: $29 base, +$10 
 | `HOUSE_*` | House API keys, used only for free checks, included-scan packs and the operator's own demos |
 | `SCAN_PACKS_FOR_SALE` | Set to `0` to keep scan packs closed while the house keys are in place. Unset means packs open as soon as they can be delivered. |
 | `OPENAI_MODEL`, `PERPLEXITY_MODEL`, `GEMINI_MODEL`, `LLM_FIXES_MODEL` | Optional model overrides |
-| `COST_*`, `FREE_CHECKS_*` | Cost guard caps and free-check limits |
+| `COST_*`, `FREE_CHECKS_*` | Cost guard caps and free-check limits. The public free check (no account) is capped by `COST_DAILY_FREE_CAP_USD` and `COST_MONTHLY_FREE_CAP_USD` together, claimed atomically per check (`free_check_claim`, migration 0013) |
 | `EMAIL_FROM` plus `BREVO_API_KEY` or `RESEND_API_KEY` | Transactional email (the purchase confirmation). `EMAIL_FROM` is `Name <address>` and must be a sender verified at the provider. Replies go to `LEGAL_EMAIL`. Without these the purchase still completes; the buyer just gets no email. |
-| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Bot protection on the free check and the removal form |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Bot protection on the free check and the removal form. **Required on every deployment with real house keys, previews included**: without it the free check shows "not open" and the API answers 503 (mock mode is exempt) |
 | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` | Analytics (cookieless until consent in the EU/EEA/UK/CH) |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_ADS_ID`, `NEXT_PUBLIC_GOOGLE_ADS_LABEL_FREE_CHECK`, `NEXT_PUBLIC_GOOGLE_ADS_LABEL_SIGNUP`, `NEXT_PUBLIC_GOOGLE_ADS_LABEL_PURCHASE` | Optional GA4 and Google Ads conversions. Empty = nothing Google loads. Set = Consent Mode v2 (basic): no Google tag before consent where consent is asked; the banner adds an advertising question once the Ads ID is set. The privacy page shows each as on or off from these values. Public values; redeploy after changing them |
 | `SOD_TRACKER_SNIPPET_SRC` | Ship or Die tracker script URL, loaded on every page |
 | `EARLY_ACCESS_NOTE` | Banner text with true ship dates; hidden when empty |
 | `ADMIN_USER_IDS` | Comma-separated user ids (from Neon Auth) allowed into `/admin` |

@@ -11,8 +11,9 @@ type Search = Promise<Record<string, string | string[] | undefined>>;
  * owner sees what the app asks for and which workspace it gets, and allows or denies.
  */
 export default async function Page({ searchParams }: { searchParams: Search }) {
-  if (!oauthOpen()) notFound();
+  // Read the query first: it makes the page request-time whatever the flag says at build time.
   const sp = await searchParams;
+  if (!oauthOpen()) notFound();
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(sp)) for (const one of Array.isArray(v) ? v : v === undefined ? [] : [v]) q.append(k, one);
 

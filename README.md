@@ -100,12 +100,12 @@ codex plugin marketplace add meestierolff/rankbyai
 
 ### Directory listings
 
-- [`server.json`](server.json): the entry for the official MCP Registry, named `io.github.meestierolff/rankbyai`, with one `streamable-http` remote. To publish, run `mcp-publisher login github` as `meestierolff`, then `mcp-publisher publish`.
+- [`server.json`](server.json): the entry for the official MCP Registry, named `live.rankbyai/rankbyai` (domain-verified: the `v=MCPv1` TXT record on rankbyai.live), with one `streamable-http` remote. To publish: `mcp-publisher login dns --domain rankbyai.live --private-key <hex key>`, then `mcp-publisher publish`.
 - [`gemini-extension.json`](gemini-extension.json): the Gemini CLI extension. The gallery lists repositories that carry the `gemini-cli-extension` topic.
 - [`plugins/rankbyai`](plugins/rankbyai): the plugin for Claude Code, the Claude directory and Grok Build (`.claude-plugin/plugin.json`, `.mcp.json`, `skills/rankbyai/SKILL.md`). Marketplaces: [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) (Claude Code) and [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) (Codex).
 - [`plugins/openai`](plugins/openai): the OpenAI plugin directory manifests; `node scripts/build-openai-plugin.mjs` builds the ZIP to upload; `--demo-url <recording>` overrides the walkthrough URL in `plugin.json`. The walkthrough (the 5 positive and 3 negative test cases in Codex with the reviewer account) is [public/review/rankbyai-openai-review.mp4](https://rankbyai.live/review/rankbyai-openai-review.mp4). Domain verification is served at `/.well-known/openai-apps-challenge` from `OPENAI_APPS_CHALLENGE`.
 - Reviewer access: directory reviewers sign in with a password at `/login/reviewer` (`REVIEWER_LOGIN_EMAILS`, see [docs/SETUP.md](docs/SETUP.md)); keep that account and its workspace working while a listing is in review.
-- Submitted on 20 Nov 2026: the Claude connector directory, the Grok Bot marketplace, Grok Build ([xai-org/plugin-marketplace#2200](https://github.com/xai-org/plugin-marketplace/pull/2200)) and the OpenAI plugin directory (ChatGPT and Codex). Not yet: the official MCP Registry, Docker MCP Catalog, Glama, cursor.directory and the Gemini CLI gallery.
+- Submitted on 20 Nov 2026: the Claude connector directory, the Grok Bot marketplace, Grok Build ([xai-org/plugin-marketplace#2200](https://github.com/xai-org/plugin-marketplace/pull/2200)) and the OpenAI plugin directory (ChatGPT and Codex). Also on 20 Nov 2026: the official MCP Registry (Glama imports from it), cursor.directory (security scan pending), the Docker MCP Catalog ([docker/mcp-registry#7456](https://github.com/docker/mcp-registry/pull/7456)) and the Gemini CLI gallery (`gemini-cli-extension` repo topic).
 - Support: [rankbyai.live/support](https://rankbyai.live/support) (mees@rankbyai.live). Privacy: [/privacy](https://rankbyai.live/privacy). Terms: [/terms](https://rankbyai.live/terms).
 
 ## Stack

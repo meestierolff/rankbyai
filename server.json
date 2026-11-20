@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.meestierolff/rankbyai",
+  "name": "live.rankbyai/rankbyai",
   "title": "RankbyAI",
   "description": "Check if ChatGPT, Perplexity, Gemini and Google Maps recommend a local business, then fix it.",
   "version": "1.2.0",

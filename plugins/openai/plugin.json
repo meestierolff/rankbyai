@@ -84,7 +84,7 @@
             }
           ]
         },
-        "demo_recording_url": "REPLACE_WITH_DEMO_RECORDING_URL"
+        "demo_recording_url": "https://rankbyai.live/review/rankbyai-openai-review.mp4"
       },
       "publication": {
         "release_notes": "Initial release: AI and Google Maps visibility grids, audits with ranked fixes, Fix Kits and prospect reports, with OAuth sign-in."

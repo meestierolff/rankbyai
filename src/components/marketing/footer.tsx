@@ -52,24 +52,33 @@ export async function Footer({ padForStickyBar = false }: { padForStickyBar?: bo
             {entity ? `Operated by ${entity}${address ? `, ${address}` : ""}. ` : ""}
             {NOT_AFFILIATED}
           </div>
-          {/* Launch badge in CodeHype's own markup (their link and tracking parameter, their hosted image). */}
-          <a
-            href="https://www.codehype.ai/product/rankbyai?utm_source=codehype_badge"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-5 inline-block"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="https://www.codehype.ai/badges/rankbyai.svg?variant=find-us&v=20"
-              alt="Featured on CodeHype"
-              width={180}
-              height={65}
-              loading="lazy"
-              decoding="async"
-              style={{ display: "inline-block", border: 0, width: "100%", maxWidth: 180, height: "auto", maxHeight: 65 }}
-            />
-          </a>
+          {/* Launch badges in each site's own markup (their links, their hosted images). */}
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <a href="https://www.codehype.ai/product/rankbyai?utm_source=codehype_badge" target="_blank" rel="noopener noreferrer" className="inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://www.codehype.ai/badges/rankbyai.svg?variant=find-us&v=20"
+                alt="Featured on CodeHype"
+                width={180}
+                height={65}
+                loading="lazy"
+                decoding="async"
+                style={{ display: "inline-block", border: 0, width: "100%", maxWidth: 180, height: "auto", maxHeight: 65 }}
+              />
+            </a>
+            <a href="https://nicklaunches.com/products/rankbyai/" target="_blank" rel="noopener" className="inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://nicklaunches.com/badges/featured.png"
+                alt="RankbyAI on Nick Launches"
+                width={244}
+                height={56}
+                loading="lazy"
+                decoding="async"
+                style={{ display: "block", maxWidth: "100%", height: "auto" }}
+              />
+            </a>
+          </div>
         </div>
         <nav aria-label="Footer" className="grid grid-cols-3 content-start gap-x-5 gap-y-3 text-[15px]">
           <div className="flex flex-col gap-3">

@@ -197,6 +197,10 @@ export default function PrivacyPage() {
             <td>CodeHype</td>
             <td>The &ldquo;Featured on CodeHype&rdquo; badge in the site footer. Your browser loads the badge image from CodeHype, which then sees your IP address and browser type.</td>
           </tr>
+          <tr>
+            <td>Nick Launches</td>
+            <td>The Nick Launches badge in the site footer. Your browser loads the badge image from Nick Launches, which then sees your IP address and browser type.</td>
+          </tr>
         </tbody>
       </table>
       <p>

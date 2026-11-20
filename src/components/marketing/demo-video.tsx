@@ -12,8 +12,8 @@ const POSTER = "/demo/rankbyai-demo-poster.jpg";
 /**
  * The product demo right under the hero: the target of "See how it works ↓" (#tour).
  * Real screens of the app on one real scan (South Austin Dentist, Nov 18, 2026), edited into a
- * 77-second film without sound. It plays muted while on screen and pauses when scrolled away;
- * under reduced motion it waits for the viewer to press play. preload="none" keeps the 6 MB file
+ * 62-second film without sound. It plays muted while on screen and pauses when scrolled away;
+ * under reduced motion it waits for the viewer to press play. preload="none" keeps the 5 MB file
  * off the network until it plays.
  */
 export function DemoVideo() {

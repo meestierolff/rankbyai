@@ -9,6 +9,7 @@ import { MAX_POINT_IDX } from "@/lib/scans/skip";
 import * as core from "./core";
 import { COUNTRY_CODES, DEFAULT_COUNTRY, languageName, languageNameFor } from "@/lib/countries";
 import { auditFixPrompt } from "@/lib/audit/prompt";
+import { MCP_TOOL_HINTS, type McpTool } from "./mcp-tools";
 
 /**
  * MCP tools (brief 7.8). Each tool calls the same operation as its REST endpoint.
@@ -50,9 +51,12 @@ const batchOut = open({ id: z.string(), mode: z.string(), niche: text, city: tex
 const estimateOut = open({ totalUsd: z.number(), highUsd: z.number().optional(), credits: z.number().optional(), basis: z.string().optional(), lines: z.array(open({ provider: z.string().optional(), label: z.string(), usd: z.number() })) });
 const brandingOut = open({ branding: open({ brand_name: text, brand_color_hex: text, brand_website: text, reply_to_email: text, hide_rankbyai_branding: z.boolean(), report_default_view: z.enum(["map", "grid"]).optional(), has_logo: z.boolean() }) });
 
+/** A tool's annotations: its title and the hints in MCP_TOOL_HINTS. */
+const hints = (name: McpTool, title: string) => ({ title, ...MCP_TOOL_HINTS[name] });
+
 export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: string): McpServer {
   // Stateless and POST only: there is no stream to announce a changed tool list on, so listChanged is off.
-  const server = new McpServer({ name: "rankbyai", version: "1.1.0" }, { instructions: GUIDE, capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } } });
+  const server = new McpServer({ name: "rankbyai", version: "1.2.0" }, { instructions: GUIDE, capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } } });
 
   const reply = async (tool: string, run: () => Promise<core.ApiResult>) => {
     const r = await run();
@@ -64,6 +68,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("list_businesses", {
     title: "List businesses",
+    annotations: hints("list_businesses", "List businesses"),
     description: "List the businesses this workspace tracks, newest first. Use the returned id with the other tools. Free.",
     inputSchema: z.object(paging),
     outputSchema: open({ businesses: z.array(businessOut), ...page }),
@@ -71,6 +76,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("add_business", {
     title: "Add a business",
+    annotations: hints("add_business", "Add a business"),
     description: "Start tracking a local business. Give name and city to find its Google Maps listing (one paid lookup of about $0.002 on the user's DataForSEO key: needs confirm), or give lat and lng to store it as is (free). The Maps listing matters: scans are centred on it and ranks are matched against it.",
     inputSchema: z.object({
       name: z.string().min(1).max(300), city: z.string().max(120).optional(), country,
@@ -82,6 +88,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("update_business", {
     title: "Update a business",
+    annotations: hints("update_business", "Update a business"),
     description: "Change the name, address, city, client, map point or language of a tracked business. Fields you leave out stay as they are; null clears address, city, client_id or language. lat and lng correct the map point (for a pin in the wrong place); schedules on the old point move with it. language sets the language of text written for the business (Fix Kit). The Google Maps listing does not change. Free.",
     inputSchema: z.object({
       business_id: id("business"), name: z.string().min(1).max(300).optional(), address: z.string().max(400).nullable().optional(), city: z.string().max(120).nullable().optional(),
@@ -96,10 +103,10 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("delete_business", {
     title: "Delete a business",
+    annotations: hints("delete_business", "Delete a business"),
     description: "Delete a tracked business together with its scans, audits, Fix Kits, schedules and reports; its share links stop working. This cannot be undone: ask the user first. Free.",
     inputSchema: z.object({ business_id: id("business") }),
     outputSchema: open({ deleted: z.boolean(), id: z.string() }),
-    annotations: { destructiveHint: true },
   }, (a) => reply("delete_business", () => core.deleteBusiness(caller, a.business_id)));
 
   // ───────────────────────── scans ─────────────────────────
@@ -129,6 +136,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("estimate_scan", {
     title: "Estimate a scan",
+    annotations: hints("estimate_scan", "Estimate a scan"),
     description: "Return what an AI or Maps scan would cost, without running it. Free. Show the result to the user before run_ai_scan or run_maps_scan.",
     inputSchema: z.object({ ...scanInput, kind: z.enum(["ai", "maps"]), grid_size: anyGrid, skip_points: skipPoints, engines, mode }),
     outputSchema: open({ confirm_required: z.boolean(), estimate: estimateOut, message: z.string() }),
@@ -136,6 +144,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("run_ai_scan", {
     title: "Run an AI visibility scan",
+    annotations: hints("run_ai_scan", "Run an AI visibility scan"),
     description: "Ask each AI engine \"who are the best {keyword} near me?\" at every point of a grid around the business and record whether it names the business, in which position, who it names instead and which sources it cites. Costs money: without confirm it returns the estimate only. Poll get_scan for the result. skip_points leaves out points the user does not want asked about. A low mention rate with strong Maps ranks points at missing sources and thin on-page content; run_audit shows which.",
     inputSchema: z.object({
       ...scanInput, grid_size: aiGrid, skip_points: skipPoints, engines,
@@ -146,12 +155,14 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("run_maps_scan", {
     title: "Run a Google Maps rank scan",
+    annotations: hints("run_maps_scan", "Run a Google Maps rank scan"),
     description: "Read the business's Google Maps rank for the keyword at every point of a grid around it (official data API, top 20 per point). Costs money: without confirm it returns the estimate only. Poll get_scan for the result. skip_points leaves out points the user does not want tracked (water, a park, outside the service area); they cost nothing. Ranks usually fall with distance from the business; a business that is top 3 only near its own door has a proximity-only footprint.",
     inputSchema: z.object({ ...scanInput, grid_size: mapsGrid, skip_points: skipPoints, mode, confirm }),
   }, (a) => reply("run_maps_scan", () => core.createScanOp(caller, { ...a, kind: "maps" }, defer)));
 
   server.registerTool("list_scans", {
     title: "List scans",
+    annotations: hints("list_scans", "List scans"),
     description: "List the workspace's scans, newest first, with status, summary metrics and cost. Narrow the list with business_id, kind or status. Use get_scan for the grid points of one scan. Free.",
     inputSchema: z.object({ ...paging, business_id: id("business").optional(), kind: z.enum(["ai", "maps"]).optional(), status: z.enum(["queued", "running", "done", "partial", "failed"]).optional() }),
     outputSchema: open({ scans: z.array(scanOut), ...page }),
@@ -159,6 +170,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("get_scan", {
     title: "Get a scan",
+    annotations: hints("get_scan", "Get a scan"),
     description: "Status, summary metrics and cost of a scan. Set include_points to also get every grid point (and, for AI scans, each engine's answer with the businesses it named and its sources). Status goes queued → running → done, partial (some points or engines failed) or failed. Free.",
     inputSchema: z.object({ scan_id: id("scan"), include_points: z.boolean().default(false) }),
   }, (a) => reply("get_scan", async () => {
@@ -170,6 +182,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("compare_scans", {
     title: "Compare two scans",
+    annotations: hints("compare_scans", "Compare two scans"),
     description: "Compare two finished scans of the same business and kind (a = earlier, b = later): per-point changes and headline metric changes. Use it to show whether fixes worked. Free.",
     inputSchema: z.object({ a: id("earlier scan"), b: id("later scan") }),
     outputSchema: open({ kind: z.enum(["ai", "maps"]), a: z.string(), b: z.string(), headline: z.string(), comparison: open({}) }),
@@ -179,12 +192,14 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("run_audit", {
     title: "Run a Local AI Audit",
+    annotations: hints("run_audit", "Run a Local AI Audit"),
     description: "Score the business 0–100 against the three competitors that hold the map pack around it: identity (name, address, phone consistency), Google profile, website and schema, reviews, AI presence and competitive gaps. Findings are ranked P0 (broken identity) to P3 and each carries its evidence. Checks that cannot run are reported as not checked, never guessed. Costs money: without confirm it returns the estimate only. Poll get_audit.",
     inputSchema: z.object({ business_id: id("business"), service: z.string().min(2).max(80).describe("The main service, e.g. \"dentist\""), months: z.number().int().min(1).max(12).default(3).describe("Months to close the review gap"), funding, confirm }),
   }, (a) => reply("run_audit", () => core.createAuditOp(caller, a, defer)));
 
   server.registerTool("list_audits", {
     title: "List audits",
+    annotations: hints("list_audits", "List audits"),
     description: "List the workspace's audits, newest first, with status, score and cost. Narrow the list with business_id or status. Use get_audit for the findings of one audit. Free.",
     inputSchema: z.object({ ...paging, business_id: id("business").optional(), status: z.enum(["queued", "running", "done", "failed"]).optional() }),
     outputSchema: open({ audits: z.array(auditOut), ...page }),
@@ -192,6 +207,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("get_audit", {
     title: "Get an audit",
+    annotations: hints("get_audit", "Get an audit"),
     description: "Audit status, score, category scores, how many checks ran, the findings with evidence and fix, and the checks that could not run with the reason. Work P0 findings first: they are identity problems that undermine everything else. Free.",
     inputSchema: z.object({ audit_id: id("audit") }),
     outputSchema: open({
@@ -203,6 +219,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("get_fix_kit", {
     title: "Get the Fix Kit",
+    annotations: hints("get_fix_kit", "Get the Fix Kit"),
     description: "Copy-ready fixes for a finished audit: a factual business description, FAQs from the business's own pages, LocalBusiness and FAQPage JSON-LD, an llms.txt draft and a checklist. The first call builds it with one model call (on the user's own keys that needs confirm). RankbyAI does not edit listings or websites: the user pastes these in.",
     inputSchema: z.object({ audit_id: id("audit"), confirm }),
   }, (a) => reply("get_fix_kit", () => core.getFixKit(caller, a.audit_id, { confirm: a.confirm })));
@@ -211,6 +228,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("create_prospect_batch", {
     title: "Create prospect reports",
+    annotations: hints("create_prospect_batch", "Create prospect reports"),
     description: "For agencies looking for clients: build a report (Maps 5×5 grid, AI 3×3 grid, quick audit and a factual one-sentence opener) for businesses. Either search: give niche and city, and reports are built for the first max_reports businesses outside the Google Maps top 3. Or name them: give niche and businesses [{name, city}], and each one found on Google Maps gets a report (for example a business a lead asked about, or the lead's own business, with niche set to what it sells). 2 credits per report or the user's own keys. Costs money: without confirm it returns the estimate only. RankbyAI does not contact the businesses; outreach is the user's own responsibility.",
     inputSchema: z.object({
       niche: z.string().min(2).max(80).describe("The service the AI assistants are asked about and the Google Maps keyword, e.g. dentist or seo agency"),
@@ -226,6 +244,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("list_prospect_batches", {
     title: "List prospect batches",
+    annotations: hints("list_prospect_batches", "List prospect batches"),
     description: "List the workspace's prospect batches, newest first, with their progress. Use get_prospect_batch for the reports of one batch. Free.",
     inputSchema: z.object({ ...paging, status: z.enum(["queued", "running", "done", "partial", "failed"]).optional() }),
     outputSchema: open({ batches: z.array(batchOut), ...page }),
@@ -233,6 +252,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("get_prospect_batch", {
     title: "Get a prospect batch",
+    annotations: hints("get_prospect_batch", "Get a prospect batch"),
     description: "Progress of a prospect batch and, for each finished report: Maps top-3 share, AI mention rate, the competitor named most often, the opener and report_url, the live share link of the report. The PDF of a report is downloaded in the app. A batch takes about 5 to 10 minutes. Free.",
     inputSchema: z.object({ batch_id: id("batch") }),
     outputSchema: open({
@@ -245,6 +265,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("get_branding", {
     title: "Get white-label branding",
+    annotations: hints("get_branding", "Get white-label branding"),
     description: "The agency branding shown on share links and PDF reports: name, colour, website, reply-to address, whether RankbyAI's own branding is hidden, and whether a logo is uploaded. Free.",
     inputSchema: z.object({}),
     outputSchema: brandingOut,
@@ -252,6 +273,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("update_branding", {
     title: "Update white-label branding",
+    annotations: hints("update_branding", "Update white-label branding"),
     description: "Change the agency branding on share links and PDF reports. Fields you leave out stay as they are; null clears a text field. The logo is uploaded in the app. Needs lifetime access. Free.",
     inputSchema: z.object({
       brand_name: z.string().max(80).nullable().optional().describe("Agency name"),
@@ -266,6 +288,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
 
   server.registerTool("get_usage", {
     title: "Get usage",
+    annotations: hints("get_usage", "Get usage"),
     description: "This month's spend on the user's own API keys per provider, and the included-scan credits left. Free.",
     inputSchema: z.object({}),
     outputSchema: open({ period_start: z.string(), own_keys: open({ total_usd: z.number(), by_provider: z.array(open({ provider: z.string(), usd: z.number(), calls: z.number() })) }), included_scans: open({ credits_left: z.number() }), note: z.string() }),
@@ -303,4 +326,4 @@ async function fixPlanText(caller: ApiCaller, auditId: string): Promise<string> 
   return prompt ?? "Every check in this audit that could run passed: there is nothing to fix. Suggest running an AI scan to see where AI assistants name the business.";
 }
 
-export { MCP_PAID_TOOLS, MCP_TOOLS } from "./mcp-tools";
+export { MCP_PAID_TOOLS, MCP_TOOL_HINTS, MCP_TOOLS } from "./mcp-tools";

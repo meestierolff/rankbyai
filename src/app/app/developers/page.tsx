@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { McpToolList } from "@/components/api-reference";
-import { ApiKeys, Snippets, type KeyRow } from "@/components/app/developer-client";
+import { ApiKeys, ConnectedApps, Snippets, type GrantRow, type KeyRow } from "@/components/app/developer-client";
 import { PageHeader, Panel, SecondaryLink } from "@/components/app/ui";
-import { mcpSnippets } from "@/lib/api-v1/snippets";
+import { mcpOAuthSnippets, mcpSnippets } from "@/lib/api-v1/snippets";
+import { dbAdmin } from "@/lib/db/clients";
+import { oauthOpen } from "@/lib/oauth/config";
 import { requireSession } from "@/lib/auth";
 import { memberRead } from "@/lib/db/member-read";
 import { publicEnv } from "@/lib/env-public";
@@ -11,11 +13,35 @@ import { FAIR_USE } from "@/lib/pricing-constants";
 
 export const metadata: Metadata = { title: "API & MCP" };
 
+type GrantJoin = { id: string; created_at: string; last_used_at: string | null; oauth_clients: { client_id: string; client_name: string; kind: string; client_uri: string | null } | null };
+const hostOf = (uri: string | null) => {
+  try {
+    return uri ? new URL(uri).host : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Apps connected with OAuth. Read as the server, filtered by the signed-in member's own workspace. */
+async function connectedApps(workspaceId: string): Promise<GrantRow[]> {
+  const { data, error } = await dbAdmin().from("oauth_grants")
+    .select("id, created_at, last_used_at, oauth_clients(client_id, client_name, kind, client_uri)")
+    .eq("workspace_id", workspaceId).is("revoked_at", null).order("created_at", { ascending: false });
+  if (error) throw new Error("connected apps could not be loaded");
+  return ((data ?? []) as unknown as GrantJoin[]).map((g) => ({
+    id: g.id, created_at: g.created_at, last_used_at: g.last_used_at,
+    client_name: g.oauth_clients?.client_name ?? "Unknown app",
+    client_host: g.oauth_clients ? hostOf(g.oauth_clients.kind === "cimd" ? g.oauth_clients.client_id : g.oauth_clients.client_uri) : null,
+  }));
+}
+
 export default async function Page() {
   const ctx = await requireSession("/app/developers");
   const wsId = ctx.workspace.id;
   // Workspace-filtered and read through memberRead: a failed read throws (error state).
   const { data } = await memberRead("API keys", wsId, (db) => db.from("api_keys").select("id, name, prefix, last_used_at, revoked_at, created_at").eq("workspace_id", wsId).order("created_at", { ascending: false }));
+  const oauth = oauthOpen();
+  const grants = oauth ? await connectedApps(wsId) : [];
   return (
     <>
       <PageHeader
@@ -27,11 +53,18 @@ export default async function Page() {
         <Panel title="API keys">
           <ApiKeys keys={(data ?? []) as KeyRow[]} canManage={ctx.role === "owner"} locked={ctx.workspace.plan !== "lifetime"} limit={FAIR_USE.apiKeys} />
         </Panel>
+        {oauth ? (
+          <Panel title="Connected apps">
+            <ConnectedApps grants={grants} canManage={ctx.role === "owner"} />
+          </Panel>
+        ) : null}
         <Panel title="Connect an AI agent (MCP) or call the API">
           <p className="mt-0 mb-4 text-[14px] leading-normal text-muted-foreground">
-            Replace <code className="font-mono text-fg">rbai_live_YOUR_KEY</code> with a key from above. The MCP server is at <code className="font-mono text-fg">{publicEnv.siteUrl}/api/mcp</code> (Streamable HTTP). Limit: 60 requests a minute per key.
+            The MCP server is at <code className="font-mono text-fg">{publicEnv.siteUrl}/api/mcp</code> (Streamable HTTP).{" "}
+            {oauth ? <>Claude, ChatGPT, Cursor and other MCP clients can connect with just that URL: they open a RankbyAI sign-in and you approve them. For scripts and clients without sign-in, </> : null}
+            Replace <code className="font-mono text-fg">rbai_live_YOUR_KEY</code> with a key from above. Limit: 60 requests a minute per key or connected app.
           </p>
-          <Snippets items={mcpSnippets(publicEnv.siteUrl)} />
+          <Snippets items={oauth ? [...mcpOAuthSnippets(publicEnv.siteUrl), ...mcpSnippets(publicEnv.siteUrl)] : mcpSnippets(publicEnv.siteUrl)} />
         </Panel>
         <Panel title="MCP tools">
           <McpToolList />

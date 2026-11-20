@@ -6,6 +6,91 @@ Live site: https://rankbyai.live · Built in public for the Ship or Die $100K Ha
 
 > Not affiliated with or endorsed by OpenAI, Perplexity, Google or DataForSEO. RankbyAI is not the first or only AI visibility grid tool; Local Falcon and BrightLocal also offer one. The difference is how you pay.
 
+## MCP server
+
+RankbyAI is a remote [Model Context Protocol](https://modelcontextprotocol.io) server, so AI assistants can add businesses, run AI and Google Maps grids, audit a business and build its Fix Kit for the user.
+
+- **Endpoint:** `https://rankbyai.live/api/mcp`, Streamable HTTP, stateless (POST only; no `Mcp-Session-Id`, so `GET` answers `405`).
+- **Tools:** 20, plus one prompt, `fix_plan`. Every tool that costs money returns its estimate first and runs only with `confirm: true`.
+- **Limit:** 60 requests a minute per API key or connected app.
+
+### Authentication
+
+Both ways use `Authorization: Bearer …`.
+
+1. **OAuth 2.1 sign-in (for Claude, ChatGPT, Cursor, Gemini CLI and other MCP clients).** The client needs only the URL. A request without a token gets `401` with `WWW-Authenticate: Bearer resource_metadata="https://rankbyai.live/.well-known/oauth-protected-resource/api/mcp", scope="mcp"`. The client reads the [protected resource metadata](https://rankbyai.live/.well-known/oauth-protected-resource) and the [authorization server metadata](https://rankbyai.live/.well-known/oauth-authorization-server), and registers itself with dynamic client registration (`/oauth/register`) or a Client ID Metadata Document. It then opens `/oauth/authorize`, where the user signs in with their RankbyAI (Google) account and the workspace owner approves the app.
+   - Authorization code with PKCE `S256` only, and `iss` on every authorization response (RFC 9207).
+   - The one scope is `mcp`. Tokens are bound to `https://rankbyai.live/api/mcp` (RFC 8707) and to the approved workspace.
+   - Access tokens last one hour. Refresh tokens last 30 days and rotate on every use; replaying an old one revokes its family.
+   - Revocation is at `/oauth/revoke` (RFC 7009). Owners also see and disconnect apps under **API & MCP** in the app.
+   - OAuth tokens never open the REST API, and no token or response ever contains the user's stored vendor API keys.
+   - The OAuth endpoints are live once the deployment has `MCP_OAUTH=1` (after migration `db/migrations/0012_mcp_oauth.sql`).
+2. **API key (for scripts and clients without sign-in).** Create one in the app under **API & MCP**, and send it as `Authorization: Bearer rbai_live_…`. These are the same keys as the REST API (see [/docs/api](https://rankbyai.live/docs/api)).
+
+### Tools
+
+| Tool | What it does | Hints |
+|---|---|---|
+| `list_businesses` | List the workspace's businesses | read-only |
+| `add_business` | Track a business (Google Maps lookup needs `confirm`) | adds, open world |
+| `update_business` | Change name, address, client, map point or language | destructive (overwrites) |
+| `delete_business` | Delete a business with its scans, audits and reports | destructive |
+| `estimate_scan` | Cost of an AI or Maps scan, without running it | read-only |
+| `run_ai_scan` | Ask ChatGPT, Perplexity and Gemini at every grid point (paid, `confirm`) | adds, open world |
+| `run_maps_scan` | Google Maps rank at every grid point (paid, `confirm`) | adds, open world |
+| `list_scans`, `get_scan`, `compare_scans` | Scans, their points and answers, and before/after comparisons | read-only |
+| `run_audit` | Local AI Audit against the map pack (paid, `confirm`) | adds, open world |
+| `list_audits`, `get_audit` | Audits, findings P0 to P3 with evidence | read-only |
+| `get_fix_kit` | Copy-ready fixes for a finished audit (built once) | adds, idempotent, open world |
+| `create_prospect_batch` | Prospect reports for agencies (paid, `confirm`) | adds, open world |
+| `list_prospect_batches`, `get_prospect_batch` | Prospect batches and their report links | read-only |
+| `get_branding`, `update_branding` | White-label branding on reports | read-only / destructive (overwrites) |
+| `get_usage` | This month's own-key spend and credits left | read-only |
+
+Every tool carries MCP annotations: `title`, `readOnlyHint`, `destructiveHint` (when not read-only), `idempotentHint` and `openWorldHint`. The source of truth is `MCP_TOOL_HINTS` in `src/lib/api-v1/mcp-tools.ts`.
+
+### Connect a client
+
+**Claude (claude.ai and Claude Desktop):** Settings → Connectors → Add custom connector, paste `https://rankbyai.live/api/mcp`, then Connect and sign in.
+
+**ChatGPT:** create an app or connector in developer mode with the URL `https://rankbyai.live/api/mcp` and OAuth authentication; ChatGPT registers itself and opens the RankbyAI sign-in.
+
+**Cursor** (`~/.cursor/mcp.json`; Cursor signs in with OAuth by itself):
+
+```json
+{
+  "mcpServers": {
+    "rankbyai": { "url": "https://rankbyai.live/api/mcp" }
+  }
+}
+```
+
+With an API key instead:
+
+```json
+{
+  "mcpServers": {
+    "rankbyai": { "url": "https://rankbyai.live/api/mcp", "headers": { "Authorization": "Bearer rbai_live_YOUR_KEY" } }
+  }
+}
+```
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http rankbyai https://rankbyai.live/api/mcp          # then /mcp to sign in
+claude mcp add --transport http rankbyai https://rankbyai.live/api/mcp \
+  --header "Authorization: Bearer rbai_live_YOUR_KEY"                          # or with an API key
+```
+
+**Gemini CLI:** `gemini extensions install https://github.com/meestierolff/rankbyai` (the manifest is [`gemini-extension.json`](gemini-extension.json)).
+
+### Directory listings
+
+- [`server.json`](server.json): the entry for the official MCP Registry, named `io.github.meestierolff/rankbyai`, with one `streamable-http` remote. To publish, run `mcp-publisher login github` as `meestierolff`, then `mcp-publisher publish`.
+- [`gemini-extension.json`](gemini-extension.json): the Gemini CLI extension. The gallery lists repositories that carry the `gemini-cli-extension` topic.
+- Support: [rankbyai.live/support](https://rankbyai.live/support) (mees@rankbyai.live). Privacy: [/privacy](https://rankbyai.live/privacy). Terms: [/terms](https://rankbyai.live/terms).
+
 ## Stack
 
 - Next.js 16 (App Router, Cache Components, TypeScript strict), Tailwind CSS v4, shadcn/ui
@@ -28,6 +113,8 @@ Live site: https://rankbyai.live · Built in public for the Ship or Die $100K Ha
 | `db/migrations` | Schema, RLS policies, functions (plain Postgres SQL) |
 | `db/local`, `scripts/db.mjs` | Local database stack (Postgres + PostgREST in Docker) and the migration runner |
 | `src/lib/db` | Database clients and the short-lived tokens the server signs for the Data API |
+| `src/lib/api-v1`, `src/app/api/mcp` | REST API, OpenAPI document and the MCP server (tools, annotations) |
+| `src/lib/oauth`, `src/app/oauth`, `src/app/.well-known` | OAuth 2.1 authorization server for the MCP server: metadata, registration, consent, tokens |
 | `tests/unit`, `tests/db` | Unit tests and tests that run against a real local Postgres |
 | `docs/` | Setup, progress log, vendor API notes |
 

@@ -137,10 +137,14 @@ export function checkCustomHostname(input: string, primaryHost: string = primary
 const DATA_PREFIX = String.raw`(?:\/_next\/data\/[^/]+)?`;
 const TRANSPORT = String.raw`(?:\.json|\.rsc|\.segments\/.+\.segment(?:\.rsc)?)?`;
 const OLD_MATCHER = new RegExp(
-  String.raw`^${DATA_PREFIX}(?:\/(?:app|admin|free-check|r)(?:\/.*)?${TRANSPORT}|\/ai\/[^/]+\/[^/]+?${TRANSPORT})\/?$`,
+  String.raw`^${DATA_PREFIX}(?:\/(?:app|admin|free-check|r)(?:\/.*)?${TRANSPORT}|\/ai\/[^/]+\/[^/]+?${TRANSPORT}|\/oauth\/authorize${TRANSPORT})\/?$`,
 );
 
-/** The paths the proxy handled before custom domains existed: its old matcher, as Next compiles it. Pure. */
+/**
+ * The paths the proxy handles on the main site: its string matchers, as Next compiles them. Pure.
+ * /oauth/authorize is among them because the Neon Auth middleware turns the verifier a Google
+ * sign-in returns with into the session cookie; without it a signed-out user would loop to /login.
+ */
 export function isPrimaryProxyPath(path: string): boolean {
   return OLD_MATCHER.test(path);
 }

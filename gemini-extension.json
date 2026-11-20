@@ -1,0 +1,10 @@
+{
+  "name": "rankbyai",
+  "version": "1.2.0",
+  "description": "Check whether ChatGPT, Perplexity, Gemini and Google Maps recommend a local business, point by point on a map, and get a ranked fix list.",
+  "mcpServers": {
+    "rankbyai": {
+      "httpUrl": "https://rankbyai.live/api/mcp"
+    }
+  }
+}

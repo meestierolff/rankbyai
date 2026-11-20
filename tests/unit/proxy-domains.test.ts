@@ -180,8 +180,8 @@ describe("matcher (compiled by Next's own code)", async () => {
 
   it("on the main site, the proxy runs on exactly the old paths", () => {
     for (const host of ["rankbyai.live", "www.rankbyai.live", "rankbyai-preview.vercel.app", "localhost:3100", "127.0.0.1:3100", "RANKBYAI.LIVE"]) {
-      for (const p of ["/app", "/app/settings", "/admin", "/free-check/x", `/r/${SLUG_A}`, "/ai/dentist/austin"]) expect(runs(host, p), `${host}${p}`).toBe(true);
-      for (const p of ["/", "/login", "/pricing", "/api/scans", "/_next/static/chunks/a.js", "/robots.txt"]) expect(runs(host, p), `${host}${p}`).toBe(false);
+      for (const p of ["/app", "/app/settings", "/admin", "/free-check/x", `/r/${SLUG_A}`, "/ai/dentist/austin", "/oauth/authorize"]) expect(runs(host, p), `${host}${p}`).toBe(true);
+      for (const p of ["/", "/login", "/pricing", "/api/scans", "/_next/static/chunks/a.js", "/robots.txt", "/oauth/token", "/oauth/authorize/decision", "/.well-known/oauth-authorization-server"]) expect(runs(host, p), `${host}${p}`).toBe(false);
     }
   });
 
@@ -194,6 +194,7 @@ describe("matcher (compiled by Next's own code)", async () => {
       "/r", `/r/${SLUG_A}`, `/r/${SLUG_A}.rsc`, `/r/${SLUG_A}.segments/_tree.segment.rsc`, `/r/${SLUG_A}/opengraph-image`,
       "/ai", "/ai/x", "/ai/x/y", "/ai/x/y/", "/ai/x/y.rsc", "/ai/x/y.segments/_tree.segment.rsc", "/ai/x/y/z",
       "/_next/data/build123/app.json", "/_next/data/build123/pricing.json", "/_next/static/chunks/a.js", "/api/scans",
+      "/oauth/authorize", "/oauth/authorize.rsc", "/oauth/authorize/decision", "/oauth/token", "/oauth",
     ];
     for (const p of paths) {
       const next = legacy(p, { headers: { host: "rankbyai.live" } } as never, {});

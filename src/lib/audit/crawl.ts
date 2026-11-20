@@ -66,6 +66,25 @@ async function defaultResolve(host: string): Promise<string[]> {
   }
 }
 
+/**
+ * An undici dispatcher whose connections can only go to `addresses`, the ones resolvePublic just
+ * validated. Without this, a hostile DNS server could answer "public" for the check and "internal"
+ * for the connection (DNS rebinding). Close it after the request.
+ */
+export function pinnedAgent(addresses: string[]): Agent {
+  return new Agent({
+    connect: {
+      lookup: (_host, opts, cb) => {
+        const list = addresses.map((address) => ({ address, family: isIP(address) }));
+        // Node asks for all addresses (autoSelectFamily) or for a single one, depending on the version.
+        const reply = cb as unknown as (err: Error | null, a: unknown, family?: number) => void;
+        if ((opts as { all?: boolean }).all) reply(null, list);
+        else reply(null, list[0].address, list[0].family);
+      },
+    },
+  });
+}
+
 export interface FetchedPage {
   url: string;
   status: number;
@@ -83,19 +102,7 @@ export async function fetchPage(raw: string, accept = "text/html"): Promise<Fetc
     } catch {
       return null;
     }
-    // Pin the connection to the addresses we just validated. Without this, a hostile DNS server could
-    // answer "public" for the check and "internal" for the connection (DNS rebinding).
-    const agent = new Agent({
-      connect: {
-        lookup: (_host, opts, cb) => {
-          const list = addresses.map((address) => ({ address, family: isIP(address) }));
-          // Node asks for all addresses (autoSelectFamily) or for a single one, depending on the version.
-          const reply = cb as unknown as (err: Error | null, a: unknown, family?: number) => void;
-          if ((opts as { all?: boolean }).all) reply(null, list);
-          else reply(null, list[0].address, list[0].family);
-        },
-      },
-    });
+    const agent = pinnedAgent(addresses);
     let res: Awaited<ReturnType<typeof pinnedFetch>>;
     try {
       res = await pinnedFetch(url, { headers: { "User-Agent": UA, Accept: `${accept},*/*;q=0.5` }, redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS), dispatcher: agent });

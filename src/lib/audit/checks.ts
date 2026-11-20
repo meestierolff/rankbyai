@@ -3,6 +3,8 @@ import type { BusinessInfo } from "@/lib/providers/dataforseo";
 import { normalizeName, normalizePhone } from "@/lib/scans/match";
 import type { PageFacts } from "./crawl";
 import { median, pageMath, reviewTarget } from "./math";
+import { DIRECT_ANSWER, isDirectAnswer, moneyPages, namesService, pageIsAbout, pathOf, type PageSummary } from "./onpage";
+import { crawlerAccess, type CrawlerTier } from "./robots";
 
 /**
  * Local AI Audit (brief 7.4): deterministic checks over stored inputs.
@@ -46,7 +48,14 @@ export interface AuditInputs {
   months: number;
   profile: BusinessInfo | null;
   competitors: { name: string; profile: BusinessInfo | null }[];
-  site: { home: PageFacts | null; pages: Pick<PageFacts, "url" | "title" | "h1">[]; hasLlmsTxt: boolean | null; knownPages: number } | null;
+  site: {
+    home: PageFacts | null;
+    pages: (Pick<PageFacts, "url" | "title" | "h1"> & Partial<Pick<PageFacts, "intro" | "h2Sections">>)[];
+    hasLlmsTxt: boolean | null;
+    knownPages: number;
+    /** The /robots.txt response; null or absent when it could not be fetched (the crawler check is then not run). */
+    robots?: { status: number; text: string } | null;
+  } | null;
   ai: {
     scanDate: string;
     points: number;
@@ -236,6 +245,7 @@ export function runChecks(inp: AuditInputs): CheckResult[] {
       out.push(skip(key, "website", pr, t, inp.business.website ? "The website could not be fetched." : "The business has no website on record."));
     }
   }
+  out.push(...findabilityChecks(inp));
 
   // ── Reviews ──
   const rivalReviews = rivals.map((r) => r.profile!.reviews).filter((n): n is number => n != null);
@@ -338,6 +348,128 @@ export function runChecks(inp: AuditInputs): CheckResult[] {
       impact: "These sources feed answers that currently name other businesses.",
     };
     out.push(only.length === 0 ? ok({ ...base, title: "No competitor-only sources found" }) : bad({ ...base, title: `${only.length} sources appear only in answers that name other businesses` }));
+  }
+  return out;
+}
+
+const TIER_PRIORITY: Record<Exclude<CrawlerTier, "training">, Priority> = { search: "P0", ai_search: "P1", user_fetch: "P2" };
+const TIER_LABEL: Record<Exclude<CrawlerTier, "training">, string> = { search: "search engine crawlers", ai_search: "AI search crawlers", user_fetch: "AI assistants opening pages for a user" };
+
+/** Short opening of a text for evidence: its first `n` words. */
+const firstWords = (s: string, n: number) => {
+  const w = s.split(/\s+/).filter(Boolean);
+  return w.length > n ? `${w.slice(0, n).join(" ")}…` : w.join(" ");
+};
+
+/**
+ * Can search and AI systems find and quote the site? Crawler access from robots.txt, a page for the
+ * audited service, and the money pages written so a model can lift a passage: the service and the
+ * city up front, subheadings, and a short answer under each subheading.
+ */
+function findabilityChecks(inp: AuditInputs): CheckResult[] {
+  const out: CheckResult[] = [];
+  const home = inp.site?.home ?? null;
+  const noSite = inp.business.website ? "The website could not be fetched." : "The business has no website on record.";
+  const keys = [
+    ["ai_crawlers", "P0", "Search and AI crawlers may read the site"],
+    ["service_page", "P1", "A page is about the audited service"],
+    ["money_opening", "P2", "Money pages name the service and the city in their opening words"],
+    ["money_subheadings", "P2", "Money pages are split into sections with subheadings"],
+    ["answer_first", "P2", "Sections open with a short, direct answer"],
+  ] as const;
+  if (!home || !inp.site) return keys.map(([key, pr, t]) => skip(key, "website", pr, t, noSite));
+
+  const service = inp.service;
+  const pages: PageSummary[] = inp.site.pages.map((p) => ({ url: p.url, title: p.title, h1: p.h1, intro: p.intro ?? "", h2Sections: p.h2Sections ?? [] }));
+  const money = moneyPages(service, home, pages);
+  const robotsUrl = new URL("/robots.txt", home.url).toString();
+
+  // ── Crawler access ──
+  const access = inp.site.robots === undefined ? null : crawlerAccess(inp.site.robots, money.map((p) => pathOf(p.url)));
+  if (!access) out.push(skip("ai_crawlers", "website", "P0", keys[0][2], "robots.txt could not be read (no answer or a server error), so crawler access is unknown."));
+  else {
+    const hurting = access.blocked.filter((b) => b.tier !== "training");
+    const training = access.blocked.filter((b) => b.tier === "training");
+    const worst = (["search", "ai_search", "user_fetch"] as const).find((t) => hurting.some((b) => b.tier === t));
+    const evidence: Evidence[] = [
+      { label: "/robots.txt", value: access.hasRobots ? "found" : "none (nothing is blocked by it)", source_url: robotsUrl },
+      { label: "Pages checked", value: access.paths.join(", ") },
+      ...hurting.map((b) => ({ label: `${b.agent} (${b.serves})`, value: `blocked at ${b.paths.join(", ")}` })),
+      { label: "Training-only crawlers blocked (no effect on answers)", value: training.length ? training.map((b) => b.agent).join(", ") : "none" },
+    ];
+    const impact = "A crawler that may not read a page cannot index it, so the search engine or assistant it feeds cannot show or quote it.";
+    if (!worst) out.push(ok({ key: "ai_crawlers", category: "website", priority: "P0", title: keys[0][2], evidence, fix: "", impact }));
+    else {
+      const names = hurting.filter((b) => b.tier === worst).map((b) => b.agent);
+      out.push(bad({
+        key: "ai_crawlers", category: "website", priority: TIER_PRIORITY[worst], evidence, impact,
+        title: `robots.txt blocks ${TIER_LABEL[worst]}: ${names.join(", ")}`,
+        fix: `Remove the Disallow rules for ${hurting.map((b) => b.agent).join(", ")} in robots.txt, or give each its own group with “Allow: /”. Blocking training-only crawlers (GPTBot, ClaudeBot, CCBot) is fine and does not affect answers. Also check the firewall or bot protection, for example a “block AI bots” setting, which robots.txt does not show.`,
+      }));
+    }
+  }
+
+  // ── A page for the service ──
+  const aboutPage = [home, ...pages].find((p) => pageIsAbout(service, p));
+  const servicePageBase = {
+    key: "service_page", category: "website" as const, priority: "P1" as const,
+    impact: "A page about one service is what search engines rank, and what AI assistants find and quote, for that service.",
+  };
+  if (aboutPage) {
+    out.push(ok({ ...servicePageBase, title: `A page is about ${service}`, fix: "", evidence: [{ label: "Page", value: aboutPage.title ?? pathOf(aboutPage.url), source_url: aboutPage.url }, { label: "Service", value: service }] }));
+  } else if (pages.length === 0) {
+    out.push(skip("service_page", "website", "P1", keys[1][2], "Only the homepage could be read, and it is not about this service; other pages were not checked."));
+  } else {
+    out.push(bad({
+      ...servicePageBase, title: `No page is about “${service}”`,
+      evidence: [{ label: "Service", value: service }, { label: "Pages read", value: String(1 + pages.length) }, { label: "Looked for in", value: "page addresses, titles and H1 headings" }],
+      fix: `Build a page for ${service}: name the service and the city in its address, title and H1, and link to it from the homepage.`,
+    }));
+  }
+
+  // ── Opening words of the money pages ──
+  const city = inp.business.city?.split(",")[0].trim() ?? "";
+  if (!city) out.push(skip("money_opening", "website", "P2", keys[2][2], "The business has no city on record."));
+  else {
+    const rows = money.map((p) => ({ p, service: namesService(service, [p.intro]), city: p.intro.toLowerCase().includes(city.toLowerCase()) }));
+    const missing = rows.filter((r) => !r.service || !r.city);
+    const evidence: Evidence[] = [
+      { label: "Money pages checked", value: String(rows.length) }, { label: "Pages missing the service or the city", value: String(missing.length) }, { label: "Looked for", value: `${service} · ${city}` },
+      ...rows.map((r) => ({ label: pathOf(r.p.url), value: `service ${r.service ? "yes" : "no"} · city ${r.city ? "yes" : "no"} · opens “${firstWords(r.p.intro, 12) || "(no text found)"}”`, source_url: r.p.url })),
+    ];
+    const base = { key: "money_opening", category: "website" as const, priority: "P2" as const, evidence, impact: "The opening of a page is the passage search and AI systems read first and quote most." };
+    out.push(missing.length === 0
+      ? ok({ ...base, title: keys[2][2], fix: "" })
+      : bad({ ...base, title: `The opening words of ${missing.length} of ${rows.length} money pages miss the service or the city`, fix: `Start each money page with the service and the city in the H1 and the first sentence, for example “${service} in ${city}”.` }));
+  }
+
+  // ── Subheadings ──
+  const MIN_H2 = 2;
+  const thin = money.filter((p) => p.h2Sections.length < MIN_H2);
+  const subEvidence: Evidence[] = [
+    { label: "Money pages checked", value: String(money.length) }, { label: "Pages with too few subheadings", value: String(thin.length) }, { label: "Needed per page", value: `${MIN_H2} or more H2 subheadings` },
+    ...money.map((p) => ({ label: pathOf(p.url), value: `${p.h2Sections.length} H2 subheadings`, source_url: p.url })),
+  ];
+  const subBase = { key: "money_subheadings", category: "website" as const, priority: "P2" as const, evidence: subEvidence, impact: "Subheadings split a page into passages that each answer one question, which is the unit AI assistants take." };
+  out.push(thin.length === 0
+    ? ok({ ...subBase, title: keys[3][2], fix: "" })
+    : bad({ ...subBase, title: `${thin.length} of ${money.length} money pages have fewer than ${MIN_H2} subheadings`, fix: "Split each money page into sections with H2 subheadings for the questions customers ask: prices, the areas served, emergencies, how it works." }));
+
+  // ── A short answer under each subheading ──
+  const sections = money.flatMap((p) => p.h2Sections.map((s) => ({ ...s, url: p.url })));
+  if (sections.length < MIN_H2) out.push(skip("answer_first", "website", "P2", keys[4][2], `Fewer than ${MIN_H2} subheadings on the money pages to check.`));
+  else {
+    const direct = sections.filter(isDirectAnswer);
+    const long = sections.filter((s) => !isDirectAnswer(s));
+    const evidence: Evidence[] = [
+      { label: "Sections checked", value: String(sections.length) }, { label: "Sections that open with a short answer", value: String(direct.length) },
+      { label: "Short answer", value: `the first ${DIRECT_ANSWER.sentences} sentences under the subheading, ${DIRECT_ANSWER.minWords} to ${DIRECT_ANSWER.maxWords} words` },
+      ...long.slice(0, 4).map((s) => ({ label: s.heading.slice(0, 80), value: s.words === 0 ? "no text before the next heading" : `opens with ${s.words} words in ${DIRECT_ANSWER.sentences} sentences`, source_url: s.url })),
+    ];
+    const base = { key: "answer_first", category: "website" as const, priority: "P2" as const, evidence, impact: "AI assistants quote a passage, not the whole page: a short answer right under the subheading is the passage they can lift." };
+    out.push(direct.length / sections.length >= DIRECT_ANSWER.passShare
+      ? ok({ ...base, title: keys[4][2], fix: "" })
+      : bad({ ...base, title: `${direct.length} of ${sections.length} sections open with a short, direct answer`, fix: `Answer the subheading in the first ${DIRECT_ANSWER.sentences} sentences under it, in ${DIRECT_ANSWER.maxWords} words or fewer, then add the detail.` }));
   }
   return out;
 }

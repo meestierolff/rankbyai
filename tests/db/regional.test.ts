@@ -38,7 +38,7 @@ afterAll(async () => {
 describe("what may be published", () => {
   it("own-key scans are private unless the workspace opted in", async () => {
     await aiScan("byok");
-    expect(await rebuildRegionalPages()).toEqual({ pages: 0, indexable: 0 });
+    expect(await rebuildRegionalPages()).toEqual({ pages: 0, indexable: 0, announced: 0 });
     expect(await sql("select 1 from public.regional_pages")).toEqual([]);
 
     await sql("update public.workspaces set share_scans_for_regional_pages = true where id = $1", [u.workspaceId]);
@@ -55,7 +55,7 @@ describe("what may be published", () => {
     expect(await listRegionalPages(true)).toEqual([]); // and not in the index or the sitemap
 
     await aiScan("credits");
-    expect(await rebuildRegionalPages()).toEqual({ pages: 1, indexable: 1 });
+    expect(await rebuildRegionalPages()).toEqual({ pages: 1, indexable: 1, announced: 0 }); // IndexNow pings only in production
     const page = (await getRegionalPage("dentists", "austin"))!;
     expect(page).toMatchObject({ sample_count: 54, scans_count: 2, indexable: true });
     expect(page.labels).toEqual({ niche: "dentists", city: "Austin", region: "Texas", country: "US" });

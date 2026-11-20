@@ -142,10 +142,13 @@ describe("score", () => {
   it("a business that passes everything scores 100", () => {
     const html = `<html><head><title>Northgate Family Dental | Dentists in Austin</title>
       <script type="application/ld+json">[{"@type":"Dentist","name":"Northgate Family Dental","telephone":"+1 512-555-0174","address":"100 North Loop Blvd, Austin, TX 78751"},{"@type":"FAQPage"}]</script></head>
-      <body><h1>Dentists in Austin</h1><h2>FAQ</h2><a href="tel:+15125550174">Call</a> 100 North Loop Blvd, Austin, TX 78751 <iframe src="https://www.google.com/maps/embed?x"></iframe></body></html>`;
+      <body><h1>Dentists in Austin</h1><p>Family dentists in Austin for check-ups, fillings and crowns.</p>
+      <h2>Do you take new patients?</h2><p>Yes, we take new patients every week. Most visits are booked within three days.</p>
+      <h2>FAQ</h2><p>Answers to the questions patients ask us most often.</p>
+      <a href="tel:+15125550174">Call</a> 100 North Loop Blvd, Austin, TX 78751 <iframe src="https://www.google.com/maps/embed?x"></iframe></body></html>`;
     const perfect = inputs({
       profile: profile({ reviews: 500, totalPhotos: 90, additionalCategories: ["a", "b", "c"], rating: 4.9 }),
-      site: { home: extractFacts("https://northgate.example/", html), pages: [], hasLlmsTxt: true, knownPages: 60 },
+      site: { home: extractFacts("https://northgate.example/", html), pages: [], hasLlmsTxt: true, knownPages: 60, robots: { status: 200, text: "User-agent: GPTBot\nDisallow: /\n\nUser-agent: *\nAllow: /" } },
       services: { yours: ["Check-ups"], missing: [], method: "heuristic" },
       areas: { names: ["North Loop"], radiusMiles: 10 },
     });
@@ -167,5 +170,71 @@ describe("review gap advice stays plausible", () => {
   });
   it("states only the gap when even a year is not realistic", () => {
     expect(reviewFix(2000, 667, 3)).not.toMatch(/a month/);
+  });
+});
+
+describe("findability: crawler access, service page, money pages", () => {
+  const page = (url: string, html: string) => extractFacts(url, html);
+  const servicePage = (body: string) => page("https://northgate.example/dentists-austin", `<html><head><title>Dentists in Austin | Northgate</title></head><body><nav><a href="/">Home</a> <h2>Menu</h2></nav>${body}<footer><h2>Contact us</h2><p>Call today.</p></footer></body></html>`);
+  const withSite = (over: Partial<NonNullable<AuditInputs["site"]>>) => inputs({ site: { ...inputs().site!, ...over } });
+  const check = (inp: AuditInputs, key: string) => runChecks(inp).find((c) => c.key === key)!;
+
+  it("robots.txt that blocks an AI search crawler is a P1 finding; blocking only training crawlers passes", () => {
+    const blocked = check(withSite({ robots: { status: 200, text: "User-agent: GPTBot\nDisallow: /\n\nUser-agent: OAI-SearchBot\nDisallow: /" } }), "ai_crawlers");
+    expect(blocked).toMatchObject({ status: "fail", priority: "P1", title: "robots.txt blocks AI search crawlers: OAI-SearchBot" });
+    expect(blocked.evidence.find((e) => e.label.startsWith("Training-only"))?.value).toBe("GPTBot");
+    expect(check(withSite({ robots: { status: 200, text: "User-agent: GPTBot\nUser-agent: ClaudeBot\nDisallow: /" } }), "ai_crawlers").status).toBe("pass");
+  });
+
+  it("a search engine crawler blocked is P0; no robots.txt passes; an unreadable one is not checked", () => {
+    expect(check(withSite({ robots: { status: 200, text: "User-agent: *\nDisallow: /" } }), "ai_crawlers")).toMatchObject({ status: "fail", priority: "P0" });
+    expect(check(withSite({ robots: { status: 404, text: "" } }), "ai_crawlers").status).toBe("pass");
+    expect(check(withSite({ robots: null }), "ai_crawlers").status).toBe("not_checked");
+    expect(check(withSite({ robots: { status: 503, text: "" } }), "ai_crawlers").status).toBe("not_checked");
+  });
+
+  it("finds a service page by word root (plumber → Plumbing), and says 'not checked' when only the homepage was read", () => {
+    const plumbing = { ...inputs(), service: "emergency plumber" };
+    const pages = [{ url: "https://northgate.example/emergency-plumbing", title: "24/7 Emergency Plumbing", h1: ["Emergency plumbing in Austin"] }];
+    expect(check({ ...plumbing, site: { ...plumbing.site!, pages } }, "service_page").status).toBe("pass");
+    const other = [{ url: "https://northgate.example/drains", title: "Drain cleaning", h1: ["Drain cleaning"] }];
+    expect(check({ ...plumbing, site: { ...plumbing.site!, pages: other } }, "service_page")).toMatchObject({ status: "fail", title: "No page is about “emergency plumber”" });
+    expect(check({ ...plumbing, site: { ...plumbing.site!, pages: [] } }, "service_page").status).toBe("not_checked");
+  });
+
+  it("checks the opening words, subheadings and short answers of the money pages, not the menu or footer", () => {
+    const good = servicePage(`<h1>Dentists in Austin</h1><p>Northgate is a family dental practice in Austin.</p>
+      <h2>How much is a check-up?</h2><p>A check-up with cleaning costs the same as most practices nearby. We send the price before you book.</p>
+      <h2>Do you see children?</h2><p>Yes, we see children from their first tooth.</p>`);
+    expect(good.intro.startsWith("Dentists in Austin Northgate")).toBe(true);
+    expect(good.h2Sections.map((s) => s.heading)).toEqual(["How much is a check-up?", "Do you see children?"]);
+    // The homepage is a money page too, so it needs the same structure.
+    const home = page("https://northgate.example/", `<html><head><title>Northgate Family Dental | Dentists in Austin</title></head><body>
+      <h1>Family dentists in Austin</h1><p>Check-ups, fillings and crowns at 100 North Loop Blvd. Call +1 512-555-0174.</p>
+      <h2>Opening hours</h2><p>We are open Monday to Friday, with early slots before work.</p><h2>Insurance</h2><p>We work with most dental insurance plans in Texas.</p></body></html>`);
+    const ok = withSite({ home, pages: [good] });
+    for (const key of ["money_opening", "money_subheadings", "answer_first"]) expect(check(ok, key).status, key).toBe("pass");
+
+    const wall = "We are proud to serve our community with care and attention to every detail of every visit " .repeat(8);
+    const poor = servicePage(`<h1>Welcome</h1><p>${wall}</p><h2>About our dentists</h2><p>${wall}.</p><h3>Team</h3>`);
+    const bad = withSite({ pages: [poor] });
+    expect(check(bad, "money_opening")).toMatchObject({ status: "fail", title: "The opening words of 1 of 2 money pages miss the service or the city" });
+    expect(check(bad, "money_subheadings")).toMatchObject({ status: "fail", title: "2 of 2 money pages have fewer than 2 subheadings" });
+    expect(check(bad, "answer_first").status).toBe("not_checked"); // one section in all: too few to judge
+  });
+
+  it("new findings state no number that is missing from their evidence", () => {
+    const wall = "word ".repeat(70);
+    const poor = servicePage(`<h1>Welcome</h1><h2>One</h2><p>${wall}.</p><h2>Two</h2><p>${wall}.</p><h2>Three</h2>`);
+    const inp = withSite({ pages: [poor], robots: { status: 200, text: "User-agent: Bingbot\nDisallow: /" } });
+    let checked = 0;
+    for (const c of runChecks(inp).filter((x) => x.status === "fail" && ["ai_crawlers", "service_page", "money_opening", "money_subheadings", "answer_first"].includes(x.key))) {
+      const allowed = new Set(numbersIn(c.evidence.map((e) => `${e.label} ${e.value}`).join(" | ")));
+      for (const n of numbersIn(`${c.title} ${c.fix}`)) {
+        expect(allowed.has(n), `${c.key}: "${n}" not in evidence`).toBe(true);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(4);
   });
 });

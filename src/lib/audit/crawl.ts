@@ -144,9 +144,31 @@ export interface PageFacts {
   links: string[];
   navLabels: string[];
   text: string;
+  /** The first 100 words of the main content, from the H1 on (navigation and footer left out). */
+  intro: string;
+  /** Each H2 with the start of the text under it: its first two sentences and their word count. */
+  h2Sections: H2Section[];
 }
 
-const strip = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
+export interface H2Section {
+  heading: string;
+  /** The first two sentences after the heading, up to the next heading ("" when a heading or nothing follows). */
+  opening: string;
+  /** Words in `opening`, counted before it is shortened for storage. */
+  words: number;
+}
+
+const words = (s: string) => (s ? s.split(/\s+/).filter(Boolean) : []);
+/** The first `n` sentences of plain text. */
+export const firstSentences = (text: string, n: number) => text.split(/(?<=[.!?])\s+/).slice(0, n).join(" ").trim();
+
+const codePoint = (n: number) => (Number.isInteger(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : " ");
+/** Tags out, entities decoded (named, decimal and hex; &amp; last so "&amp;#39;" stays literal), whitespace collapsed. */
+const strip = (s: string) =>
+  s.replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&#(\d{1,7});/g, (_, d: string) => codePoint(Number(d))).replace(/&#x([0-9a-f]{1,6});/gi, (_, h: string) => codePoint(parseInt(h, 16)))
+    .replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 
 const LOCAL_TYPES = /LocalBusiness|Dentist|Plumber|Restaurant|Store|MedicalBusiness|LegalService|HomeAndConstructionBusiness|AutoRepair|HealthAndBeautyBusiness|ProfessionalService|Physician|Attorney|RealEstateAgent|Electrician|HVACBusiness|RoofingContractor|Locksmith|VeterinaryCare|BeautySalon|HairSalon|DaySpa|GeneralContractor|AccountingService|InsuranceAgency|TravelAgency|FoodEstablishment|LodgingBusiness|SportsActivityLocation|EmergencyService|AnimalShelter|ChildCare|DryCleaningOrLaundry|FinancialService|InternetCafe|Library|MovingCompany|PestControl|SelfStorage|TouristInformationCenter/;
 
@@ -196,6 +218,21 @@ export function extractFacts(url: string, html: string): PageFacts {
   const navLabels = [...new Set([...nav.matchAll(/<a\s[^>]*>([\s\S]*?)<\/a>/gi)].map((m) => strip(m[1])).filter((l) => l.length > 2 && l.length < 60))].slice(0, 60);
   const headings = [...tags("h2"), ...tags("h3")].slice(0, 80);
 
+  // Main content: the page without its navigation and footer, where menus and contact blocks repeat on every page.
+  const main = body.replace(/<nav[\s\S]*?<\/nav>|<footer[\s\S]*?<\/footer>/gi, " ").slice(0, 400_000);
+  const h1At = main.search(/<h1[\s>]/i);
+  const intro = words(strip(h1At >= 0 ? main.slice(h1At, h1At + 60_000) : main.slice(0, 60_000))).slice(0, 100).join(" ");
+  const h2Sections: H2Section[] = [];
+  for (const m of main.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)) {
+    if (h2Sections.length >= 20) break;
+    const heading = strip(m[1]);
+    if (!heading) continue;
+    const after = main.slice((m.index ?? 0) + m[0].length, (m.index ?? 0) + m[0].length + 30_000);
+    const next = after.search(/<h[1-6][\s>]/i);
+    const opening = firstSentences(strip(next >= 0 ? after.slice(0, next) : after), 2);
+    h2Sections.push({ heading: heading.slice(0, 160), opening: opening.slice(0, 300), words: words(opening).length });
+  }
+
   return {
     url,
     title: title ? strip(title) : null,
@@ -218,6 +255,8 @@ export function extractFacts(url: string, html: string): PageFacts {
     links,
     navLabels,
     text,
+    intro,
+    h2Sections,
   };
 }
 
@@ -226,6 +265,8 @@ export interface SiteCrawl {
   pages: PageFacts[];
   hasLlmsTxt: boolean | null;
   fetched: number;
+  /** The site's /robots.txt response; null when it could not be fetched at all. */
+  robots: { status: number; text: string } | null;
 }
 
 /**
@@ -235,9 +276,12 @@ export interface SiteCrawl {
 export async function crawlSite(website: string, maxPages = 20, deadline = Date.now() + 75_000): Promise<SiteCrawl> {
   const start = website.startsWith("http") ? website : `https://${website}`;
   const homePage = await fetchPage(start);
-  if (!homePage || !homePage.html) return { home: null, pages: [], hasLlmsTxt: null, fetched: 0 };
+  if (!homePage || !homePage.html) return { home: null, pages: [], hasLlmsTxt: null, fetched: 0, robots: null };
   const home = extractFacts(homePage.url, homePage.html);
   const origin = new URL(homePage.url).origin;
+  // Fetched first, before the page budget can run out: it decides whether search and AI crawlers may read the site at all.
+  const robotsPage = await fetchPage(`${origin}/robots.txt`, "text/plain");
+  const robots = robotsPage ? { status: robotsPage.status, text: robotsPage.html.slice(0, 200_000) } : null;
 
   let candidates: string[] = [];
   const sitemap = await fetchPage(`${origin}/sitemap.xml`, "application/xml");
@@ -258,5 +302,5 @@ export async function crawlSite(website: string, maxPages = 20, deadline = Date.
   // Past the deadline the llms.txt check is skipped and reported as "not checked", never as "missing".
   const llms = Date.now() > deadline ? null : await fetchPage(`${origin}/llms.txt`, "text/plain");
   const hasLlmsTxt = llms ? llms.status === 200 && llms.html.trim().length > 0 && !/<html/i.test(llms.html.slice(0, 500)) : null;
-  return { home, pages, hasLlmsTxt, fetched: 1 + pages.length };
+  return { home, pages, hasLlmsTxt, fetched: 1 + pages.length, robots };
 }

@@ -3,6 +3,8 @@ import { cacheLife, cacheTag } from "next/cache";
 import { dbAdmin, dbAnon } from "@/lib/db/clients";
 import { ENGINES, ENGINE_LABEL, type Engine } from "@/lib/pricing-constants";
 import { namesMatch, normalizeName } from "@/lib/scans/match";
+import { publicEnv } from "@/lib/env";
+import { pingIndexNow } from "@/lib/indexnow";
 
 /**
  * Public regional pages (brief 12): "Which {niche} do AI assistants recommend in {City}?"
@@ -69,8 +71,11 @@ export async function getRegionalPage(niche: string, city: string): Promise<Regi
 interface ScanRow { id: string; kind: "ai" | "maps"; niche: string | null; keyword: string | null; funding: string; created_at: string; summary: { top_competitors?: { name: string; top3_points?: number }[] } | null; businesses: { city: string | null; region: string | null; country: string | null } | { city: string | null; region: string | null; country: string | null }[] | null; workspaces: { share_scans_for_regional_pages: boolean } | { share_scans_for_regional_pages: boolean }[] | null }
 const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
 
-/** Rebuild every regional page from the scans that may be published. Idempotent; run by cron. */
-export async function rebuildRegionalPages(): Promise<{ pages: number; indexable: number }> {
+/**
+ * Rebuild every regional page from the scans that may be published. Idempotent; run by cron.
+ * Pages that became public or gained answers are announced through IndexNow (production only).
+ */
+export async function rebuildRegionalPages(): Promise<{ pages: number; indexable: number; announced: number }> {
   const admin = dbAdmin();
   const { data } = await admin
     .from("scans")
@@ -89,6 +94,11 @@ export async function rebuildRegionalPages(): Promise<{ pages: number; indexable
     (s.kind === "ai" ? g.ai : g.maps).push(s);
     groups.set(key, g);
   }
+
+  // What was public before this rebuild, so only new or grown pages are announced to search engines.
+  const { data: before } = await admin.from("regional_pages").select("niche_slug, city_slug, sample_count, indexable");
+  const previous = new Map(((before ?? []) as { niche_slug: string; city_slug: string; sample_count: number; indexable: boolean }[]).map((r) => [`${r.niche_slug}/${r.city_slug}`, r]));
+  const changed: string[] = [];
 
   let indexable = 0;
   for (const [key, g] of groups) {
@@ -124,9 +134,18 @@ export async function rebuildRegionalPages(): Promise<{ pages: number; indexable
     };
     const { error } = await admin.from("regional_pages").upsert(row, { onConflict: "niche_slug,city_slug" });
     if (error) throw new Error(`regional page upsert failed: ${error.message}`);
-    if (rows.length >= 27 && g.ai.length >= 2) indexable++;
+    if (rows.length >= 27 && g.ai.length >= 2) {
+      indexable++;
+      const was = previous.get(key);
+      if (!was?.indexable || was.sample_count !== rows.length) changed.push(key);
+    }
   }
-  return { pages: groups.size, indexable };
+  const wasAnyPublic = [...previous.values()].some((r) => r.indexable);
+  const urls = changed.map((k) => `${publicEnv.siteUrl}/ai/${k}`);
+  // The /ai index lists the pages, so it changes with them; it is announced too, and first appears with the first page.
+  if (urls.length || (indexable > 0 && !wasAnyPublic)) urls.push(`${publicEnv.siteUrl}/ai`);
+  const pinged = await pingIndexNow(urls);
+  return { pages: groups.size, indexable, announced: pinged.sent };
 }
 
 export const engineLine = (p: RegionalPage) => ENGINES.filter((e) => p.engine_stats[e]).map((e) => `${ENGINE_LABEL[e].short}: ${p.engine_stats[e]!.answers} answers`).join(" · ");

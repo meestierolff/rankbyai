@@ -97,7 +97,10 @@ export function llmsTxt(input: { name: string; category: string | null; city: st
 }
 
 const PROFILE_CHECKS = new Set(["claimed", "primary_category", "category_count", "description", "hours", "photos", "review_gap", "rating"]);
-const WEBSITE_CHECKS = new Set(["nap_phone", "nap_name", "nap_address", "schema_localbusiness", "title_service_city", "click_to_call", "map_embed", "faq_section", "faq_schema", "llms_txt"]);
+const WEBSITE_CHECKS = new Set([
+  "nap_phone", "nap_name", "nap_address", "schema_localbusiness", "title_service_city", "click_to_call", "map_embed", "faq_section", "faq_schema", "llms_txt",
+  "ai_crawlers", "service_page", "money_opening", "money_subheadings", "answer_first",
+]);
 
 /** Checklist from the audit's failed checks, the sources its AI answers cite, and the page plan. */
 export function buildChecklist(inputs: StoredAuditInputs, businessName: string): ChecklistItem[] {

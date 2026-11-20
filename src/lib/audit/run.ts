@@ -348,7 +348,7 @@ export async function processAudit(auditId: string): Promise<void> {
     if (website) {
       if (isMockMode()) {
         const home = extractFacts(website, mockSiteHtml(business.name, true));
-        crawl = { home, pages: [], hasLlmsTxt: false, fetched: 1 };
+        crawl = { home, pages: [], hasLlmsTxt: false, fetched: 1, robots: { status: 404, text: "" } };
       } else crawl = await crawlSite(website, quick ? 0 : 20, Math.min(Date.now() + (quick ? 20_000 : CRAWL_BUDGET_MS), startedAt + AUDIT_BUDGET_MS - 90_000)).catch(() => null);
     }
     const rivalSites = await Promise.all(competitors.map(async (c) => ({ name: c.name, facts: await homepageFacts(c.profile?.url ?? null, c.name, false) })));
@@ -381,7 +381,7 @@ export async function processAudit(auditId: string): Promise<void> {
     const inputs: AuditInputs = {
       business: { name: business.name, website, phone: business.phone, address: business.address ?? null, city: business.city, category: business.primary_category },
       service, months, profile, competitors,
-      site: crawl ? { home: crawl.home, pages: crawl.pages.map((p) => ({ url: p.url, title: p.title, h1: p.h1 })), hasLlmsTxt: crawl.hasLlmsTxt, knownPages: crawl.fetched } : null,
+      site: crawl ? { home: crawl.home, pages: crawl.pages.map((p) => ({ url: p.url, title: p.title, h1: p.h1, intro: p.intro, h2Sections: p.h2Sections })), hasLlmsTxt: crawl.hasLlmsTxt, knownPages: crawl.fetched, robots: crawl.robots } : null,
       ai: ai.ai, services, areas,
     };
     const checks = runChecks(inputs);

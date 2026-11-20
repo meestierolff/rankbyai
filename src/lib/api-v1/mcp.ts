@@ -7,7 +7,8 @@ import { largerMapsGridsText, largestOneCreditMapsGrid } from "@/lib/cost/credit
 import { AI_GRID_SIZES, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 import { MAX_POINT_IDX } from "@/lib/scans/skip";
 import * as core from "./core";
-import { COUNTRY_CODES, DEFAULT_COUNTRY } from "@/lib/countries";
+import { COUNTRY_CODES, DEFAULT_COUNTRY, languageName, languageNameFor } from "@/lib/countries";
+import { auditFixPrompt } from "@/lib/audit/prompt";
 
 /**
  * MCP tools (brief 7.8). Each tool calls the same operation as its REST endpoint.
@@ -22,7 +23,9 @@ const GUIDE =
   "RankbyAI measures whether AI assistants (ChatGPT, Perplexity, Gemini) and Google Maps recommend a local business, point by point on a map grid around it. " +
   "Typical flow: add_business → estimate_scan → run_ai_scan and run_maps_scan with confirm → get_scan until status is done → run_audit → get_audit → get_fix_kit. " +
   "list_scans, list_audits and list_prospect_batches find earlier work; update_business and delete_business manage the tracked businesses; get_branding and update_branding manage the white-label fields on reports. " +
-  "Always show the user the estimate before calling a tool with confirm: true. AI answers vary between runs, places and time; report them as observations, not guarantees.";
+  "Always show the user the estimate before calling a tool with confirm: true. AI answers vary between runs, places and time; report them as observations, not guarantees. " +
+  "When advising on an audit, use the prompt fix_plan (or follow the same order): P0 first (the business's identity, and whether search engines and AI crawlers may read the site), then P1 (gaps against the map pack), then P2 (pages, schema, FAQ), then P3. " +
+  "Guardrails: never suggest adding keywords or a city to the Google Business Profile name unless it is the registered name, buying or gating reviews, fake listings, or blocking search or AI search crawlers; use only facts from the audit, the website or the user.";
 
 const funding = z.enum(["byok", "credits"]).default("byok").describe("byok = the user's own API keys; credits = included scans");
 const confirm = z.boolean().default(false).describe("false returns the cost estimate only. true runs it and spends money: ask the user first.");
@@ -49,7 +52,7 @@ const brandingOut = open({ branding: open({ brand_name: text, brand_color_hex: t
 
 export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: string): McpServer {
   // Stateless and POST only: there is no stream to announce a changed tool list on, so listChanged is off.
-  const server = new McpServer({ name: "rankbyai", version: "1.1.0" }, { instructions: GUIDE, capabilities: { tools: { listChanged: false } } });
+  const server = new McpServer({ name: "rankbyai", version: "1.1.0" }, { instructions: GUIDE, capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } } });
 
   const reply = async (tool: string, run: () => Promise<core.ApiResult>) => {
     const r = await run();
@@ -268,7 +271,36 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
     outputSchema: open({ period_start: z.string(), own_keys: open({ total_usd: z.number(), by_provider: z.array(open({ provider: z.string(), usd: z.number(), calls: z.number() })) }), included_scans: open({ credits_left: z.number() }), note: z.string() }),
   }, () => reply("get_usage", () => core.getUsage(caller)));
 
+  // ───────────────────────── prompts ─────────────────────────
+
+  server.registerPrompt("fix_plan", {
+    title: "Fix plan from an audit",
+    description: "Turns a finished Local AI Audit into a prioritised fix list (P0 first) with how to work and guardrails, ready for the assistant to act on. Free.",
+    argsSchema: z.object({ audit_id: z.string().describe("Id (a UUID) of a finished audit, from run_audit or list_audits") }),
+  }, async ({ audit_id }) => {
+    await captureServer("mcp_tool_called", caller.workspaceId, { tool: "prompt:fix_plan" }).catch(() => undefined);
+    const text = await fixPlanText(caller, audit_id);
+    return { description: "Prioritised fix plan from a RankbyAI audit", messages: [{ role: "user" as const, content: { type: "text" as const, text } }] };
+  });
+
   return server;
+}
+
+/** The fix_plan prompt's text: the audit prompt, or a plain sentence saying why there is none. */
+async function fixPlanText(caller: ApiCaller, auditId: string): Promise<string> {
+  const a = await core.getAudit(caller, auditId);
+  if (a.status >= 400) return `RankbyAI could not load audit ${auditId.slice(0, 36)}: check the id with list_audits.`;
+  const body = a.body as { audit: { business_id: string; status: string; score: number | null; service: string | null }; findings: { priority: string; title: string; fix: string }[] };
+  if (body.audit.status !== "done") return `That audit is ${body.audit.status}, not finished. Call get_audit until its status is done, then use this prompt again.`;
+  const b = await core.getBusiness(caller, body.audit.business_id);
+  const business = (b.body as { business?: { name: string; city: string | null; website: string | null; primary_category: string | null; language: string | null; country: string | null } }).business;
+  if (!business) return "The business this audit belongs to has been deleted, so there is no fix plan to make.";
+  const prompt = auditFixPrompt({
+    business: { name: business.name, city: business.city, website: business.website, category: business.primary_category },
+    language: languageName(business.language) ?? languageNameFor(business.country),
+    service: body.audit.service, score: body.audit.score, findings: body.findings,
+  });
+  return prompt ?? "Every check in this audit that could run passed: there is nothing to fix. Suggest running an AI scan to see where AI assistants name the business.";
 }
 
 export { MCP_PAID_TOOLS, MCP_TOOLS } from "./mcp-tools";

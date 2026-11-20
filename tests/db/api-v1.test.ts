@@ -431,6 +431,17 @@ describe("MCP server (driven by the official MCP client)", () => {
     expect(denied.isError).toBe(true);
     expect(denied.body.error).toBe("not_found");
     expect((await call(other, "list_businesses")).body.businesses).toEqual([]);
+
+    // The fix_plan prompt: listed, built from the audit's findings in priority order, and closed to other workspaces.
+    const { prompts } = await client.listPrompts();
+    expect(prompts.map((p) => p.name)).toEqual(["fix_plan"]);
+    const plan = await client.getPrompt({ name: "fix_plan", arguments: { audit_id: run.body.audit_id } });
+    const text = (plan.messages[0].content as { type: string; text: string }).text;
+    expect(text).toContain("This is about Northgate Family Dental");
+    expect(text).toMatch(/\nP0, fix first: /);
+    expect(text).toContain("Guardrails:");
+    const otherPlan = await other.getPrompt({ name: "fix_plan", arguments: { audit_id: run.body.audit_id } });
+    expect((otherPlan.messages[0].content as { text: string }).text).toContain("could not load audit");
     await client.close();
     await other.close();
   });

@@ -284,6 +284,39 @@ function CopyBlock({ section, title, hint, text, mono = true }: { section: strin
   );
 }
 
+/**
+ * "Copy for ChatGPT / Claude": the whole audit as one prompt (lib/audit/prompt), findings in
+ * priority order with the guardrails. Built on the server; this only copies it.
+ */
+export function CopyAuditPrompt({ prompt }: { prompt: string }) {
+  const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setFailed(false);
+      track("fix_prompt_copied", { surface: "audit" });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setFailed(true);
+    }
+  };
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button type="button" onClick={copy} className={secondaryClass("cursor-pointer py-[6px] text-[13px]")} title="The findings in priority order, with how to work and what not to do" aria-live="polite">
+        {copied ? "Copied" : "Copy for ChatGPT / Claude"}
+      </button>
+      {failed ? (
+        <label className="flex w-full max-w-[640px] flex-col gap-1 text-[12px] text-dim">
+          <span role="alert">The browser blocked copying. Select the text below and copy it.</span>
+          <textarea readOnly value={prompt} rows={8} onFocus={(e) => e.currentTarget.select()} className="w-full rounded-lg border border-border bg-bg p-2 font-mono text-[12px] text-fg-2" />
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
 const script = (ld: Record<string, unknown>) => `<script type="application/ld+json">\n${JSON.stringify(ld, null, 2)}\n</script>`;
 
 export function FixKitPanel({ auditId, initial, locked, canRegenerate }: { auditId: string; initial: KitView | null; locked: boolean; canRegenerate: boolean }) {

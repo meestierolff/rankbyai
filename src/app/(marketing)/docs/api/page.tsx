@@ -52,7 +52,7 @@ export default function ApiDocsPage() {
         <section className="flex flex-col gap-4" aria-labelledby="mcp">
           <h2 id="mcp" className={h2}>MCP server</h2>
           <p className={p}>
-            The MCP server is at <code className={code}>{site}/api/mcp</code> and uses the same API key. It has {MCP_TOOLS.length} tools. Tools marked “needs confirm” return the estimate when called without <code className={code}>confirm: true</code> and do nothing else, so an agent has to show you the cost before it can spend anything.
+            The MCP server is at <code className={code}>{site}/api/mcp</code> and uses the same API key. It has {MCP_TOOLS.length} tools and one prompt, <code className={code}>fix_plan</code>, which turns a finished audit into a prioritised fix list with guardrails. Tools marked “needs confirm” return the estimate when called without <code className={code}>confirm: true</code> and do nothing else, so an agent has to show you the cost before it can spend anything.
           </p>
           <p className={p}>
             Transport: stateless Streamable HTTP, POST only. Each POST is answered on its own. There are no sessions (no <code className={code}>Mcp-Session-Id</code>) and no GET notification stream, so <code className={code}>GET</code> answers <code className={code}>405</code> and the server does not announce changes to its tool list. Results come as <code className={code}>structuredContent</code> and as the same JSON in a text block.

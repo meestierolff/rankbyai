@@ -9,7 +9,9 @@ import { memberRead } from "@/lib/db/member-read";
 import { userRead } from "./reads";
 import { isMockMode } from "@/lib/mock";
 import { getCreditBalance, getKeyStatuses } from "@/lib/workspace-data";
-import { AuditForm, AuditProgress, FixKitPanel, PagePlanEditor, ReviewMath, type KitView } from "./audit-client";
+import { AuditForm, AuditProgress, CopyAuditPrompt, FixKitPanel, PagePlanEditor, ReviewMath, type KitView } from "./audit-client";
+import { auditFixPrompt } from "@/lib/audit/prompt";
+import { languageName, languageNameFor } from "@/lib/countries";
 import { EmptyState, ErrorState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatusChip, fmtUsd } from "./ui";
 import { LocalTime } from "./local-time";
 
@@ -129,11 +131,12 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
   const { data: audit } = await memberRead<AuditDetailRow>("Audit", ctx.workspace.id, (db) =>
     db
       .from("audits")
-      .select("id, business_id, status, score, category_scores, checks_ran, checks_total, inputs, funding, est_cost_usd, cost_usd, error, created_at, finished_at, businesses(id, name, city)")
+      .select("id, business_id, status, score, category_scores, checks_ran, checks_total, inputs, funding, est_cost_usd, cost_usd, error, created_at, finished_at, businesses(id, name, city, website, primary_category, language, country)")
       .eq("id", auditId).eq("workspace_id", ctx.workspace.id).maybeSingle(),
   );
   if (!audit) notFound();
-  const business = one(audit.businesses as unknown as { id: string; name: string; city: string | null } | { id: string; name: string; city: string | null }[]);
+  type AuditBusiness = { id: string; name: string; city: string | null; website: string | null; primary_category: string | null; language: string | null; country: string | null };
+  const business = one(audit.businesses as unknown as AuditBusiness | AuditBusiness[]);
   const header = (
     <PageHeader
       title={business?.name ?? "Audit"}
@@ -174,6 +177,14 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
   const passed = checks.filter((c: CheckResult) => c.status === "pass");
   const skipped = checks.filter((c: CheckResult) => c.status === "not_checked");
   const locked = ctx.workspace.plan !== "lifetime";
+  // The whole audit as one prompt for an AI assistant, findings in playbook order (lib/audit/prompt).
+  const aiPrompt = business
+    ? auditFixPrompt({
+        business: { name: business.name, city: business.city, website: business.website, category: business.primary_category },
+        language: languageName(business.language) ?? languageNameFor(business.country),
+        service: inputs.service ?? null, score: audit.score, findings,
+      })
+    : null;
   const rivalsWithReviews = inputs.competitors.filter((c): c is typeof c & { reviews: number } => c.reviews != null).map((c) => ({ name: c.name, reviews: c.reviews }));
 
   return (
@@ -220,7 +231,7 @@ export async function AuditDetailPage({ ctx, auditId }: { ctx: SessionContext; a
           </p>
         </Panel>
 
-        <Panel title={`Findings (${findings.length})`}>
+        <Panel title={`Findings (${findings.length})`} action={aiPrompt ? <CopyAuditPrompt prompt={aiPrompt} /> : undefined}>
           {findings.length === 0 ? <p className="m-0 text-[15px] text-muted-foreground">Every check that could run passed.</p> : (
             <div className="flex flex-col gap-6">
               {(["P0", "P1", "P2", "P3"] as Priority[]).filter((p) => findings.some((f) => f.priority === p)).map((p) => (

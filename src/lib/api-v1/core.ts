@@ -12,6 +12,8 @@ import { createBatch, discover, estimateBatch, processBatch, resolveRows, type B
 import { pitchForProspect } from "@/lib/prospects/pitch";
 import { compareAi, compareHeadline, compareMaps, samePlace, type AiCompareSample, type MapsComparePoint } from "@/lib/scans/compare";
 import { createScan, processScan } from "@/lib/scans/engine";
+import { changeNoteMarkdown } from "@/lib/scans/change-note";
+import { loadChangeNote, type Read } from "@/lib/scans/change-note-data";
 import { MAX_POINT_IDX } from "@/lib/scans/skip";
 import { ENGINES } from "@/lib/pricing-constants";
 import { COUNTRY_CODES, DEFAULT_COUNTRY, isLanguageCode } from "@/lib/countries";
@@ -283,6 +285,26 @@ export async function compareScans(c: ApiCaller, q: { a?: unknown; b?: unknown }
   const all = (data ?? []) as (MapsComparePoint & { scan_id: string })[];
   const cmp = compareMaps(all.filter((s) => s.scan_id === a.id), all.filter((s) => s.scan_id === b.id), samePlace(a, b));
   return ok({ kind: "maps", a: a.id, b: b.id, headline: compareHeadline("maps", cmp), comparison: cmp as unknown as Record<string, unknown> });
+}
+
+/**
+ * "Why it changed": what changed between two AI scans of a business (by default its latest finished
+ * scan and the previous comparable one): mentions and positions per engine, businesses named
+ * instead, cited sources added or removed, and possible reasons only where stored evidence exists.
+ * Reads stored scans only: free, and it never starts a scan.
+ */
+export async function getChangeNote(c: ApiCaller, q: { a?: unknown; b?: unknown; business_id?: unknown }): Promise<ApiResult> {
+  const p = z.object({ a: z.uuid().optional(), b: z.uuid().optional(), business_id: z.uuid().optional() }).safeParse(q);
+  if (!p.success || (!p.data.business_id && !(p.data.a && p.data.b))) return fail(400, "invalid_request", "Send business_id (latest scan against the previous comparable one), or two AI scan ids a and b.");
+  const db = dbUser(c.ownerId);
+  const read: Read = async (what, run) => {
+    const { data, error } = await run(db);
+    if (error) throw new Error(`${what} could not be loaded`);
+    return data;
+  };
+  const r = await loadChangeNote({ ws: read, rows: read }, c.workspaceId, { a: p.data.a, b: p.data.b, businessId: p.data.business_id });
+  if (!r.ok) return fail(r.status, r.error, r.message);
+  return ok({ change_note: r.note as unknown as Record<string, unknown>, markdown: changeNoteMarkdown(r.note) });
 }
 
 // ───────────────────────── audits ─────────────────────────

@@ -504,7 +504,7 @@ describe("MCP: protocol, schemas and the new tools (official MCP client)", () =>
     expect(props("run_maps_scan")).not.toHaveProperty("prompt_template");
 
     // Fixed-shape tools publish an output schema; estimate-or-run tools do not.
-    for (const name of ["list_businesses", "update_business", "delete_business", "estimate_scan", "list_scans", "compare_scans", "list_audits", "get_audit", "list_prospect_batches", "get_prospect_batch", "get_pitch_asset", "get_branding", "update_branding", "get_usage"]) {
+    for (const name of ["list_businesses", "update_business", "delete_business", "estimate_scan", "list_scans", "compare_scans", "get_change_note", "list_audits", "get_audit", "list_prospect_batches", "get_prospect_batch", "get_pitch_asset", "get_branding", "update_branding", "get_usage"]) {
       expect(tool(name).outputSchema?.type, name).toBe("object");
     }
     for (const name of ["add_business", "run_ai_scan", "run_maps_scan", "get_scan", "run_audit", "get_fix_kit", "create_prospect_batch"]) expect(tool(name).outputSchema, name).toBeUndefined();
@@ -561,6 +561,18 @@ describe("MCP: protocol, schemas and the new tools (official MCP client)", () =>
     expect(aiCompare.isError).toBe(false);
     expect(aiCompare.body).toMatchObject({ kind: "ai", a: aiScans[0], b: aiScans[1] });
     expect(typeof aiCompare.body.headline).toBe("string");
+    // "Why it changed" on the same two scans: same JSON over MCP and REST; by business_id it picks the pair itself.
+    const changed = await call(client, "get_change_note", { a: aiScans[0], b: aiScans[1] });
+    expect(changed.isError).toBe(false);
+    expect(changed.body.change_note).toMatchObject({ status: "ready", scans: { before: aiScans[0], after: aiScans[1] } });
+    expect(changed.body.change_note.disclaimer).toContain("nobody can know exactly why");
+    expect(changed.body.markdown).toMatch(/^# Why it changed: /);
+    const restNote = await rest("GET", `/scans/change-note?a=${aiScans[0]}&b=${aiScans[1]}`);
+    expect(restNote.status).toBe(200);
+    expect(restNote.body).toEqual(changed.body);
+    expect((await rest("GET", `/scans/change-note?business_id=${id}`)).status).toBe(200);
+    expect((await rest("GET", "/scans/change-note")).status).toBe(400);
+    expect((await rest("GET", `/scans/change-note?a=${aiScans[0]}&b=${aiScans[1]}`, { key: keyB })).status).toBe(404);
     const template = await call(client, "run_ai_scan", { business_id: id, keyword: "dentist", grid_size: 1, prompt_template: "Who is the best {service} in {city}?", confirm: true });
     expect(template.isError).toBe(false);
     await drain();

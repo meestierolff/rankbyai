@@ -140,6 +140,18 @@ export function openApiSpec(siteUrl: string) {
           responses: { "200": { description: "Per-point and headline changes.", content: json(obj({ kind: { type: "string", enum: ["ai", "maps"] }, a: uuid, b: uuid, headline: { type: "string" }, comparison: { type: "object" } })) }, "409": { description: "A scan has not finished.", content: json(ref("Error")) }, ...errors },
         },
       },
+      "/scans/change-note": {
+        get: {
+          operationId: "getChangeNote", tags: ["Scans"], summary: "Why it changed: what changed between two AI scans",
+          description: "With `business_id`: the business's latest finished AI scan against the previous one that asked the same question on the same grid (the previous run of the same schedule first). Or give two AI scan ids `a` and `b`. Per engine: answers naming the business and its average position (changes only where both scans have data); businesses that appeared or disappeared from the answers; cited sources added or removed, with engines, example URLs and a question that cited them; possible reasons only where stored evidence exists. `markdown` is the same note to copy. A scan that has not finished gives `status: not_ready` and no changes. Reads stored scans only: free, and it never runs a scan.",
+          parameters: [
+            { name: "business_id", in: "query", description: "Latest finished AI scan of this business against the previous comparable one.", schema: uuid },
+            { name: "a", in: "query", description: "Earlier AI scan (with b).", schema: uuid },
+            { name: "b", in: "query", description: "Later AI scan (with a).", schema: uuid },
+          ],
+          responses: { "200": { description: "The note.", content: json(obj({ change_note: { type: "object", description: "status, business, window, scans, comparable, points, engines, names, sources, possible_reasons, disclaimer." }, markdown: { type: "string" } }, ["change_note", "markdown"])) }, ...errors },
+        },
+      },
       "/scans/{id}": {
         get: { operationId: "getScan", tags: ["Scans"], summary: "Scan status, summary and cost", parameters: [idParam("scan")], responses: { "200": { description: "The scan.", content: json(obj({ scan: ref("Scan") })) }, ...errors } },
       },

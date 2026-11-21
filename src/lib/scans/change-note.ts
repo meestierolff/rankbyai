@@ -39,7 +39,7 @@ export interface NoteSample {
 
 /** Evidence the note may point to: the latest audit's crawler findings and Google Maps scans around the window. */
 export interface NoteExtras {
-  /** The latest finished audit up to the later scan, with its failing crawler findings (empty when none failed). */
+  /** The latest finished audit up to the later scan, with its failing crawler findings (empty when none failed). Used only when it falls between the two scans. */
   audit?: { created_at: string; crawlerFindings: { title: string; priority: string }[] } | null;
   /** The latest finished Maps scan up to each AI scan (same keyword), when both exist and differ. */
   maps?: { before: MapsPoint; after: MapsPoint } | null;
@@ -221,7 +221,10 @@ export function changeNote(businessName: string, a: NoteScan, b: NoteScan, sampl
   for (const r of added.filter((x) => x.with_business > 0).slice(0, 3)) {
     reasons.push({ evidence: "source_new", text: `${r.domain} was cited in ${r.with_business} ${r.with_business === 1 ? "answer" : "answers"} that named ${business} on ${day(b.created_at)}, and in none on ${day(a.created_at)}.` });
   }
-  for (const f of extras.audit?.crawlerFindings ?? []) {
+  // Only an audit between the two scans can say something about what changed between them: a block
+  // found before the earlier scan was there for both.
+  const auditInWindow = !!extras.audit && new Date(extras.audit.created_at) >= new Date(a.created_at) && new Date(extras.audit.created_at) <= new Date(b.created_at);
+  for (const f of auditInWindow ? extras.audit!.crawlerFindings : []) {
     reasons.push({ evidence: "crawler_finding", text: `The audit of ${day(extras.audit!.created_at)} found: ${clean(f.title, 200)} (${clean(f.priority, 4)}). A crawler that cannot read the site cannot quote it.` });
   }
   const m = extras.maps;

@@ -72,6 +72,9 @@ describe("why it changed (change note)", () => {
     });
     expect(withExtras.possible_reasons.find((r) => r.evidence === "crawler_finding")?.text).toBe("The audit of Nov 15, 2026 found: robots.txt blocks AI search crawlers: OAI-SearchBot (P1). A crawler that cannot read the site cannot quote it.");
     expect(withExtras.possible_reasons.find((r) => r.evidence === "maps_move")?.text).toBe("On Google Maps, the business was in the top 3 at 10 of 49 points on Nov 9, 2026 and at 18 of 49 on Nov 16, 2026 (average rank 6.2 → 4.1).");
+    // A crawler finding from an audit before the earlier scan explains nothing between the two.
+    const stale = changeNote("Northgate Family Dental", A, B, samplesA, samplesB, { audit: { created_at: "2026-11-01T00:00:00Z", crawlerFindings: [{ title: "robots.txt blocks AI search crawlers: OAI-SearchBot", priority: "P1" }] } });
+    expect(stale.possible_reasons.some((r) => r.evidence === "crawler_finding")).toBe(false);
     const unchangedMaps = changeNote("X", A, B, samplesA, samplesB, { maps: { before: { created_at: "2026-11-09T00:00:00Z", avg_rank: 5, top3_points: 3, points_done: 9 }, after: { created_at: "2026-11-16T00:00:00Z", avg_rank: 5, top3_points: 3, points_done: 9 } } });
     expect(unchangedMaps.possible_reasons.some((r) => r.evidence === "maps_move")).toBe(false);
   });

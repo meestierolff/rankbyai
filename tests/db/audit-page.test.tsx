@@ -99,6 +99,27 @@ describe("audit screens", () => {
     expect(html).toContain("simulated vendor data"); // development mode is labelled
   });
 
+  it("expands a crawler finding per crawler: evidence, likely cause, where to look, steps and a check to copy", async () => {
+    const { probeDetail } = await import("@/lib/audit/crawler-fix");
+    const detail = probeDetail({ agent: "OAI-SearchBot", status: 403, server: "cloudflare", cfRay: "8f1a2b3c4d5e6f70-AMS", cfMitigated: "challenge", snippet: "Just a moment..." }, "ai_search", "ChatGPT search", "https://northgate.example")!;
+    await sql("insert into public.audit_findings (audit_id, priority, category, title, evidence, fix, impact_note, check_key, data) values ($1, 'P1', 'website', $2, $3::jsonb, $4, null, 'crawler_http', $5::jsonb)", [
+      auditId, "The server refuses requests that name AI search crawlers: OAI-SearchBot", JSON.stringify([{ label: "Request naming OAI-SearchBot (search)", value: "HTTP 403, cf-mitigated: challenge" }]),
+      "Likely a Cloudflare bot setting.", JSON.stringify({ crawlers: [detail] }),
+    ]);
+    session.userId = u.id;
+    const { AuditDetailPage } = await import("@/components/app/audit-pages");
+    const raw = renderToStaticMarkup(await AuditDetailPage({ ctx: await ctxFor(u), auditId }));
+    const html = text(raw);
+    expect(html).toContain("OAI-SearchBot · search crawler · server answer · likely");
+    expect(html).toContain("Likely cause: Cloudflare answered with a challenge page");
+    expect(html).toContain("Where to look:");
+    expect(html).toContain("“Bot fight mode”");
+    expect(html).toContain("Steps:");
+    expect(html).toContain(`-A "OAI-SearchBot" 'https://northgate.example/'`);
+    expect(html).toContain("Copy check");
+    expect(html).toContain("from its own servers");
+  });
+
   it("shows the Fix Kit blocks once generated", async () => {
     await generateFixKit(auditId, u.workspaceId);
     session.userId = u.id;

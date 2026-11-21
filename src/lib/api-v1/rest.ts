@@ -88,6 +88,7 @@ const ROUTES: Route[] = [
   { path: "businesses/:id", GET: (x) => core.getBusiness(x.c, x.id), PATCH: async (x) => core.updateBusiness(x.c, x.id, await x.body()), DELETE: (x) => core.deleteBusiness(x.c, x.id) },
   { path: "scans", GET: (x) => core.listScans(x.c, x.q), POST: async (x) => core.createScanOp(x.c, await x.body(), x.defer) },
   { path: "scans/compare", GET: (x) => core.compareScans(x.c, x.q) },
+  { path: "scans/change-note", GET: (x) => core.getChangeNote(x.c, x.q) },
   { path: "scans/:id", GET: (x) => core.getScan(x.c, x.id, x.head ? undefined : x.defer) },
   { path: "scans/:id/points", GET: (x) => core.getScanPoints(x.c, x.id) },
   { path: "audits", GET: (x) => core.listAudits(x.c, x.q), POST: async (x) => core.createAuditOp(x.c, await x.body(), x.defer) },

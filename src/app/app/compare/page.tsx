@@ -12,6 +12,9 @@ import { compareAi, compareHeadline, compareMaps, samePlace, type AiCompareSampl
 import { ScanSelect } from "./scan-select";
 import { CompareViewed } from "./viewed";
 import { DEFAULT_PROMPT_TEMPLATE } from "@/lib/scans/prompt";
+import { ChangeNotePanel } from "@/components/app/change-note";
+import { changeNoteMarkdown } from "@/lib/scans/change-note";
+import { loadChangeNote, type Read } from "@/lib/scans/change-note-data";
 
 export const metadata: Metadata = { title: "Compare scans" };
 
@@ -133,6 +136,12 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
         const best = hits.length ? Math.min(...hits.map((s) => s.mention_position ?? 5)) : null;
         return { key: String(idx), ...aiCellColors(best), label: done.length ? `${hits.length}/${done.length}` : "!", title: `${where(idx)}: named by ${hits.length} of ${done.length} engines` };
       });
+    // "Why it changed": the same note as the API's get_change_note, from these two scans. Workspace
+    // tables through memberRead, answers and findings as signed-in reads (both throw on failure).
+    const ws: Read = async (what, run) => (await memberRead(what, wsId, (db) => run(db))).data;
+    const rows: Read = (what, run) => userRead(what, run);
+    const loaded = await loadChangeNote({ ws, rows }, wsId, { a: before.id, b: after.id });
+    const noteBody = loaded.ok ? <ChangeNotePanel note={loaded.note} markdown={changeNoteMarkdown(loaded.note)} /> : <p className="m-0 text-[14px] text-muted-foreground">{loaded.message}</p>;
     // A question asked differently (other wording or language) changes the answers by itself.
     const sameQuestion = (before.prompt_template ?? DEFAULT_PROMPT_TEMPLATE) === (after.prompt_template ?? DEFAULT_PROMPT_TEMPLATE);
     body = (
@@ -159,6 +168,9 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
               </>
             ) : <p className="m-0 text-[14px] text-muted-foreground">These scans used different grids (size, centre or radius), so points cannot be matched one to one. The metrics above still compare.</p>}
           </Panel>
+        </div>
+        <div className="mt-6">
+          <Panel title="Why it changed">{noteBody}</Panel>
         </div>
         <AiDisclaimer className="mt-4" />
       </>

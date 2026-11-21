@@ -24,6 +24,7 @@ import { reportOriginForAuthorisedWorkspace } from "@/lib/domains-origin";
 const GUIDE =
   "RankbyAI measures whether AI assistants (ChatGPT, Perplexity, Gemini) and Google Maps recommend a local business, point by point on a map grid around it. " +
   "Typical flow: add_business → estimate_scan → run_ai_scan and run_maps_scan with confirm → get_scan until status is done → run_audit → get_audit → get_fix_kit. " +
+  "After a re-check, get_change_note explains what changed between the latest scan and the previous one (mentions, names, cited sources), with possible reasons only where stored evidence exists. " +
   "For a finished prospect report, get_pitch_asset returns a short email teaser and an image for the user to copy; RankbyAI never sends email. " +
   "list_scans, list_audits and list_prospect_batches find earlier work; update_business and delete_business manage the tracked businesses; get_branding and update_branding manage the white-label fields on reports. " +
   "Always show the user the estimate before calling a tool with confirm: true. AI answers vary between runs, places and time; report them as observations, not guarantees. " +
@@ -189,6 +190,29 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
     inputSchema: z.object({ a: id("earlier scan"), b: id("later scan") }),
     outputSchema: open({ kind: z.enum(["ai", "maps"]), a: z.string(), b: z.string(), headline: z.string(), comparison: open({}) }),
   }, (a) => reply("compare_scans", () => core.compareScans(caller, a)));
+
+  server.registerTool("get_change_note", {
+    title: "Why it changed",
+    annotations: hints("get_change_note", "Why it changed"),
+    description: "A weekly-style note on what changed between two AI scans of a business: points and answers naming it per engine and its average position (changes only where both scans have data), businesses that appeared or disappeared from the answers, cited sources added or removed (with the engines, example URLs and a question that cited them), and possible reasons only where stored evidence exists (a source that came or went in answers naming the business, a crawler finding from an audit, a Google Maps move). Give business_id for its latest finished scan against the previous comparable one, or a and b. Also returns the note as Markdown to copy. Never say a reason is certain: models do not explain their choices. Reads stored scans only; it never runs one. Free.",
+    inputSchema: z.object({
+      business_id: id("business").optional().describe("Latest finished AI scan of this business against the previous comparable one (same service, question, grid, engines and place)"),
+      a: id("earlier AI scan").optional(), b: id("later AI scan").optional(),
+    }),
+    outputSchema: open({
+      change_note: open({
+        status: z.enum(["ready", "not_ready"]), message: z.string().optional(), business: z.string(),
+        window: open({ from: z.string(), to: z.string() }), scans: open({ before: z.string(), after: z.string() }),
+        comparable: open({ notes: z.array(z.string()) }),
+        engines: z.array(open({ engine: z.string(), mention_rate_change: num, avg_position_change: num })),
+        names: open({ appeared: z.array(open({ name: z.string() })), disappeared: z.array(open({ name: z.string() })) }),
+        sources: open({ added: z.array(open({ domain: z.string() })), removed: z.array(open({ domain: z.string() })) }),
+        possible_reasons: z.array(open({ text: z.string(), evidence: z.string() })),
+        disclaimer: z.string(),
+      }),
+      markdown: z.string(),
+    }),
+  }, (a) => reply("get_change_note", () => core.getChangeNote(caller, a)));
 
   // ───────────────────────── audits ─────────────────────────
 

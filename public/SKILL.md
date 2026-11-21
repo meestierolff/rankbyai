@@ -112,7 +112,7 @@ Audit <score>/100. Fix first:
 AI answers vary between runs, places and time; this is what they said on <date>.
 ```
 
-Use the per-point table only when the AI and Maps scans used the same grid size and centre (compare `grid_size`, `center_lat`, `center_lng`); otherwise give the two summaries side by side.
+Use the per-point table only when the AI and Maps scans used the same `grid_size` and `radius_miles` and their points have the same `lat` and `lng` (from `get_scan` with `include_points: true`); otherwise give the two summaries side by side.
 
 ## Checklist
 

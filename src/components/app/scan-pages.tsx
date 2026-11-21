@@ -16,6 +16,9 @@ import { EmptyState, PageHeader, Panel, PrimaryLink, SecondaryLink, StatusChip, 
 import { isServiceArea } from "@/lib/service-area";
 import { businessLanguage, languageName } from "@/lib/countries";
 import { QUESTIONS, defaultQuestionFor, questionLanguage } from "@/lib/scans/prompt";
+import { parseRunLabel, type RunRole } from "@/lib/scans/consistency";
+
+const RUN_NAME: Record<RunRole, string> = { A1: "run 1", A2: "run 2", B1: "second question", B2: "second question again" };
 
 /* Server-side page bodies shared by the AI Visibility and Maps Grid sections. */
 
@@ -56,7 +59,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
     memberRead("Scan history", ws.id, (db) =>
       db
         .from("scans")
-        .select("id, business_id, kind, grid_size, skip_points, status, funding, keyword, niche, engines, est_cost_usd, actual_cost_usd, summary, created_at, finished_at, businesses(name)")
+        .select("id, business_id, kind, grid_size, skip_points, status, funding, keyword, niche, engines, est_cost_usd, actual_cost_usd, summary, created_at, finished_at, label, businesses(name)")
         .eq("workspace_id", ws.id)
         .eq("kind", kind)
         .order("created_at", { ascending: false })
@@ -73,7 +76,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
     serviceArea: isServiceArea(b),
     ...questionFor(b),
   }));
-  const scans = (scanRows ?? []) as unknown as (ScanRow & { skip_points?: number[] | null })[];
+  const scans = (scanRows ?? []) as unknown as (ScanRow & { skip_points?: number[] | null; label?: string | null })[];
   const mock = isMockMode();
   const has = (p: string) => mock || keyRows.some((k) => k.provider === p && k.status === "valid");
   const keys = { dataforseo: has("dataforseo"), openai: has("openai"), perplexity: has("perplexity"), gemini: has("gemini") };
@@ -132,6 +135,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
               const sum = s.summary as { points?: number; points_mentioned?: number; avg_rank?: number | null; top3_points?: number; points_done?: number };
               // Points actually checked: the summary's count once finished, else the grid minus skipped points.
               const active = sum.points ?? s.grid_size * s.grid_size - (s.skip_points?.length ?? 0);
+              const run = parseRunLabel(s.label);
               return (
                 <li key={s.id} className="border-b border-line last:border-b-0">
                   <Link href={`/app/${copy.path}/${s.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3 no-underline">
@@ -140,6 +144,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
                       <span className="text-[13px] text-dim">
                         {s.grid_size}×{s.grid_size} · <LocalTime iso={s.created_at} /> ·{" "}
                         {kind === "ai" ? `named at ${sum.points_mentioned ?? 0}/${active} points` : `avg rank ${sum.avg_rank ?? "—"} · top-3 at ${sum.top3_points ?? 0}/${sum.points_done ?? active}`}
+                        {run ? ` · consistency check, ${RUN_NAME[run.role]}` : ""}
                       </span>
                     </span>
                     <span className="flex items-center gap-3">
@@ -147,6 +152,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
                       <StatusChip tone={s.status === "done" ? "good" : s.status === "failed" ? "bad" : s.status === "partial" ? "warn" : "idle"}>{s.status}</StatusChip>
                     </span>
                   </Link>
+                  {run ? <Link href={`/app/compare?kind=ai&business=${s.business_id}&group=${run.group}`} className="mb-3 inline-block text-[13px] text-muted-foreground underline underline-offset-2 hover:text-fg">Open the consistency check</Link> : null}
                 </li>
               );
             })}

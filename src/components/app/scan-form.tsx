@@ -6,7 +6,8 @@ import { ctaClass } from "@/components/brand/primitives";
 import { Segmented } from "@/components/brand/segmented";
 import { track } from "@/lib/analytics";
 import { AI_GRID_SIZES, ENGINE_LABEL, ENGINES, MAPS_GRID_SIZES, type Engine } from "@/lib/pricing-constants";
-import { DEFAULT_PROMPT_TEMPLATE } from "@/lib/scans/prompt";
+import { DEFAULT_PROMPT_TEMPLATE, QUESTIONS } from "@/lib/scans/prompt";
+import { languageName } from "@/lib/countries";
 import { skippedLine } from "@/lib/scans/skip";
 import { creditsBlocker, creditsLeft, defaultFunding, plural, scanCredits, type FundingChoice } from "./first-run";
 import { SERVICE_AREA_NOTE } from "@/lib/service-area";
@@ -44,7 +45,13 @@ interface Estimate {
   credits: number;
   basis: string;
   lines: { provider: string; label: string; usd: number }[];
+  /** Consistency checks: how many runs the estimate covers, and how. */
+  runs?: number;
+  note?: string;
 }
+
+/** Languages with a question written by RankbyAI ("en" is the standard English question). Mirrors SECOND_LANGUAGES on the server. */
+const SECOND_LANGUAGE_OPTIONS = ["en", ...Object.keys(QUESTIONS)].map((code) => ({ code, name: code === "en" ? "English" : (languageName(code) ?? code), example: code === "en" ? "dentist" : QUESTIONS[code].serviceExample }));
 
 const money = (v: number) => "$" + (v < 1 ? v.toFixed(3) : v.toFixed(2));
 
@@ -84,6 +91,11 @@ export function ScanForm({
   const [radius, setRadius] = useState(2);
   const [mode, setMode] = useState<"standard" | "priority" | "live">("priority");
   const [repeat, setRepeat] = useState<"none" | "weekly" | "monthly">("none");
+  // Consistency check (AI only): the same question twice, and/or once or twice in a second language.
+  const [twice, setTwice] = useState(false);
+  const [secondOn, setSecondOn] = useState(false);
+  const [secondLang, setSecondLang] = useState("");
+  const [secondKeyword, setSecondKeyword] = useState("");
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   // The grid size and number of skipped points the request behind `estimate` carried.
   const [estimateFor, setEstimateFor] = useState({ grid: firstGrid, skip: 0 });
@@ -117,23 +129,27 @@ export function ScanForm({
     setEngines((cur) => (cur.some((e) => can.includes(e)) ? cur : can));
   };
 
+  const consistency = kind === "ai" && (twice || secondOn);
+  const secondReady = !secondOn || (!!secondLang && secondKeyword.trim().length >= 2);
+  const endpoint = consistency ? "/api/scans/consistency" : "/api/scans";
   const body = useCallback(
     (confirm: boolean) => ({
       business_id: businessId, kind, keyword, grid_size: grid, radius_miles: radius, funding, confirm,
       ...(skip.length ? { skip_points: skip } : {}),
       ...(centre ? { center_lat: centre.lat, center_lng: centre.lng } : {}),
       ...(kind === "ai" ? { engines: engineKey ? engineKey.split(",") : [], prompt_template: template === defaultQuestion ? null : template } : { mode }),
+      ...(consistency ? { repeat: twice ? 2 : 1, ...(secondOn ? { second_language: { language: secondLang, keyword: secondKeyword.trim() } } : {}) } : {}),
     }),
-    [businessId, kind, keyword, grid, skip, radius, funding, mode, template, defaultQuestion, engineKey, centre],
+    [businessId, kind, keyword, grid, skip, radius, funding, mode, template, defaultQuestion, engineKey, centre, consistency, twice, secondOn, secondLang, secondKeyword],
   );
 
   // Live estimate: ask the server (no confirm) whenever the setup changes.
   useEffect(() => {
-    if (!businessId || keyword.trim().length < 2 || (kind === "ai" && !engineKey) || !center) return;
+    if (!businessId || keyword.trim().length < 2 || (kind === "ai" && !engineKey) || !center || !secondReady) return;
     const my = ++seq.current;
     const sent = body(false);
     const t = setTimeout(async () => {
-      const res = await fetch("/api/scans", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sent) });
+      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sent) });
       const json = (await res.json().catch(() => ({}))) as { estimate?: Estimate; error?: string; message?: string };
       if (my !== seq.current) return;
       setEstimate(json.estimate ?? null);
@@ -141,13 +157,25 @@ export function ScanForm({
       setProblem(json.error === "confirmation_required" ? null : (json.message ?? "Could not estimate this scan."));
     }, 350);
     return () => clearTimeout(t);
-  }, [body, businessId, keyword, kind, engineKey, center]);
+  }, [body, businessId, keyword, kind, engineKey, center, endpoint, secondReady]);
 
-  const ready = !!businessId && !!center && keyword.trim().length >= 2 && (kind === "maps" || activeEngines.length > 0) && !estimateStale && !skipIgnored;
+  const ready = !!businessId && !!center && keyword.trim().length >= 2 && (kind === "maps" || activeEngines.length > 0) && !estimateStale && !skipIgnored && secondReady;
 
   const run = async () => {
     setBusy(true);
     setProblem(null);
+    if (consistency) {
+      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body(true)) });
+      const json = (await res.json().catch(() => ({}))) as { group_id?: string; message?: string };
+      if (res.ok && json.group_id) {
+        track("scan_estimated", { kind, est_usd: estimate?.totalUsd ?? 0, funding });
+        router.push(`/app/compare?kind=ai&business=${businessId}&group=${json.group_id}`);
+        return;
+      }
+      setBusy(false);
+      setProblem(json.message ?? "The check could not start. Nothing was charged.");
+      return;
+    }
     const res = await fetch("/api/scans", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body(true)) });
     const json = (await res.json().catch(() => ({}))) as { scan_id?: string; message?: string };
     if (res.ok && json.scan_id) {
@@ -223,6 +251,33 @@ export function ScanForm({
               <textarea value={template} onChange={(e) => setTemplate(e.target.value)} rows={3} maxLength={400} className={`${inputClass} mt-3 font-mono text-[13px]`} />
               <span className="mt-2 block text-[13px] text-dim">Must contain {"{service}"} and {"{neighbourhood}"}, {"{area}"} or {"{city}"}. The same prompt is sent to every engine and stored with each answer.</span>
             </details>
+            <div className="flex flex-col gap-3 rounded-xl border border-border bg-inset px-4 py-3">
+              <span className="text-[14px] font-medium">Consistency <span className="font-normal text-dim">· optional</span></span>
+              <label className="flex items-start gap-2 text-[14px]">
+                <input type="checkbox" checked={twice} onChange={(e) => setTwice(e.target.checked)} className="mt-[3px] size-4 accent-[var(--rb-g1)]" />
+                <span>Run twice to measure variance <span className="block text-[13px] text-dim">The same question again, right after the first run. Shows which names are stable and which flip by chance. One run is not a stable ranking.</span></span>
+              </label>
+              <label className="flex items-start gap-2 text-[14px]">
+                <input type="checkbox" checked={secondOn} onChange={(e) => setSecondOn(e.target.checked)} className="mt-[3px] size-4 accent-[var(--rb-g1)]" />
+                <span>Also ask in a second language <span className="block text-[13px] text-dim">RankbyAI&apos;s written question in that language, on the same grid. Type the service as people say it there: it is not translated.</span></span>
+              </label>
+              {secondOn ? (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="flex flex-col gap-[6px]">
+                    <span className={labelClass}>Second language</span>
+                    <select value={secondLang} onChange={(e) => setSecondLang(e.target.value)} className={inputClass}>
+                      <option value="" disabled>Choose a language</option>
+                      {SECOND_LANGUAGE_OPTIONS.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-[6px]">
+                    <span className={labelClass}>Service in {SECOND_LANGUAGE_OPTIONS.find((l) => l.code === secondLang)?.name ?? "that language"}</span>
+                    <input value={secondKeyword} onChange={(e) => setSecondKeyword(e.target.value)} maxLength={120} placeholder={SECOND_LANGUAGE_OPTIONS.find((l) => l.code === secondLang)?.example} className={inputClass} />
+                  </label>
+                </div>
+              ) : null}
+              {consistency ? <span className="text-[13px] text-dim">{(twice ? 2 : 1) * (secondOn ? 2 : 1)} runs of this grid, one after another: the estimate covers all of them. A check runs once; it is not scheduled.</span> : null}
+            </div>
           </>
         ) : null}
 
@@ -284,7 +339,7 @@ export function ScanForm({
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-[6px]">
+        {consistency ? null : <div className="flex flex-col gap-[6px]">
           <span className={labelClass}>Repeat</span>
           <Segmented
             label="Repeat" value={repeat} onChange={setRepeat}
@@ -295,7 +350,7 @@ export function ScanForm({
               Runs now, then every {repeat === "weekly" ? "week" : "month"} at about the same cost per run{kind === "maps" ? " (scheduled Maps runs use the cheaper Standard queue)" : ""}.{skip.length ? ` The ${plural(skip.length, "skipped point")} stay skipped on every run.` : ""} Pause or delete it any time under Schedules.
             </span>
           ) : null}
-        </div>
+        </div>}
 
         <div className="flex flex-col gap-[6px]">
           <span className={labelClass}>Paid with</span>
@@ -329,6 +384,7 @@ export function ScanForm({
               <span className="text-[15px] text-muted-foreground">{funding === "credits" ? (estimate.credits === 1 ? "credit" : "credits") : "on your keys"}</span>
             </div>
             {estimate.skipped ? <p className="m-0 text-[13px] text-dim">{skippedLine(grid, estimate.skipped)}: not looked up and not charged.</p> : null}
+            {estimate.runs ? <p className="m-0 text-[13px] text-dim">{estimate.note}</p> : null}
             <ul className="m-0 flex list-none flex-col gap-2 p-0 text-[14px]">
               {estimate.lines.map((l) => (
                 <li key={l.label} className="flex justify-between gap-3 text-muted-foreground">
@@ -353,7 +409,7 @@ export function ScanForm({
           </p>
         ) : null}
         <button type="button" onClick={run} disabled={!ready || busy || locked || !estimate || !!blocker} aria-busy={busy} className={ctaClass("block", "cursor-pointer border-0 text-[16px]")}>
-          <span>{busy ? "Starting…" : locked ? "Needs lifetime access" : kind === "ai" ? "Run AI check" : "Run Maps grid"}</span>
+          <span>{busy ? "Starting…" : locked ? "Needs lifetime access" : consistency ? (estimate?.runs ? `Run ${estimate.runs} checks` : "Run the checks") : kind === "ai" ? "Run AI check" : "Run Maps grid"}</span>
           <span aria-hidden>→</span>
         </button>
       </aside>

@@ -9,6 +9,7 @@ import { dbAdmin } from "@/lib/db/clients";
 import { businessLanguage, languageName } from "@/lib/countries";
 import { CENTRED_MILES, milesBetween } from "@/lib/scans/grid";
 import { signedUrl } from "@/lib/storage";
+import { withoutSideRuns } from "@/lib/scans/consistency";
 
 /**
  * Public report view for /r/{slug} (brief 7.6). Read with the service role on the server and reduced
@@ -32,6 +33,7 @@ interface ScanLite {
   center_lat: number | null;
   center_lng: number | null;
   created_at: string;
+  label?: string | null;
 }
 
 const finite = (v: unknown): number | null => (v == null || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
@@ -69,10 +71,11 @@ async function buildReportView(report: any): Promise<ReportView | null> {
 
   // A live share link always shows the latest scans; prospect and free-check reports show their own.
   let scans: ScanLite[] = [];
-  const cols = "id, kind, grid_size, keyword, niche, engines, status, summary, radius_miles, center_lat, center_lng, created_at";
+  const cols = "id, kind, grid_size, keyword, niche, engines, status, summary, radius_miles, center_lat, center_lng, created_at, label";
   if (report.kind === "share") {
     const { data } = await admin.from("scans").select(cols).eq("business_id", business.id).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(20);
-    scans = (data ?? []) as ScanLite[];
+    // Repeat and second-language runs of a consistency check are never the "latest" scan on a share link.
+    scans = withoutSideRuns((data ?? []) as ScanLite[]);
   } else if ((report.scan_ids ?? []).length) {
     const { data } = await admin.from("scans").select(cols).in("id", report.scan_ids).in("status", ["done", "partial"]).order("created_at", { ascending: false });
     scans = (data ?? []) as ScanLite[];

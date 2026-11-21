@@ -210,11 +210,15 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
   server.registerTool("get_audit", {
     title: "Get an audit",
     annotations: hints("get_audit", "Get an audit"),
-    description: "Audit status, score, category scores, how many checks ran, the findings with evidence and fix, and the checks that could not run with the reason. Work P0 findings first: they are identity problems that undermine everything else. Free.",
+    description: "Audit status, score, category scores, how many checks ran, the findings with evidence and fix, and the checks that could not run with the reason. Crawler findings (robots.txt and what the server answers requests that name a crawler) also carry `crawlers`: per crawler the likely cause, how sure it is, and step-by-step fixes to pass on; never present a medium or low confidence cause as certain. Work P0 findings first: they are identity problems that undermine everything else. Free.",
     inputSchema: z.object({ audit_id: id("audit") }),
     outputSchema: open({
       audit: auditOut,
-      findings: z.array(open({ priority: z.enum(["P0", "P1", "P2", "P3"]), category: z.string(), title: z.string(), evidence: z.array(open({})), fix: z.string(), impact_note: text, check_key: z.string() })),
+      findings: z.array(open({
+        priority: z.enum(["P0", "P1", "P2", "P3"]), category: z.string(), title: z.string(), evidence: z.array(open({})), fix: z.string(), impact_note: text, check_key: z.string(),
+        crawlers: z.array(open({ agent: z.string(), purpose: z.enum(["search", "training", "user_fetch"]), blocked_by: z.enum(["robots_txt", "server"]), evidence: z.string(), cause: z.string(), confidence: z.enum(["high", "medium", "low"]), where_to_look: z.array(z.string()), steps: z.array(z.string()), verify: z.string() })).optional()
+          .describe("Crawler findings only (ai_crawlers, crawler_http): per crawler, whether it is a search or training crawler, the evidence, the likely cause with a confidence, where to look, the steps and a command to check the fix"),
+      })),
       not_checked: z.array(open({ check: z.string(), title: z.string(), reason: text })),
     }),
   }, (a) => reply("get_audit", () => core.getAudit(caller, a.audit_id)));

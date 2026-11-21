@@ -287,6 +287,18 @@ export function openApiSpec(siteUrl: string) {
         Finding: obj({
           priority: { type: "string", enum: ["P0", "P1", "P2", "P3"] }, category: { type: "string" }, title: { type: "string" },
           evidence: { type: "array", items: obj({ label: { type: "string" }, value: { type: "string" }, source_url: { type: "string" } }) }, fix: { type: "string" }, impact_note: nullable("string"), check_key: { type: "string" },
+          crawlers: {
+            type: "array",
+            description: "Crawler findings only (check_key ai_crawlers or crawler_http): one entry per crawler. `confidence` is high when robots.txt says it in so many words, medium when Cloudflare's own response headers show Cloudflare refused a request that named the crawler, low for a refusal by a server or firewall that cannot be identified.",
+            items: obj({
+              agent: { type: "string" }, purpose: { type: "string", enum: ["search", "training", "user_fetch"], description: "search crawlers decide whether the business can be recommended; training crawlers do not, and the business may choose to block them." },
+              serves: { type: "string" }, blocked_by: { type: "string", enum: ["robots_txt", "server"] },
+              evidence: { type: "string", description: "The robots.txt lines quoted, or the status and headers of the refused request." },
+              cause: { type: "string" }, confidence: { type: "string", enum: ["high", "medium", "low"] },
+              where_to_look: { type: "array", items: { type: "string" }, description: "When the exact setting cannot be seen from outside: the places to look." },
+              steps: { type: "array", items: { type: "string" } }, verify: { type: "string", description: "A command to check the fix." }, caveat: nullable("string"),
+            }, ["agent", "purpose", "blocked_by", "evidence", "cause", "confidence", "steps", "verify"]),
+          },
         }, ["priority", "title", "evidence"]),
         FixKit: obj({
           id: uuid, audit_id: nullable("string", { format: "uuid" }), description: nullable("string", { description: "A factual business description to paste into the Google profile." }),

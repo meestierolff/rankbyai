@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ctaClass, secondaryClass } from "@/components/brand/primitives";
+import { secondaryClass } from "@/components/brand/primitives";
+import { CopyButton } from "./copy-button";
 
 interface Pitch {
   business: string;
@@ -22,26 +23,6 @@ const samePath = (url: string) => {
 };
 
 const fileName = (name: string) => `${name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "report"}-teaser.png`;
-
-function CopyButton({ text, label, primary = false }: { text: string; label: string; primary?: boolean }) {
-  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
-  return (
-    <button
-      type="button"
-      className={primary ? ctaClass("sm", "cursor-pointer border-0") : secondaryClass("cursor-pointer")}
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setState("copied");
-        } catch {
-          setState("failed");
-        }
-      }}
-    >
-      <span aria-live="polite">{state === "copied" ? "Copied" : state === "failed" ? "Select the text and copy it" : label}</span>
-    </button>
-  );
-}
 
 /**
  * The email teaser of one prospect report: a short email to copy, its image to download, and the

@@ -330,10 +330,11 @@ export async function getAudit(c: ApiCaller, id: string): Promise<ApiResult> {
   const { data: audit } = await db.from("audits").select("id, business_id, status, score, category_scores, checks_ran, checks_total, funding, est_cost_usd, cost_usd, error, created_at, finished_at, inputs").eq("id", id).eq("workspace_id", c.workspaceId).maybeSingle();
   if (!audit) return badId("audit");
   const { inputs, ...rest } = audit as Record<string, unknown> & { inputs: { service?: string; months?: number; checks?: { key: string; title: string; status: string; reason?: string }[] } };
-  const { data: findings } = await db.from("audit_findings").select("priority, category, title, evidence, fix, impact_note, check_key").eq("audit_id", id).order("priority");
+  const { data: findings } = await db.from("audit_findings").select("priority, category, title, evidence, fix, impact_note, check_key, data").eq("audit_id", id).order("priority");
   return ok({
     audit: { ...rest, service: inputs?.service ?? null, months: inputs?.months ?? null },
-    findings: findings ?? [],
+    // `data` holds internal check state; only the crawler findings' per-crawler advice is published (as `crawlers`).
+    findings: ((findings ?? []) as (Record<string, unknown> & { data?: { crawlers?: unknown } | null })[]).map(({ data, ...f }) => (Array.isArray(data?.crawlers) ? { ...f, crawlers: data.crawlers } : f)),
     not_checked: (inputs?.checks ?? []).filter((x) => x.status === "not_checked").map((x) => ({ check: x.key, title: x.title, reason: x.reason ?? null })),
   });
 }

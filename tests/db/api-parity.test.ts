@@ -582,6 +582,19 @@ describe("MCP: protocol, schemas and the new tools (official MCP client)", () =>
     const got = await call(client, "get_audit", { audit_id: audit.body.audit_id });
     expect(got.isError).toBe(false);
     expect(got.body.findings.length).toBeGreaterThan(3);
+    // Crawler findings publish their per-crawler advice as `crawlers`; other findings' internal `data` stays private.
+    const crawler = { agent: "OAI-SearchBot", purpose: "search", serves: "ChatGPT search", blocked_by: "robots_txt", evidence: "User-agent: OAI-SearchBot\nDisallow: /", cause: "robots.txt has its own group for OAI-SearchBot that disallows /.", confidence: "high", where_to_look: [], steps: ["In robots.txt, delete “Disallow: /”."], verify: "curl -s https://x.example/robots.txt", caveat: null };
+    const [one, two] = (await sql<{ id: string }>("select id from public.audit_findings where audit_id = $1 order by id limit 2", [audit.body.audit_id]));
+    await sql("update public.audit_findings set check_key = 'ai_crawlers', data = $2::jsonb where id = $1", [one.id, JSON.stringify({ crawlers: [crawler] })]);
+    await sql("update public.audit_findings set data = $2::jsonb where id = $1", [two.id, JSON.stringify({ internal: "not for the API" })]);
+    const withCrawlers = await call(client, "get_audit", { audit_id: audit.body.audit_id });
+    expect(withCrawlers.isError).toBe(false);
+    const published = withCrawlers.body.findings.filter((f: { crawlers?: unknown }) => f.crawlers);
+    expect(published).toHaveLength(1);
+    expect(published[0]).toMatchObject({ check_key: "ai_crawlers", crawlers: [crawler] });
+    expect(JSON.stringify(withCrawlers.body)).not.toContain("not for the API");
+    expect(withCrawlers.body.findings.some((f: Record<string, unknown>) => "data" in f)).toBe(false);
+    expect((await rest("GET", `/audits/${audit.body.audit_id}`)).body.findings).toEqual(withCrawlers.body.findings);
 
     const batch = await call(client, "create_prospect_batch", { niche: "dentist", city: "Austin, TX", max_reports: 2, confirm: true });
     expect(batch.isError).toBe(false);

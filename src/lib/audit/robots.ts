@@ -6,9 +6,18 @@
  * at the network level is invisible from here, and the audit says so.
  */
 
+export interface RobotsRule {
+  allow: boolean;
+  pattern: string;
+  /** 0-based line of the rule in the file, for quoting it. */
+  line?: number;
+}
+
 export interface RobotsGroup {
   agents: string[];
-  rules: { allow: boolean; pattern: string }[];
+  rules: RobotsRule[];
+  /** 0-based lines of the group's User-agent lines. */
+  agentLines?: number[];
 }
 
 /** Parses robots.txt into groups. Unknown lines (Sitemap, Crawl-delay, Host, comments) are ignored. */
@@ -16,7 +25,7 @@ export function parseRobots(text: string): RobotsGroup[] {
   const groups: RobotsGroup[] = [];
   let current: RobotsGroup | null = null;
   let lastWasAgent = false;
-  for (const raw of text.split(/\r\n|\r|\n/)) {
+  for (const [n, raw] of text.split(/\r\n|\r|\n/).entries()) {
     const line = raw.replace(/#.*$/, "").trim();
     const m = line.match(/^([A-Za-z-]+)\s*:\s*(.*)$/);
     if (!m) continue;
@@ -25,15 +34,16 @@ export function parseRobots(text: string): RobotsGroup[] {
     if (field === "user-agent") {
       // Consecutive User-agent lines share one group; a User-agent after rules starts a new one.
       if (!current || !lastWasAgent) {
-        current = { agents: [], rules: [] };
+        current = { agents: [], rules: [], agentLines: [] };
         groups.push(current);
       }
       current.agents.push(value.toLowerCase());
+      current.agentLines?.push(n);
       lastWasAgent = true;
     } else if (field === "allow" || field === "disallow") {
       lastWasAgent = false;
       // An empty Disallow allows everything: it adds no rule.
-      if (current && value) current.rules.push({ allow: field === "allow", pattern: value });
+      if (current && value) current.rules.push({ allow: field === "allow", pattern: value, line: n });
     } else {
       lastWasAgent = false;
     }
@@ -54,16 +64,64 @@ export function patternMatches(pattern: string, path: string): boolean {
  * `*` groups do. The longest matching rule wins and Allow wins a tie, as Google and Bing apply it.
  */
 export function isAllowed(groups: RobotsGroup[], agent: string, path: string): boolean {
+  return decide(groups, agent, path)?.rule.allow ?? true;
+}
+
+/** The rule that decides whether `agent` may fetch `path`, the group it is in, and whether that group names the agent. Null: no rule matches (allowed). */
+export function decide(groups: RobotsGroup[], agent: string, path: string): { rule: RobotsRule; group: RobotsGroup; named: boolean } | null {
   const token = agent.toLowerCase();
   const named = groups.filter((g) => g.agents.includes(token));
   const applicable = named.length ? named : groups.filter((g) => g.agents.includes("*"));
-  let best: { allow: boolean; length: number } | null = null;
-  for (const rule of applicable.flatMap((g) => g.rules)) {
-    if (!patternMatches(rule.pattern, path)) continue;
-    const length = rule.pattern.length;
-    if (!best || length > best.length || (length === best.length && rule.allow)) best = { allow: rule.allow, length };
+  let best: { rule: RobotsRule; group: RobotsGroup } | null = null;
+  for (const group of applicable) {
+    for (const rule of group.rules) {
+      if (!patternMatches(rule.pattern, path)) continue;
+      const length = rule.pattern.length;
+      const bestLength = best?.rule.pattern.length ?? -1;
+      if (!best || length > bestLength || (length === bestLength && rule.allow)) best = { rule, group };
+    }
   }
-  return best ? best.allow : true;
+  return best ? { ...best, named: named.length > 0 } : null;
+}
+
+/**
+ * Cloudflare's managed robots.txt: Cloudflare prepends its own block to the site's file while
+ * "Enable Bot Preference Sync" is on, between these two comment lines (developers.cloudflare.com/bots/
+ * additional-configurations/managed-robots-txt, read 21 Nov 2026, page dated 2 Nov 2026).
+ * Returns the 0-based first and last line of that block.
+ */
+export function cloudflareManagedRange(text: string): [number, number] | null {
+  const lines = text.split(/\r\n|\r|\n/);
+  const start = lines.findIndex((l) => /^\s*#\s*BEGIN Cloudflare Managed content/i.test(l));
+  if (start < 0) return null;
+  const end = lines.findIndex((l, i) => i > start && /^\s*#\s*END Cloudflare Managed content/i.test(l));
+  return [start, end < 0 ? lines.length - 1 : end];
+}
+
+/** Why robots.txt blocks a crawler at a path, with the lines that do it, quoted from the file. */
+export interface RobotsCause {
+  kind: "cloudflare_managed" | "named_group" | "default_deny" | "wildcard";
+  /** The group's User-agent lines and the deciding rule, as written in the file. */
+  stanza: string;
+  path: string;
+  /** default_deny: the crawlers the file still lets in, by name. */
+  allowedOnly?: string[];
+}
+
+export function robotsCause(text: string, groups: RobotsGroup[], agent: string, path: string): RobotsCause | null {
+  const d = decide(groups, agent, path);
+  if (!d || d.rule.allow) return null;
+  const lines = text.split(/\r\n|\r|\n/);
+  const quote = (n: number | undefined) => (n == null ? null : (lines[n] ?? "").trim());
+  const stanza = [...(d.group.agentLines ?? []).map(quote), quote(d.rule.line)].filter((l): l is string => !!l).join("\n");
+  const managed = cloudflareManagedRange(text);
+  if (managed && d.rule.line != null && d.rule.line >= managed[0] && d.rule.line <= managed[1]) return { kind: "cloudflare_managed", stanza, path };
+  if (d.named) return { kind: "named_group", stanza, path };
+  if (d.rule.pattern === "/") {
+    const allowedOnly = groups.filter((g) => !g.agents.includes("*") && g.agents.some((a) => isAllowed(groups, a, path))).flatMap((g) => g.agents.filter((a) => isAllowed(groups, a, path)));
+    return { kind: "default_deny", stanza, path, allowedOnly: [...new Set(allowedOnly)] };
+  }
+  return { kind: "wildcard", stanza, path };
 }
 
 /**
@@ -98,8 +156,8 @@ export const CRAWLERS = [
 export type CrawlerTier = (typeof CRAWLERS)[number]["tier"];
 
 export interface CrawlerAccess {
-  /** Crawlers refused at one or more of the checked paths, with those paths. */
-  blocked: { agent: string; tier: CrawlerTier; serves: string; paths: string[] }[];
+  /** Crawlers refused at one or more of the checked paths, with those paths and why (at the first of them). */
+  blocked: { agent: string; tier: CrawlerTier; serves: string; paths: string[]; cause: RobotsCause | null }[];
   /** The paths checked: the homepage and the money pages. */
   paths: string[];
   /** False when the site has no robots.txt (or an unreadable one): nothing is blocked by it. */
@@ -117,6 +175,9 @@ export function crawlerAccess(robots: { status: number; text: string } | null, p
   const checked = [...new Set(paths.length ? paths : ["/"])].slice(0, 6);
   if (!usable) return { blocked: [], paths: checked, hasRobots: false };
   const groups = parseRobots(robots.text);
-  const blocked = CRAWLERS.map((c) => ({ agent: c.agent, tier: c.tier, serves: c.serves, paths: checked.filter((p) => !isAllowed(groups, c.agent, p)) })).filter((c) => c.paths.length > 0);
+  const blocked = CRAWLERS
+    .map((c) => ({ agent: c.agent, tier: c.tier, serves: c.serves, paths: checked.filter((p) => !isAllowed(groups, c.agent, p)) }))
+    .filter((c) => c.paths.length > 0)
+    .map((c) => ({ ...c, cause: robotsCause(robots.text, groups, c.agent, c.paths[0]) }));
   return { blocked, paths: checked, hasRobots: true };
 }

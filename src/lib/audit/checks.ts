@@ -1,10 +1,11 @@
 import { ENGINE_LABEL, type Engine } from "@/lib/pricing-constants";
 import type { BusinessInfo } from "@/lib/providers/dataforseo";
 import { normalizeName, normalizePhone } from "@/lib/scans/match";
-import type { PageFacts } from "./crawl";
+import type { CrawlerProbe, PageFacts } from "./crawl";
+import { probeDetail, probeEvidence, purposeOf, robotsDetail } from "./crawler-fix";
 import { median, pageMath, reviewTarget } from "./math";
 import { DIRECT_ANSWER, isContentSection, isDirectAnswer, moneyPages, namesService, pageIsAbout, pathOf, pathWords, type PageSummary } from "./onpage";
-import { crawlerAccess, type CrawlerTier } from "./robots";
+import { CRAWLERS, cloudflareManagedRange, crawlerAccess, type CrawlerTier } from "./robots";
 
 /**
  * Local AI Audit (brief 7.4): deterministic checks over stored inputs.
@@ -55,6 +56,8 @@ export interface AuditInputs {
     knownPages: number;
     /** The /robots.txt response; null or absent when it could not be fetched (the crawler check is then not run). */
     robots?: { status: number; text: string } | null;
+    /** The homepage as crawlers see it (one request per crawler); absent when not tested. */
+    probes?: CrawlerProbe[] | null;
   } | null;
   ai: {
     scanDate: string;
@@ -359,6 +362,44 @@ const TIER_LABEL: Record<CostlyTier, string> = {
   search: "search engine crawlers", ai_search: "AI search crawlers", gemini: "Google-Extended, which also feeds Gemini app answers", user_fetch: "AI assistants opening pages for a user",
 };
 
+/**
+ * Whether the server (or a firewall in front of it) refuses requests that name AI search crawlers.
+ * Only run when RankbyAI's own request for the homepage succeeded, so a refusal can be put down to
+ * the crawler's name. A finding from this alone is never P0, and its title states the observation.
+ */
+function serverAccessCheck(probes: CrawlerProbe[] | null, origin: string, title: string): CheckResult {
+  if (!probes?.length) return skip("crawler_http", "website", "P1", title, "The homepage was not requested with crawler user agents in this audit.");
+  if (probes.every((p) => p.status == null)) return skip("crawler_http", "website", "P1", title, "None of the requests that named a crawler got an answer in time, so this could not be judged.");
+  const tierOf = (agent: string) => CRAWLERS.find((c) => c.agent === agent);
+  const details = probes.flatMap((p) => {
+    const c = tierOf(p.agent);
+    const d = c ? probeDetail(p, c.tier, c.serves, origin) : null;
+    return d ? [d] : [];
+  });
+  const evidence: Evidence[] = [
+    { label: "RankbyAI's own request for the homepage", value: "answered (the homepage was read)", source_url: `${origin}/` },
+    ...probes.map((p) => {
+      const c = tierOf(p.agent);
+      return { label: `Request naming ${p.agent} (${c ? (purposeOf(c.tier) === "search" ? "search" : "training") : "crawler"})`, value: probeEvidence(p) };
+    }),
+  ];
+  const impact = "A crawler that gets a block or challenge page instead of the site cannot read it, so the assistant it feeds cannot quote it. RankbyAI's requests came from its own servers: the real crawlers come from their owners' addresses and may be treated differently, so confirm in the firewall's log.";
+  const hurting = details.filter((d) => d.purpose !== "training");
+  const data = details.length ? { crawlers: details } : undefined;
+  if (!hurting.length) return ok({ key: "crawler_http", category: "website", priority: "P1", title, evidence, fix: "", impact, data });
+  const cloudflare = hurting.some((d) => d.confidence === "medium");
+  return bad({
+    key: "crawler_http", category: "website",
+    // Capped by how sure we can be: Cloudflare's own headers make it likely (P1); an unknown firewall is a lead (P2).
+    priority: cloudflare ? "P1" : "P2",
+    title: `The server refuses requests that name AI search crawlers: ${hurting.map((d) => d.agent).join(", ")}`,
+    fix: cloudflare
+      ? "Likely a Cloudflare bot setting: check Bot fight mode and the AI Crawler and Agent access policies (Security → Settings, filter by Bot traffic), and find the rule in Security Events by its Ray ID."
+      : "Check the hosting firewall, CDN or security plugin for rules that block these crawler names, and let AI search crawlers in.",
+    evidence, impact, data,
+  });
+}
+
 /** Short opening of a text for evidence: its first `n` words. */
 const firstWords = (s: string, n: number) => {
   const w = s.split(/\s+/).filter(Boolean);
@@ -380,6 +421,7 @@ function findabilityChecks(inp: AuditInputs): CheckResult[] {
     ["money_opening", "P2", "Main pages name the service and the city in their opening words"],
     ["money_subheadings", "P2", "Main pages are split into sections with subheadings"],
     ["answer_first", "P2", "Sections open with a short, direct answer"],
+    ["crawler_http", "P1", "The server lets AI search crawlers in"],
   ] as const;
   if (!home || !inp.site) return keys.map(([key, pr, t]) => skip(key, "website", pr, t, noSite));
 
@@ -388,36 +430,48 @@ function findabilityChecks(inp: AuditInputs): CheckResult[] {
   const money = moneyPages(service, home, pages);
   const robotsUrl = new URL("/robots.txt", home.url).toString();
 
-  // ── Crawler access ──
+  // ── Crawler access: robots.txt ──
+  const origin = new URL(home.url).origin;
   const access = inp.site.robots === undefined ? null : crawlerAccess(inp.site.robots, money.map((p) => pathOf(p.url)));
   if (!access) out.push(skip("ai_crawlers", "website", "P0", keys[0][2], "robots.txt could not be read (no answer or a server error), so crawler access is unknown."));
   else {
     const hurting = access.blocked.filter((b) => b.tier !== "training");
     const training = access.blocked.filter((b) => b.tier === "training");
     const worst = TIER_ORDER.find((t) => hurting.some((b) => b.tier === t));
+    const managed = access.hasRobots && !!inp.site.robots && !!cloudflareManagedRange(inp.site.robots.text);
     const evidence: Evidence[] = [
       { label: "/robots.txt", value: access.hasRobots ? "found" : "none (nothing is blocked by it)", source_url: robotsUrl },
+      ...(managed ? [{ label: "Cloudflare managed robots.txt", value: "on: Cloudflare adds its own rules to this file" }] : []),
       { label: "Pages checked", value: access.paths.join(", ") },
-      ...hurting.map((b) => ({ label: `${b.agent} (${b.serves})`, value: `blocked at ${b.paths.join(", ")}` })),
+      ...hurting.map((b) => ({ label: `${b.agent} (${b.serves})`, value: `blocked at ${b.paths.join(", ")}${b.cause ? ` by: ${b.cause.stanza.replace(/\n/g, " · ")}` : ""}` })),
       { label: "Training-only crawlers blocked (no effect on answers)", value: training.length ? training.map((b) => b.agent).join(", ") : "none" },
     ];
+    // Per crawler: purpose (search or training), the lines that block it, the likely cause and the steps.
+    const data = access.blocked.length ? { crawlers: access.blocked.map((b) => robotsDetail(b, origin)) } : undefined;
     const impact = "A crawler that may not read a page cannot index it, so the search engine or assistant it feeds cannot show or quote it.";
-    if (!worst) out.push(ok({ key: "ai_crawlers", category: "website", priority: "P0", title: keys[0][2], evidence, fix: "", impact }));
+    if (!worst) out.push(ok({ key: "ai_crawlers", category: "website", priority: "P0", title: keys[0][2], evidence, fix: "", impact, data }));
     else {
       const names = hurting.filter((b) => b.tier === worst).map((b) => b.agent);
       const others = hurting.filter((b) => b.tier !== "gemini").map((b) => b.agent);
       const gemini = hurting.some((b) => b.tier === "gemini");
+      const fromCloudflare = hurting.some((b) => b.cause?.kind === "cloudflare_managed");
+      const defaultDeny = hurting.some((b) => b.cause?.kind === "default_deny");
       const fix = [
-        others.length ? `Remove the Disallow rules for ${others.join(", ")} in robots.txt, or give each its own group with “Allow: /”.` : "",
+        fromCloudflare ? "These rules come from Cloudflare's managed robots.txt: change the AI Crawler and Agent access policies in Cloudflare (Security → Settings, filter by Bot traffic), not the file." : "",
+        !fromCloudflare && defaultDeny ? "robots.txt blocks every crawler by default: change the User-agent: * group to Allow: / and disallow only private paths." : "",
+        !fromCloudflare && !defaultDeny && others.length ? `Remove the Disallow rules for ${others.join(", ")} in robots.txt, or give each its own group with “Allow: /”.` : "",
         gemini ? "Google-Extended is often blocked on purpose to keep a site out of AI training (Cloudflare's “block AI training” setting does this). It also keeps the site out of answers in the Gemini app, so allow it if those answers matter more to the business." : "",
-        "Blocking training-only crawlers (GPTBot, ClaudeBot, CCBot) is fine and does not affect answers. Also check the firewall or bot protection, which robots.txt does not show.",
+        "Blocking training-only crawlers (GPTBot, ClaudeBot, CCBot) is fine and does not affect answers.",
       ].filter(Boolean).join(" ");
       out.push(bad({
-        key: "ai_crawlers", category: "website", priority: TIER_PRIORITY[worst], evidence, impact, fix,
+        key: "ai_crawlers", category: "website", priority: TIER_PRIORITY[worst], evidence, impact, fix, data,
         title: worst === "gemini" ? "robots.txt blocks Google-Extended, which also feeds Gemini app answers" : `robots.txt blocks ${TIER_LABEL[worst]}: ${names.join(", ")}`,
       }));
     }
   }
+
+  // ── Crawler access: what the server answers a request that names a crawler ──
+  out.push(serverAccessCheck(inp.site.probes ?? null, origin, keys[5][2]));
 
   // A business outside English often has its Google category (the default service) in English while
   // the site is in its own language: "Dentist" never appears on a German "Zahnarzt" site. Then the

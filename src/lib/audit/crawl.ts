@@ -91,8 +91,22 @@ export interface FetchedPage {
   html: string;
 }
 
-/** GET one page with manual, re-validated redirects. Returns null on any failure (the check becomes "not checked"). */
-export async function fetchPage(raw: string, accept = "text/html"): Promise<FetchedPage | null> {
+/** A response as a crawler sees it: status, the headers that say who answered, and the start of an error body. */
+export interface FetchedResponse extends FetchedPage {
+  headers: { server: string | null; cfRay: string | null; cfMitigated: string | null; contentType: string | null };
+}
+
+interface RequestOptions {
+  accept?: string;
+  userAgent?: string;
+  timeoutMs?: number;
+  /** Keep up to this many bytes of a non-2xx body (a block or challenge page), instead of none. */
+  errorBodyBytes?: number;
+}
+
+/** GET with manual, re-validated redirects. Null on any failure to get an answer at all. */
+async function request(raw: string, opts: RequestOptions = {}): Promise<FetchedResponse | null> {
+  const accept = opts.accept ?? "text/html";
   let current = raw;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     let url: URL;
@@ -105,7 +119,7 @@ export async function fetchPage(raw: string, accept = "text/html"): Promise<Fetc
     const agent = pinnedAgent(addresses);
     let res: Awaited<ReturnType<typeof pinnedFetch>>;
     try {
-      res = await pinnedFetch(url, { headers: { "User-Agent": UA, Accept: `${accept},*/*;q=0.5` }, redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS), dispatcher: agent });
+      res = await pinnedFetch(url, { headers: { "User-Agent": opts.userAgent ?? UA, Accept: `${accept},*/*;q=0.5` }, redirect: "manual", signal: AbortSignal.timeout(opts.timeoutMs ?? TIMEOUT_MS), dispatcher: agent });
     } catch {
       void agent.close().catch(() => {});
       return null;
@@ -117,21 +131,67 @@ export async function fetchPage(raw: string, accept = "text/html"): Promise<Fetc
       continue;
     }
     const type = res.headers.get("content-type") ?? "";
-    if (!res.ok || !/(text\/|application\/(xhtml|xml|json))/i.test(type)) return { url: url.toString(), status: res.status, html: "" };
+    const headers = { server: res.headers.get("server"), cfRay: res.headers.get("cf-ray"), cfMitigated: res.headers.get("cf-mitigated"), contentType: type || null };
+    const textual = /(text\/|application\/(xhtml|xml|json))/i.test(type);
+    const cap = res.ok ? MAX_BYTES : (opts.errorBodyBytes ?? 0);
+    if (!textual || cap === 0) {
+      void res.body?.cancel().catch(() => {});
+      return { url: url.toString(), status: res.status, html: "", headers };
+    }
     const reader = res.body?.getReader();
-    if (!reader) return { url: url.toString(), status: res.status, html: "" };
+    if (!reader) return { url: url.toString(), status: res.status, html: "", headers };
     const chunks: Uint8Array[] = [];
     let size = 0;
-    while (size < MAX_BYTES) {
+    while (size < cap) {
       const { done, value } = await reader.read();
       if (done || !value) break;
       chunks.push(value);
       size += value.length;
     }
     void reader.cancel().catch(() => {});
-    return { url: url.toString(), status: res.status, html: Buffer.concat(chunks).subarray(0, MAX_BYTES).toString("utf8") };
+    return { url: url.toString(), status: res.status, html: Buffer.concat(chunks).subarray(0, cap).toString("utf8"), headers };
   }
   return null;
+}
+
+/** GET one page with manual, re-validated redirects. Returns null on any failure (the check becomes "not checked"). */
+export async function fetchPage(raw: string, accept = "text/html"): Promise<FetchedPage | null> {
+  const r = await request(raw, { accept });
+  return r ? { url: r.url, status: r.status, html: r.html } : null;
+}
+
+/** What the homepage answered to a request that identified itself as one crawler. */
+export interface CrawlerProbe {
+  agent: string;
+  /** Null: no answer at all (timeout or connection error). */
+  status: number | null;
+  server: string | null;
+  cfRay: string | null;
+  cfMitigated: string | null;
+  /** The start of a block or challenge page, whitespace collapsed (empty for a normal answer). */
+  snippet: string;
+}
+
+/**
+ * The User-Agent of a probe. It carries the crawler's name, which is what user-agent rules match,
+ * and says plainly that it is RankbyAI's audit: it does not copy the crawler's own string and it
+ * comes from RankbyAI's servers, not the crawler owner's.
+ */
+export const probeUserAgent = (agent: string) => `Mozilla/5.0 (compatible; ${agent}; RankbyAI-Audit/1.0; +https://rankbyai.live/disclaimer)`;
+
+/** One homepage request per crawler, in parallel, 5 seconds each. Gentle: a handful of GETs. */
+export async function probeCrawlers(homeUrl: string, agents: readonly string[]): Promise<CrawlerProbe[]> {
+  return Promise.all(agents.map(async (agent) => {
+    const r = await request(homeUrl, { userAgent: probeUserAgent(agent), timeoutMs: 5_000, errorBodyBytes: 4_096 }).catch(() => null);
+    return {
+      agent,
+      status: r?.status ?? null,
+      server: r?.headers.server ?? null,
+      cfRay: r?.headers.cfRay ?? null,
+      cfMitigated: r?.headers.cfMitigated ?? null,
+      snippet: r && r.status >= 400 ? r.html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300) : "",
+    };
+  }));
 }
 
 // ───────────────────────── HTML facts ─────────────────────────
@@ -274,13 +334,15 @@ export interface SiteCrawl {
   fetched: number;
   /** The site's /robots.txt response; null when it could not be fetched at all. */
   robots: { status: number; text: string } | null;
+  /** The homepage as crawlers see it; absent when not probed. */
+  probes?: CrawlerProbe[];
 }
 
 /**
  * Homepage + up to `maxPages` internal pages (from the sitemap, else from homepage links). Sequential and gentle.
  * `deadline` (epoch ms) is a wall-clock budget: a slow site ends the crawl early and the pages read so far are kept.
  */
-export async function crawlSite(website: string, maxPages = 20, deadline = Date.now() + 75_000): Promise<SiteCrawl> {
+export async function crawlSite(website: string, maxPages = 20, deadline = Date.now() + 75_000, probeAgents: readonly string[] = []): Promise<SiteCrawl> {
   const start = website.startsWith("http") ? website : `https://${website}`;
   const homePage = await fetchPage(start);
   if (!homePage || !homePage.html) return { home: null, pages: [], hasLlmsTxt: null, fetched: 0, robots: null };
@@ -291,6 +353,9 @@ export async function crawlSite(website: string, maxPages = 20, deadline = Date.
   // A 200 with no readable body (an unexpected content type, or an empty file) is treated as unknown,
   // never as "nothing blocked": the check then says it could not read the file.
   const robots = robotsPage && !(robotsPage.status === 200 && !robotsPage.html.trim()) ? { status: robotsPage.status, text: robotsPage.html.slice(0, 200_000) } : null;
+  // The homepage again as crawlers: does the server (or a firewall in front of it) let them in? Runs
+  // alongside the sitemap read, so it adds at most a few seconds.
+  const probesPending = probeAgents.length ? probeCrawlers(homePage.url, probeAgents) : Promise.resolve(undefined);
 
   let candidates: string[] = [];
   const sitemap = await fetchPage(`${origin}/sitemap.xml`, "application/xml");
@@ -311,5 +376,5 @@ export async function crawlSite(website: string, maxPages = 20, deadline = Date.
   // Past the deadline the llms.txt check is skipped and reported as "not checked", never as "missing".
   const llms = Date.now() > deadline ? null : await fetchPage(`${origin}/llms.txt`, "text/plain");
   const hasLlmsTxt = llms ? llms.status === 200 && llms.html.trim().length > 0 && !/<html/i.test(llms.html.slice(0, 500)) : null;
-  return { home, pages, hasLlmsTxt, fetched: 1 + pages.length, robots };
+  return { home, pages, hasLlmsTxt, fetched: 1 + pages.length, robots, probes: await probesPending };
 }

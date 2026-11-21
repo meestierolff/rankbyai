@@ -194,6 +194,18 @@ export function openApiSpec(siteUrl: string) {
           responses: { "200": { description: "The batch.", content: json(obj({ batch: ref("ProspectBatch"), reports: { type: "array", items: ref("ProspectReport") } })) }, ...errors },
         },
       },
+      "/prospects/{id}/pitch": {
+        get: {
+          operationId: "getPitchAsset", tags: ["Prospects"], summary: "Email teaser of one finished prospect report",
+          description: "A short plain-text email that opens with the business's own AI and Google Maps numbers and the rivals ahead of it at the same grid points, an image of that comparison (PNG, opened by anyone with the report link, like the report), and the report link. Every number and name comes from the stored report; a line whose data is missing is left out and listed in `omitted`. Free. RankbyAI does not send email.",
+          parameters: [idParam("batch"), { name: "business_id", in: "query", required: true, description: "business_id of a report in this batch, from GET /prospects/{id}.", schema: uuid }],
+          responses: {
+            "200": { description: "The teaser.", content: json(ref("PitchAsset")) },
+            "409": { description: "The report is not ready yet.", content: json(ref("Error")) },
+            ...errors,
+          },
+        },
+      },
       "/branding": {
         get: { operationId: "getBranding", tags: ["Branding"], summary: "White-label branding shown on share links and PDF reports", responses: { "200": { description: "The branding.", content: json(obj({ branding: ref("Branding") })) }, ...errors } },
         patch: {
@@ -291,6 +303,15 @@ export function openApiSpec(siteUrl: string) {
           maps_top3_share_pct: nullable("number"), ai_mention_rate_pct: nullable("number"), top_competitor: nullable("string"), opener: nullable("string", { description: "A factual one-sentence opener." }),
           report_url: nullable("string", { format: "uri", description: "Live share link of the report, once it is ready." }), business_id: nullable("string", { format: "uuid" }),
         }, ["business", "status"]),
+        PitchAsset: obj({
+          business: { type: "string" }, business_id: uuid,
+          report_url: { type: "string", format: "uri", description: "Live link of the full report." },
+          image_url: { type: "string", format: "uri", description: "PNG, 1200×630: the business against the rivals ahead of it. Without a rival ahead it is the report's link preview." },
+          email: obj({ subject: nullable("string"), text: { type: "string", description: "The lines joined with newlines, ready to paste." }, lines: { type: "array", items: { type: "string" } } }, ["text", "lines"]),
+          comparison: { ...nullable("object"), description: "What the image shows.", properties: { metric: { type: "string", enum: ["ai_points", "maps_top3_points"] }, of: { type: "integer", description: "Grid points counted." }, you: obj({ name: { type: "string" }, value: { type: "integer" } }), rivals: { type: "array", items: obj({ name: { type: "string" }, value: { type: "integer" } }) } } },
+          omitted: { type: "array", description: "Lines left out because the report has no data for them.", items: obj({ line: { type: "string", enum: ["ai", "rivals", "maps", "audit", "report_link"] }, reason: { type: "string" } }, ["line", "reason"]) },
+          note: { type: "string" },
+        }, ["business", "report_url", "image_url", "email", "omitted"]),
         Branding: obj({
           brand_name: nullable("string"), brand_color_hex: nullable("string"), brand_website: nullable("string"), reply_to_email: nullable("string"),
           hide_rankbyai_branding: { type: "boolean" }, report_default_view: { type: "string", enum: ["map", "grid"] }, has_logo: { type: "boolean", description: "Whether a logo is uploaded. The logo is managed in the app." },

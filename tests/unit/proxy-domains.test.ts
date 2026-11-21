@@ -105,6 +105,7 @@ describe("custom domain", () => {
     expect(passes(await get(`https://reports.agency-a.com/api/reports/${SLUG_A}/pdf`))).toBe(true);
     expect(passes(await get(`https://reports.agency-a.com/r/${SLUG_A}/pdf`))).toBe(true);
     expect(passes(await get(`https://reports.agency-a.com/r/${SLUG_A}/opengraph-image`))).toBe(true);
+    expect(passes(await get(`https://reports.agency-a.com/r/${SLUG_A}/pitch-image`))).toBe(true);
   });
 
   it("never serves another workspace's report: the same real 404, white-label", async () => {

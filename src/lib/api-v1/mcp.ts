@@ -10,6 +10,7 @@ import * as core from "./core";
 import { COUNTRY_CODES, DEFAULT_COUNTRY, languageName, languageNameFor } from "@/lib/countries";
 import { auditFixPrompt } from "@/lib/audit/prompt";
 import { MCP_TOOL_HINTS, type McpTool } from "./mcp-tools";
+import { reportOriginForAuthorisedWorkspace } from "@/lib/domains-origin";
 
 /**
  * MCP tools (brief 7.8). Each tool calls the same operation as its REST endpoint.
@@ -23,6 +24,7 @@ import { MCP_TOOL_HINTS, type McpTool } from "./mcp-tools";
 const GUIDE =
   "RankbyAI measures whether AI assistants (ChatGPT, Perplexity, Gemini) and Google Maps recommend a local business, point by point on a map grid around it. " +
   "Typical flow: add_business → estimate_scan → run_ai_scan and run_maps_scan with confirm → get_scan until status is done → run_audit → get_audit → get_fix_kit. " +
+  "For a finished prospect report, get_pitch_asset returns a short email teaser and an image for the user to copy; RankbyAI never sends email. " +
   "list_scans, list_audits and list_prospect_batches find earlier work; update_business and delete_business manage the tracked businesses; get_branding and update_branding manage the white-label fields on reports. " +
   "Always show the user the estimate before calling a tool with confirm: true. AI answers vary between runs, places and time; report them as observations, not guarantees. " +
   "When advising on an audit, use the prompt fix_plan (or follow the same order): P0 first (the business's identity, and whether search engines and AI crawlers may read the site), then P1 (gaps against the map pack), then P2 (pages, schema, FAQ), then P3. " +
@@ -260,6 +262,20 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
       reports: z.array(open({ business: z.string(), website: text, phone: text, status: z.string(), error: text, maps_top3_share_pct: num, ai_mention_rate_pct: num, top_competitor: text, opener: text, report_url: text, business_id: text })),
     }),
   }, (a) => reply("get_prospect_batch", () => core.getProspects(caller, a.batch_id, siteUrl, defer)));
+
+  server.registerTool("get_pitch_asset", {
+    title: "Get the email teaser of a prospect report",
+    annotations: hints("get_pitch_asset", "Get the email teaser of a prospect report"),
+    description: "For a finished prospect report: a short plain-text email (subject and 4 to 8 lines) that opens with the business's own AI and Google Maps numbers and the rivals ahead of it at the same grid points, an image_url with that comparison (PNG), and report_url, the full report. Every number and name comes from the stored report; a line whose data is missing is left out and listed in omitted. RankbyAI does not send email: give the text to the user to copy into their own mail client. Free.",
+    inputSchema: z.object({ batch_id: id("batch"), business_id: id("business in the batch (business_id from get_prospect_batch)") }),
+    outputSchema: open({
+      business: z.string(), business_id: z.string(), report_url: z.string(), image_url: z.string(),
+      email: open({ subject: text, text: z.string(), lines: z.array(z.string()) }),
+      comparison: open({ metric: z.enum(["ai_points", "maps_top3_points"]), of: z.number(), you: open({ name: z.string(), value: z.number() }), rivals: z.array(open({ name: z.string(), value: z.number() })) }).nullable(),
+      omitted: z.array(open({ line: z.string(), reason: z.string() })),
+      note: z.string(),
+    }),
+  }, (a) => reply("get_pitch_asset", async () => core.getPitchAsset(caller, a.batch_id, { business_id: a.business_id }, await reportOriginForAuthorisedWorkspace(caller.workspaceId))));
 
   // ───────────────────────── branding and usage ─────────────────────────
 

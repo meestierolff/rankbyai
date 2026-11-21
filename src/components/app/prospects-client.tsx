@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { ctaClass, secondaryClass } from "@/components/brand/primitives";
 import { Segmented } from "@/components/brand/segmented";
 import { track } from "@/lib/analytics";
 import { COUNTRY_OPTION_GROUPS, countryLanguageNote, DEFAULT_COUNTRY } from "@/lib/countries";
 import type { BatchRow, Candidate } from "@/lib/prospects/batch";
+import { PitchPanel } from "./pitch-panel";
 import { StatusChip, inputClass, labelClass } from "./ui";
 import { CREDIT_COST } from "@/lib/pricing-constants";
 import { plural } from "./first-run";
@@ -245,6 +246,8 @@ const ROW_LABEL: Record<BatchRow["status"], string> = { queued: "waiting", scann
 
 export function BatchProgress({ initial }: { initial: BatchView }) {
   const [batch, setBatch] = useState(initial);
+  // The row whose email teaser is open (one at a time).
+  const [pitchFor, setPitchFor] = useState<number | null>(null);
   const active = batch.status === "queued" || batch.status === "running";
 
   useEffect(() => {
@@ -295,7 +298,8 @@ export function BatchProgress({ initial }: { initial: BatchView }) {
           </thead>
           <tbody>
             {batch.rows.map((r) => (
-              <tr key={r.idx} className="border-b border-line align-top last:border-0">
+              <Fragment key={r.idx}>
+              <tr className="border-b border-line align-top last:border-0">
                 <td className="px-4 py-3"><span className="font-medium">{r.name}</span>{r.phone ? <span className="block text-[12px] text-dim">{r.phone}</span> : null}</td>
                 <td className="px-4 py-3 font-mono">{r.maps_top3_share != null ? `${r.maps_top3_share}%` : "—"}</td>
                 <td className="px-4 py-3 font-mono">{r.ai_mention_rate != null ? `${r.ai_mention_rate}%` : "—"}</td>
@@ -307,10 +311,21 @@ export function BatchProgress({ initial }: { initial: BatchView }) {
                     <span className="flex gap-3 text-[13px]">
                       <Link href={`/r/${r.report_slug}`} target="_blank" className="text-fg underline underline-offset-2">Report</Link>
                       <a href={`/api/reports/${r.report_slug}/pdf`} download onClick={() => track("pdf_downloaded", { kind: "prospect" })} className="text-muted-foreground underline underline-offset-2 hover:text-fg">PDF</a>
+                      {r.business_id && r.status === "done" ? (
+                        <button type="button" aria-expanded={pitchFor === r.idx} onClick={() => setPitchFor(pitchFor === r.idx ? null : r.idx)} className="cursor-pointer border-0 bg-transparent p-0 text-[13px] text-muted-foreground underline underline-offset-2 hover:text-fg">
+                          {pitchFor === r.idx ? "Hide teaser" : "Email teaser"}
+                        </button>
+                      ) : null}
                     </span>
                   ) : null}
                 </td>
               </tr>
+              {pitchFor === r.idx && r.business_id ? (
+                <tr className="border-b border-line bg-surface-2/40">
+                  <td colSpan={7} className="px-4 py-4"><PitchPanel batchId={batch.id} businessId={r.business_id} /></td>
+                </tr>
+              ) : null}
+              </Fragment>
             ))}
           </tbody>
         </table>

@@ -7,6 +7,7 @@ import { aiPointLook, mapsPointLook } from "@/components/report/model";
 import type { QuotedAnswer, ReportView } from "@/components/report/types";
 import { AI_DISCLAIMER_TEXT, NOT_AFFILIATED } from "@/lib/copy";
 import { publicEnv } from "@/lib/env-public";
+import { loadLogo } from "@/lib/logo";
 import { ENGINE_LABEL } from "@/lib/pricing-constants";
 
 /**
@@ -494,24 +495,6 @@ export function ReportDocument({ view, liveUrl, logo }: { view: ReportView; live
 }
 
 /** The agency logo for the header, when it is a PNG or JPEG that loads quickly; otherwise none (the name still shows). */
-async function loadLogo(url: string | null): Promise<{ data: Buffer; format: "png" | "jpg" } | null> {
-  if (!url) return null;
-  try {
-    if (url.startsWith("data:")) {
-      const m = url.match(/^data:image\/(png|jpe?g);base64,(.+)$/i);
-      return m ? { data: Buffer.from(m[2], "base64"), format: m[1].toLowerCase() === "png" ? "png" : "jpg" } : null;
-    }
-    if (!/^https:\/\//i.test(url)) return null;
-    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
-    const type = res.headers.get("content-type") ?? "";
-    if (!res.ok || !/image\/(png|jpe?g)/i.test(type)) return null;
-    const data = Buffer.from(await res.arrayBuffer());
-    return data.length && data.length < 2_000_000 ? { data, format: /png/i.test(type) ? "png" : "jpg" } : null;
-  } catch {
-    return null;
-  }
-}
-
 export const renderReportPdf = async (view: ReportView, liveUrl: string): Promise<Buffer> =>
   renderToBuffer(<ReportDocument view={view} liveUrl={liveUrl} logo={await loadLogo(view.brand.logoUrl)} />);
 

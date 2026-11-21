@@ -3,7 +3,7 @@ export const MCP_TOOLS = [
   "list_businesses", "add_business", "update_business", "delete_business",
   "estimate_scan", "run_ai_scan", "run_maps_scan", "list_scans", "get_scan", "compare_scans",
   "run_audit", "list_audits", "get_audit", "get_fix_kit",
-  "create_prospect_batch", "list_prospect_batches", "get_prospect_batch",
+  "create_prospect_batch", "list_prospect_batches", "get_prospect_batch", "get_pitch_asset",
   "get_branding", "update_branding", "get_usage",
 ] as const;
 export type McpTool = (typeof MCP_TOOLS)[number];
@@ -53,6 +53,7 @@ export const MCP_TOOL_HINTS: Record<McpTool, ToolHints> = {
   create_prospect_batch: run,
   list_prospect_batches: read,
   get_prospect_batch: read,
+  get_pitch_asset: read,
   get_branding: read,
   update_branding: overwrite,
   get_usage: read,

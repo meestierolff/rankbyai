@@ -13,7 +13,7 @@ const HEX: Record<string, string> = {
   "var(--rb-red)": DATA_HEX.red, "var(--rb-none)": "#2a2a2a", "var(--rb-well)": "#1a1a1a", "var(--rb-bg)": "#0b0b0b", "var(--rb-fg)": "#f4f2ee", "var(--rb-fg-2)": "#d6d3ce", "var(--rb-faint)": "#6b6b6b",
 };
 const hex = (c: string) => HEX[c] ?? (/^#[0-9a-f]{3,8}$/i.test(c) ? c : "transparent");
-const cut = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max - 1).replace(/\s+\S*$/, "")}…`);
+export const cut = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max - 1).replace(/\s+\S*$/, "")}…`);
 
 function MiniGrid({ view }: { view: ReportView }) {
   const ai = view.ai && view.ai.n > 1 ? view.ai : null;
@@ -55,9 +55,21 @@ function MiniGrid({ view }: { view: ReportView }) {
   );
 }
 
-/** Brand mark of the image: the agency's name when white-labelled, nothing when RankbyAI is hidden, else the dot mark. */
-function BrandMark({ view }: { view: ReportView }) {
+/**
+ * Brand mark of an image: the agency's logo (an inline data URI, when given) and name when
+ * white-labelled, nothing when RankbyAI is hidden, else the dot mark.
+ */
+export function BrandMark({ view, logo = null }: { view: ReportView; logo?: string | null }) {
   const { brand } = view;
+  if (logo) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- rendered to PNG by next/og, not a page */}
+        <img src={logo} alt="" height={44} style={{ height: 44, maxWidth: 180, objectFit: "contain" }} />
+        {brand.name ? <div style={{ display: "flex", fontSize: 28, color: brandTextOnDark(brand.color) ?? "#f4f2ee", letterSpacing: -0.5 }}>{cut(brand.name, 32)}</div> : null}
+      </div>
+    );
+  }
   if (brand.name) return <div style={{ display: "flex", fontSize: 28, color: brandTextOnDark(brand.color) ?? "#f4f2ee", letterSpacing: -0.5 }}>{cut(brand.name, 40)}</div>;
   if (brand.hideRankbyai) return <div style={{ display: "flex" }} />;
   const at = [0, 1, 2];

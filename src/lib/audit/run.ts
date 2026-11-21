@@ -12,7 +12,7 @@ import { namesMatch, normalizeName } from "@/lib/scans/match";
 import { fetchPlaces } from "@/lib/scans/places";
 import { CATEGORY_LABEL, runChecks, scoreAudit, type AuditInputs, type CheckResult } from "./checks";
 import { crawlSite, extractFacts, fetchPage, type PageFacts, type SiteCrawl } from "./crawl";
-import { PROBE_AGENTS, PROBE_AGENTS_QUICK } from "./crawler-fix";
+import { CONTROL_AGENT, PROBE_AGENTS, PROBE_AGENTS_QUICK } from "./crawler-fix";
 import { languageCodeFor } from "@/lib/countries";
 import { heuristicServices, llmServices, missingServices, type ServicePage } from "./services";
 
@@ -351,7 +351,7 @@ export async function processAudit(auditId: string): Promise<void> {
       if (isMockMode()) {
         const home = extractFacts(website, mockSiteHtml(business.name, true));
         crawl = { home, pages: [], hasLlmsTxt: false, fetched: 1, robots: { status: 404, text: "" } };
-      } else crawl = await crawlSite(website, quick ? 0 : 20, Math.min(Date.now() + (quick ? 20_000 : CRAWL_BUDGET_MS), startedAt + AUDIT_BUDGET_MS - 90_000), quick ? PROBE_AGENTS_QUICK : PROBE_AGENTS).catch(() => null);
+      } else crawl = await crawlSite(website, quick ? 0 : 20, Math.min(Date.now() + (quick ? 20_000 : CRAWL_BUDGET_MS), startedAt + AUDIT_BUDGET_MS - 90_000), [...(quick ? PROBE_AGENTS_QUICK : PROBE_AGENTS), CONTROL_AGENT]).catch(() => null);
     }
     const rivalSites = await Promise.all(competitors.map(async (c) => ({ name: c.name, facts: await homepageFacts(c.profile?.url ?? null, c.name, false) })));
 

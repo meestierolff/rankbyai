@@ -2,7 +2,7 @@ import { ENGINE_LABEL, type Engine } from "@/lib/pricing-constants";
 import type { BusinessInfo } from "@/lib/providers/dataforseo";
 import { normalizeName, normalizePhone } from "@/lib/scans/match";
 import type { CrawlerProbe, PageFacts } from "./crawl";
-import { probeDetail, probeEvidence, purposeOf, robotsDetail } from "./crawler-fix";
+import { CONTROL_AGENT, probeDetail, probeEvidence, purposeOf, robotsDetail } from "./crawler-fix";
 import { median, pageMath, reviewTarget } from "./math";
 import { DIRECT_ANSWER, isContentSection, isDirectAnswer, moneyPages, namesService, pageIsAbout, pathOf, pathWords, type PageSummary } from "./onpage";
 import { CRAWLERS, cloudflareManagedRange, crawlerAccess, type CrawlerTier } from "./robots";
@@ -367,9 +367,15 @@ const TIER_LABEL: Record<CostlyTier, string> = {
  * Only run when RankbyAI's own request for the homepage succeeded, so a refusal can be put down to
  * the crawler's name. A finding from this alone is never P0, and its title states the observation.
  */
-function serverAccessCheck(probes: CrawlerProbe[] | null, origin: string, title: string): CheckResult {
-  if (!probes?.length) return skip("crawler_http", "website", "P1", title, "The homepage was not requested with crawler user agents in this audit.");
+function serverAccessCheck(allProbes: CrawlerProbe[] | null, origin: string, title: string): CheckResult {
+  const control = allProbes?.find((p) => p.agent === CONTROL_AGENT) ?? null;
+  const probes = (allProbes ?? []).filter((p) => p.agent !== CONTROL_AGENT);
+  if (!probes.length || !control) return skip("crawler_http", "website", "P1", title, "The homepage was not requested with crawler user agents in this audit.");
   if (probes.every((p) => p.status == null)) return skip("crawler_http", "website", "P1", title, "None of the requests that named a crawler got an answer in time, so this could not be judged.");
+  // A request of the same shape that names no crawler must get in, or a refusal says nothing about crawler names.
+  if (control.status == null || control.status >= 400) {
+    return skip("crawler_http", "website", "P1", title, `The server also ${control.status == null ? "did not answer" : `refused (${probeEvidence(control)})`} a request of the same shape that named no crawler, so refusals cannot be put down to crawler names.`);
+  }
   const tierOf = (agent: string) => CRAWLERS.find((c) => c.agent === agent);
   const details = probes.flatMap((p) => {
     const c = tierOf(p.agent);
@@ -378,6 +384,7 @@ function serverAccessCheck(probes: CrawlerProbe[] | null, origin: string, title:
   });
   const evidence: Evidence[] = [
     { label: "RankbyAI's own request for the homepage", value: "answered (the homepage was read)", source_url: `${origin}/` },
+    { label: "Same request naming no crawler", value: probeEvidence(control) },
     ...probes.map((p) => {
       const c = tierOf(p.agent);
       return { label: `Request naming ${p.agent} (${c ? (purposeOf(c.tier) === "search" ? "search" : "training") : "crawler"})`, value: probeEvidence(p) };

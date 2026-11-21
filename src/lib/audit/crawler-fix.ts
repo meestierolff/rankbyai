@@ -55,6 +55,12 @@ export interface CrawlerDetail {
 export const PROBE_AGENTS = ["OAI-SearchBot", "PerplexityBot", "Claude-SearchBot", "GPTBot", "ClaudeBot"] as const;
 /** A quick (prospect) audit tests the AI search crawlers only. */
 export const PROBE_AGENTS_QUICK = PROBE_AGENTS.slice(0, 3);
+/**
+ * The control: a request of exactly the same shape as the probes that names no crawler. If the
+ * server refuses it too, a refusal is about the request's shape (or RankbyAI's servers), not about
+ * a crawler's name, and the check says it could not tell.
+ */
+export const CONTROL_AGENT = "RankbyAI-Control";
 
 const CF_SETTINGS = "Security → Settings in Cloudflare, filtered by “Bot traffic”";
 const AI_POLICIES = `“AI Crawler and Agent access policies” (${CF_SETTINGS})`;

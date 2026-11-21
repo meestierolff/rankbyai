@@ -6,7 +6,7 @@ export const STATIC_PAGES: { path: string; title: string; updated: string; inLlm
   { path: "/terms", title: "Terms", updated: "2026-11-20", inLlms: true },
   { path: "/privacy", title: "Privacy", updated: "2026-11-20", inLlms: true },
   { path: "/refunds", title: "Refund policy", updated: "2026-11-17", inLlms: true },
-  { path: "/disclaimer", title: "Disclaimer", updated: "2026-11-20", inLlms: true },
+  { path: "/disclaimer", title: "Disclaimer", updated: "2026-11-21", inLlms: true },
   { path: "/removal", title: "Removal or correction request", updated: "2026-11-17" },
   { path: "/support", title: "Support", updated: "2026-11-20", inLlms: true },
   { path: "/docs/api", title: "API and MCP documentation", updated: "2026-11-20", inLlms: true },

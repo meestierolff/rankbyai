@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function DisclaimerPage() {
   const affiliate = Boolean(miscEnv.dataforseoAffiliateUrl());
   return (
-    <ProsePage eyebrow="Legal" title="Disclaimer" updated="20 November 2026" intro="Please read this before you rely on a RankbyAI result or show one to a client.">
+    <ProsePage eyebrow="Legal" title="Disclaimer" updated="21 November 2026" intro="Please read this before you rely on a RankbyAI result or show one to a client.">
       <h2>AI answers vary</h2>
       <p>
         <strong>{AI_DISCLAIMER_TEXT}</strong>
@@ -75,6 +75,19 @@ export default function DisclaimerPage() {
         <li>Audit scores and suggested fixes are guidance based on the data we could collect. They are not professional advice, and we do not edit listings or websites.</li>
         <li>You decide what to do with the results, and what you tell your clients about them.</li>
       </ul>
+
+      <h2 id="audit-requests">How the Local AI Audit reads a website</h2>
+      <p>
+        When someone runs a Local AI Audit, RankbyAI reads the business&rsquo;s public website the way a visitor would: the homepage, <code>robots.txt</code>, the sitemap, <code>llms.txt</code> and up
+        to 20 other pages, one at a time, plus the homepages of the competitors in the map pack. These requests carry the user agent <code>RankbyAI-Audit/1.0</code> with a link to this page.
+      </p>
+      <p>
+        To check whether AI search crawlers can read the site, the audit also asks for the homepage a few more times: at most five requests whose user agent names a crawler (for example
+        OAI-SearchBot or PerplexityBot) next to <code>RankbyAI-Audit/1.0</code>, and one request of the same shape that names no crawler. They come from RankbyAI&rsquo;s own servers, not from OpenAI,
+        Perplexity or Anthropic, and the user agent says so. We do not try to get past a block, a challenge or a login. The result is reported as what the server answered these requests, not as
+        proof of how it treats the real crawlers.
+      </p>
+      <p>Questions about these requests? Email <LegalEmail />.</p>
 
       <h2>Cost estimates</h2>
       <p>

@@ -22,6 +22,7 @@ import { buildPrompt, defaultQuestionFor, validateTemplate } from "./prompt";
 import { businessLanguage } from "@/lib/countries";
 import { normalizeSkip } from "./skip";
 import { summarizeAi, summarizeMaps, type AiSampleRow, type MapsPointRow } from "./summary";
+import { parseRunLabel, RUN_ROLES, runLabel } from "./consistency";
 
 /**
  * Scan engine (brief 7.2, 7.3, 10.2).
@@ -71,6 +72,13 @@ export interface CreateScanInput {
   center?: { lat: number; lng: number } | null;
   /** Part of another paid action (an audit's 1×1 check, a prospect report): house keys and caps apply, but no extra credit is taken and the running-scan limit does not apply. */
   noCharge?: boolean;
+  /** Stored in scans.label, e.g. a consistency run's "consistency:<group>:<role>" (lib/scans/consistency). */
+  label?: string | null;
+  /**
+   * A run of a consistency group. The group checks room for one running scan before it starts and
+   * runs its scans one after another, so the per-scan running-scan limit does not apply to it.
+   */
+  groupMember?: boolean;
   confirm: boolean;
 }
 
@@ -145,7 +153,7 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
     }
   }
 
-  if (input.funding === "byok" && !input.noCharge && (await runningScanCount(input.workspaceId)) >= BYOK_MAX_RUNNING_SCANS) {
+  if (input.funding === "byok" && !input.noCharge && !input.groupMember && (await runningScanCount(input.workspaceId)) >= BYOK_MAX_RUNNING_SCANS) {
     return fail(429, "too_many_running", `You already have ${BYOK_MAX_RUNNING_SCANS} scans running. Wait for one to finish.`, estimate);
   }
   const credits = input.funding === "credits" && !input.noCharge ? creditsFor(spec) : 0;
@@ -181,6 +189,7 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
       credits_used: credits,
       est_cost_usd: estimate.totalUsd,
       summary: isMockMode() ? { mock: true } : {},
+      label: input.label ?? null,
     })
     .select("id")
     .single<{ id: string }>();
@@ -273,6 +282,9 @@ async function pool<T>(items: T[], size: number, worker: (item: T) => Promise<vo
 
 /** Run (or continue) a scan. Safe to call concurrently and repeatedly. `budgetMs` keeps us inside the function timeout. */
 export async function processScan(scanId: string, budgetMs = 240_000): Promise<void> {
+  // A consistency check's runs go one after another: whoever resumes a later run (the cron, polling
+  // a scan, the group's own worker) leaves it queued while an earlier run is still queued or running.
+  if (await waitsForEarlierRun(scanId)) return;
   const scan = await claim(scanId);
   if (!scan) return;
   const admin = dbAdmin();
@@ -292,6 +304,17 @@ export async function processScan(scanId: string, budgetMs = 240_000): Promise<v
   } finally {
     await admin.from("scans").update({ lease_until: null }).eq("id", scan.id).in("status", ["queued", "running"]);
   }
+}
+
+/** True for a later run of a consistency check whose earlier runs have not finished (lib/scans/consistency). */
+export async function waitsForEarlierRun(scanId: string): Promise<boolean> {
+  const admin = dbAdmin();
+  const { data } = await admin.from("scans").select("label, workspace_id").eq("id", scanId).maybeSingle<{ label: string | null; workspace_id: string }>();
+  const run = parseRunLabel(data?.label);
+  if (!data || !run || run.role === "A1") return false;
+  const earlier = RUN_ROLES.slice(0, RUN_ROLES.indexOf(run.role)).map((r) => runLabel(run.group, r));
+  const { data: open } = await admin.from("scans").select("id").eq("workspace_id", data.workspace_id).in("label", earlier).in("status", ["queued", "running"]).limit(1);
+  return (open ?? []).length > 0;
 }
 
 const identity = (b: BusinessRow): BusinessIdentity => ({ name: b.name, website: b.website, phone: b.phone, cid: b.cid, placeId: b.place_id });

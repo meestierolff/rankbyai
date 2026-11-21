@@ -140,6 +140,48 @@ export function openApiSpec(siteUrl: string) {
           responses: { "200": { description: "Per-point and headline changes.", content: json(obj({ kind: { type: "string", enum: ["ai", "maps"] }, a: uuid, b: uuid, headline: { type: "string" }, comparison: { type: "object" } })) }, "409": { description: "A scan has not finished.", content: json(ref("Error")) }, ...errors },
         },
       },
+      "/scans/change-note": {
+        get: {
+          operationId: "getChangeNote", tags: ["Scans"], summary: "Why it changed: what changed between two AI scans",
+          description: "With `business_id`: the business's latest finished AI scan against the previous one that asked the same question on the same grid (the previous run of the same schedule first). Or give two AI scan ids `a` and `b`. Per engine: answers naming the business and its average position (changes only where both scans have data); businesses that appeared or disappeared from the answers; cited sources added or removed, with engines, example URLs and a question that cited them; possible reasons only where stored evidence exists. `markdown` is the same note to copy. A scan that has not finished gives `status: not_ready` and no changes. Reads stored scans only: free, and it never runs a scan.",
+          parameters: [
+            { name: "business_id", in: "query", description: "Latest finished AI scan of this business against the previous comparable one.", schema: uuid },
+            { name: "a", in: "query", description: "Earlier AI scan (with b).", schema: uuid },
+            { name: "b", in: "query", description: "Later AI scan (with a).", schema: uuid },
+          ],
+          responses: { "200": { description: "The note.", content: json(obj({ change_note: { type: "object", description: "status, business, window, scans, comparable, points, engines, names, sources, possible_reasons, disclaimer." }, markdown: { type: "string" } }, ["change_note", "markdown"])) }, ...errors },
+        },
+      },
+      "/scans/consistency": {
+        post: {
+          operationId: "runConsistencyCheck", tags: ["Scans"], summary: "Run a consistency check (same AI grid twice, optionally in a second language)",
+          description: "Asks the same AI grid twice (`repeat: 2`) and/or in a second language (`second_language`), one run after another, to tell a real difference from normal variation. The estimate is the number of runs × one grid's estimate: 2 runs for a repeat or a second language once, 4 for both; each line is one run's vendor line. Without `confirm: true` nothing is created. Everything the whole check needs (room for a running scan, credits for every run, today's cap) is checked before the first run starts. The runs never replace the business's latest scan. POST /scans stays the single-run endpoint.",
+          requestBody: { required: true, content: json(obj({
+            business_id: uuid, keyword: { type: "string", description: "The service, as in POST /scans." },
+            grid_size: { type: "integer", enum: [...AI_GRID_SIZES] }, radius_miles: { type: "number", default: 2 },
+            engines: { type: "array", items: { type: "string", enum: ["openai", "perplexity", "gemini"] } },
+            prompt_template: { type: "string", maxLength: 400, description: "Optional wording of the first question." },
+            skip_points: skipPoints,
+            repeat: { type: "integer", enum: [1, 2], default: 2, description: "2 asks every question twice. 1 only together with second_language." },
+            second_language: obj({
+              language: { type: "string", enum: ["en", "de", "nl", "fr", "es", "it", "pt", "sv", "da", "no", "pl"], description: "A language RankbyAI has a written question in (en is the standard English question)." },
+              prompt_template: { type: "string", maxLength: 400, description: "Or your own question in that language (with {service} and {neighbourhood} or {city})." },
+              keyword: { type: "string", description: "The service as people say it in that language. Never translated for you." },
+            }, ["keyword"]),
+            center_lat: { type: "number" }, center_lng: { type: "number" }, funding, confirm,
+          }, ["business_id", "keyword", "grid_size"])) },
+          responses: estimateOr("202", "The runs were created and run one after another.", obj({ group_id: uuid, scan_ids: { type: "array", items: uuid }, runs: { type: "array", items: obj({ role: { type: "string", enum: ["A1", "A2", "B1", "B2"] }, scan_id: uuid }) }, status: { type: "string" }, estimate: ref("Estimate") })),
+        },
+        get: {
+          operationId: "getConsistency", tags: ["Scans"], summary: "The runs of a consistency check and how stable the answers were",
+          description: "With `group_id`: the runs and, once both runs of a pair finished, `same_question` (run 1 vs run 2), `second_question_repeat` and `across_questions`. Each gives `decisions` (mention decisions both runs answered, how many agreed, `stability_rate` in percent), the same per engine and per point, and `names`: other businesses named in both runs, only in one, and their overlap. Or two AI scans of your choice with `a` and `b` (same grid). Polling continues the next run of a group. Free.",
+          parameters: [
+            { name: "group_id", in: "query", description: "From POST /scans/consistency.", schema: uuid },
+            { name: "a", in: "query", schema: uuid }, { name: "b", in: "query", schema: uuid },
+          ],
+          responses: { "200": { description: "The check.", content: json(obj({ consistency: { type: "object", description: "group_id, business, status, runs, same_question, second_question_repeat, across_questions, disclaimer." } }, ["consistency"])) }, ...errors },
+        },
+      },
       "/scans/{id}": {
         get: { operationId: "getScan", tags: ["Scans"], summary: "Scan status, summary and cost", parameters: [idParam("scan")], responses: { "200": { description: "The scan.", content: json(obj({ scan: ref("Scan") })) }, ...errors } },
       },
@@ -261,6 +303,7 @@ export function openApiSpec(siteUrl: string) {
           mode: { type: "string", enum: ["standard", "priority", "live"] }, funding: { type: "string" }, status: scanStatus, credits_used: { type: "integer" },
           est_cost_usd: nullable("number"), actual_cost_usd: nullable("number"), summary: { type: "object", description: "Headline metrics once finished. Skipped points are left out of every metric: `points` counts the active points and `points_skipped` the skipped ones." }, error: nullable("string"),
           created_at: dateTime, finished_at: nullable("string", { format: "date-time" }),
+          consistency_run: { ...nullable("object"), description: "Set for a run of a consistency check: `group_id` (for GET /scans/consistency) and `role` (A1 the question as asked, A2 the same again, B1 and B2 the second question). A2, B1 and B2 are repeats or second-language runs: never treat them as the business's latest scan.", properties: { group_id: uuid, role: { type: "string", enum: ["A1", "A2", "B1", "B2"] } } },
         }, ["id", "kind", "status"]),
         ScanPoints: obj({
           scan_id: uuid, kind: { type: "string", enum: ["ai", "maps"] }, grid_size: { type: "integer" }, status: scanStatus,
@@ -287,6 +330,18 @@ export function openApiSpec(siteUrl: string) {
         Finding: obj({
           priority: { type: "string", enum: ["P0", "P1", "P2", "P3"] }, category: { type: "string" }, title: { type: "string" },
           evidence: { type: "array", items: obj({ label: { type: "string" }, value: { type: "string" }, source_url: { type: "string" } }) }, fix: { type: "string" }, impact_note: nullable("string"), check_key: { type: "string" },
+          crawlers: {
+            type: "array",
+            description: "Crawler findings only (check_key ai_crawlers or crawler_http): one entry per crawler. `confidence` is high when robots.txt says it in so many words, medium when Cloudflare's own response headers show Cloudflare refused a request that named the crawler, low for a refusal by a server or firewall that cannot be identified.",
+            items: obj({
+              agent: { type: "string" }, purpose: { type: "string", enum: ["search", "training", "user_fetch"], description: "search crawlers decide whether the business can be recommended; training crawlers do not, and the business may choose to block them." },
+              serves: { type: "string" }, blocked_by: { type: "string", enum: ["robots_txt", "server"] },
+              evidence: { type: "string", description: "The robots.txt lines quoted, or the status and headers of the refused request." },
+              cause: { type: "string" }, confidence: { type: "string", enum: ["high", "medium", "low"] },
+              where_to_look: { type: "array", items: { type: "string" }, description: "When the exact setting cannot be seen from outside: the places to look." },
+              steps: { type: "array", items: { type: "string" } }, verify: { type: "string", description: "A command to check the fix." }, caveat: nullable("string"),
+            }, ["agent", "purpose", "blocked_by", "evidence", "cause", "confidence", "steps", "verify"]),
+          },
         }, ["priority", "title", "evidence"]),
         FixKit: obj({
           id: uuid, audit_id: nullable("string", { format: "uuid" }), description: nullable("string", { description: "A factual business description to paste into the Google profile." }),

@@ -504,10 +504,10 @@ describe("MCP: protocol, schemas and the new tools (official MCP client)", () =>
     expect(props("run_maps_scan")).not.toHaveProperty("prompt_template");
 
     // Fixed-shape tools publish an output schema; estimate-or-run tools do not.
-    for (const name of ["list_businesses", "update_business", "delete_business", "estimate_scan", "list_scans", "compare_scans", "list_audits", "get_audit", "list_prospect_batches", "get_prospect_batch", "get_pitch_asset", "get_branding", "update_branding", "get_usage"]) {
+    for (const name of ["list_businesses", "update_business", "delete_business", "estimate_scan", "list_scans", "compare_scans", "get_change_note", "get_consistency", "list_audits", "get_audit", "list_prospect_batches", "get_prospect_batch", "get_pitch_asset", "get_branding", "update_branding", "get_usage"]) {
       expect(tool(name).outputSchema?.type, name).toBe("object");
     }
-    for (const name of ["add_business", "run_ai_scan", "run_maps_scan", "get_scan", "run_audit", "get_fix_kit", "create_prospect_batch"]) expect(tool(name).outputSchema, name).toBeUndefined();
+    for (const name of ["add_business", "run_ai_scan", "run_maps_scan", "run_consistency_check", "get_scan", "run_audit", "get_fix_kit", "create_prospect_batch"]) expect(tool(name).outputSchema, name).toBeUndefined();
     await client.close();
   });
 
@@ -561,6 +561,18 @@ describe("MCP: protocol, schemas and the new tools (official MCP client)", () =>
     expect(aiCompare.isError).toBe(false);
     expect(aiCompare.body).toMatchObject({ kind: "ai", a: aiScans[0], b: aiScans[1] });
     expect(typeof aiCompare.body.headline).toBe("string");
+    // "Why it changed" on the same two scans: same JSON over MCP and REST; by business_id it picks the pair itself.
+    const changed = await call(client, "get_change_note", { a: aiScans[0], b: aiScans[1] });
+    expect(changed.isError).toBe(false);
+    expect(changed.body.change_note).toMatchObject({ status: "ready", scans: { before: aiScans[0], after: aiScans[1] } });
+    expect(changed.body.change_note.disclaimer).toContain("nobody can know exactly why");
+    expect(changed.body.markdown).toMatch(/^# Why it changed: /);
+    const restNote = await rest("GET", `/scans/change-note?a=${aiScans[0]}&b=${aiScans[1]}`);
+    expect(restNote.status).toBe(200);
+    expect(restNote.body).toEqual(changed.body);
+    expect((await rest("GET", `/scans/change-note?business_id=${id}`)).status).toBe(200);
+    expect((await rest("GET", "/scans/change-note")).status).toBe(400);
+    expect((await rest("GET", `/scans/change-note?a=${aiScans[0]}&b=${aiScans[1]}`, { key: keyB })).status).toBe(404);
     const template = await call(client, "run_ai_scan", { business_id: id, keyword: "dentist", grid_size: 1, prompt_template: "Who is the best {service} in {city}?", confirm: true });
     expect(template.isError).toBe(false);
     await drain();
@@ -582,6 +594,19 @@ describe("MCP: protocol, schemas and the new tools (official MCP client)", () =>
     const got = await call(client, "get_audit", { audit_id: audit.body.audit_id });
     expect(got.isError).toBe(false);
     expect(got.body.findings.length).toBeGreaterThan(3);
+    // Crawler findings publish their per-crawler advice as `crawlers`; other findings' internal `data` stays private.
+    const crawler = { agent: "OAI-SearchBot", purpose: "search", serves: "ChatGPT search", blocked_by: "robots_txt", evidence: "User-agent: OAI-SearchBot\nDisallow: /", cause: "robots.txt has its own group for OAI-SearchBot that disallows /.", confidence: "high", where_to_look: [], steps: ["In robots.txt, delete “Disallow: /”."], verify: "curl -s https://x.example/robots.txt", caveat: null };
+    const [one, two] = (await sql<{ id: string }>("select id from public.audit_findings where audit_id = $1 order by id limit 2", [audit.body.audit_id]));
+    await sql("update public.audit_findings set check_key = 'ai_crawlers', data = $2::jsonb where id = $1", [one.id, JSON.stringify({ crawlers: [crawler] })]);
+    await sql("update public.audit_findings set data = $2::jsonb where id = $1", [two.id, JSON.stringify({ internal: "not for the API" })]);
+    const withCrawlers = await call(client, "get_audit", { audit_id: audit.body.audit_id });
+    expect(withCrawlers.isError).toBe(false);
+    const published = withCrawlers.body.findings.filter((f: { crawlers?: unknown }) => f.crawlers);
+    expect(published).toHaveLength(1);
+    expect(published[0]).toMatchObject({ check_key: "ai_crawlers", crawlers: [crawler] });
+    expect(JSON.stringify(withCrawlers.body)).not.toContain("not for the API");
+    expect(withCrawlers.body.findings.some((f: Record<string, unknown>) => "data" in f)).toBe(false);
+    expect((await rest("GET", `/audits/${audit.body.audit_id}`)).body.findings).toEqual(withCrawlers.body.findings);
 
     const batch = await call(client, "create_prospect_batch", { niche: "dentist", city: "Austin, TX", max_reports: 2, confirm: true });
     expect(batch.isError).toBe(false);
@@ -662,5 +687,102 @@ describe("MCP: protocol, schemas and the new tools (official MCP client)", () =>
     expect(await sql("select 1 from public.scans where id = $1", [scan.body.scan_id])).toHaveLength(1);
     expect((await rest("GET", "/branding")).body.branding.brand_name).toBe("Agency A");
     await other.close();
+  });
+});
+
+describe("REST + MCP: consistency checks", () => {
+  async function connectMcp(key: string) {
+    const post = async (request: Request) => (await import("@/app/api/mcp/route")).POST(request);
+    const transport = new StreamableHTTPClientTransport(new URL("https://rankbyai.test/api/mcp"), {
+      requestInit: { headers: { Authorization: `Bearer ${key}` } },
+      fetch: (input, init) => post(new Request(input as string | URL, init as RequestInit)),
+    });
+    const client = new Client({ name: "parity-test", version: "1.0.0" });
+    await client.connect(transport);
+    return client;
+  }
+  const ai = (id: string, extra: Record<string, unknown> = {}) => ({ business_id: id, keyword: "dentist", grid_size: 3, engines: ["openai", "gemini"], ...extra });
+  const scanCount = async () => Number((await sql<{ n: string }>("select count(*) as n from public.scans"))[0].n);
+
+  it("estimates runs × one grid, before anything is created", async () => {
+    const id = await seedBusiness(keyA);
+    const single = (await rest("POST", "/scans", { body: { ...ai(id), kind: "ai" } })).body.estimate;
+    const before = await scanCount();
+    for (const [body, runs] of [[ai(id, { repeat: 2 }), 2], [ai(id, { repeat: 1, second_language: { language: "de", keyword: "Zahnarzt" } }), 2], [ai(id, { second_language: { language: "de", keyword: "Zahnarzt" } }), 4]] as const) {
+      const r = await rest("POST", "/scans/consistency", { body });
+      expect(r.status, r.text).toBe(200);
+      expect(r.body.confirm_required).toBe(true);
+      expect(r.body.estimate).toMatchObject({ runs, credits: single.credits * runs });
+      expect(r.body.estimate.totalUsd).toBeCloseTo(single.totalUsd * runs, 5);
+      expect(r.body.estimate.lines).toHaveLength(single.lines.length * runs);
+      expect(r.body.estimate.lines.reduce((t: number, l: { usd: number }) => t + l.usd, 0)).toBeCloseTo(r.body.estimate.totalUsd, 5);
+      for (const n of usdValues(r.body)) expect(decimals(n)).toBeLessThanOrEqual(6);
+    }
+    expect(await scanCount()).toBe(before);
+    expect((await rest("POST", "/scans/consistency", { body: ai(id, { repeat: 1 }) })).status).toBe(400);
+    expect((await rest("POST", "/scans/consistency", { body: ai(id, { second_language: { language: "xx", keyword: "x" } }) })).status).toBe(400);
+  });
+
+  it("runs four checks in order; reports stability per question; the runs never replace the latest scan", async () => {
+    const id = await seedBusiness(keyA);
+    const earlier = await rest("POST", "/scans", { body: { ...ai(id), kind: "ai", confirm: true } });
+    expect(earlier.status).toBe(202);
+    await drain();
+    const started = await rest("POST", "/scans/consistency", { body: ai(id, { second_language: { language: "de", keyword: "Zahnarzt" }, confirm: true }) });
+    expect(started.status, started.text).toBe(202);
+    expect(started.body.runs.map((r: { role: string }) => r.role)).toEqual(["A1", "A2", "B1", "B2"]);
+    const labels = await sql<{ id: string; label: string }>("select id, label from public.scans where id = any($1::uuid[])", [started.body.scan_ids]);
+    for (const r of started.body.runs) expect(labels.find((l) => l.id === r.scan_id)?.label).toBe(`consistency:${started.body.group_id}:${r.role}`);
+    const prompts = await sql<{ prompt: string }>("select prompt from public.ai_samples where scan_id = $1 limit 1", [started.body.runs[2].scan_id]);
+    expect(prompts[0].prompt).toContain("Ich suche: Zahnarzt");
+    // One after another: anything that resumes run 2 (the cron, polling a scan) leaves it queued while run 1 has not run.
+    const { processScan } = await import("@/lib/scans/engine");
+    await processScan(started.body.runs[1].scan_id);
+    expect((await sql<{ status: string }>("select status from public.scans where id = $1", [started.body.runs[1].scan_id]))[0].status).toBe("queued");
+    // Scans over the API say which run of which check they are.
+    expect((await rest("GET", `/scans/${started.body.runs[1].scan_id}`)).body.scan.consistency_run).toEqual({ group_id: started.body.group_id, role: "A2" });
+    expect((await rest("GET", `/scans/${earlier.body.scan_id}`)).body.scan.consistency_run).toBeNull();
+    const listed = (await rest("GET", `/scans?business_id=${id}`)).body.scans as { id: string; consistency_run: { role: string } | null }[];
+    expect(listed.filter((x) => x.consistency_run).map((x) => x.consistency_run!.role).sort()).toEqual(["A1", "A2", "B1", "B2"]);
+    await drain();
+
+    const rep = await rest("GET", `/scans/consistency?group_id=${started.body.group_id}`);
+    expect(rep.status).toBe(200);
+    const c = rep.body.consistency;
+    expect(c.status).toBe("done");
+    expect(c.runs.map((r: { question: string }) => r.question)).toEqual(["English", "English", "German", "German"]);
+    for (const k of ["same_question", "second_question_repeat", "across_questions"]) {
+      expect(c[k].decisions.compared, k).toBe(18); // 9 points × 2 engines, all answered in mock mode
+      expect(c[k].decisions.stability_rate, k).toBeGreaterThanOrEqual(0);
+    }
+    expect(c.disclaimer).toContain("One run is not a stable ranking");
+
+    // Same JSON over MCP; two chosen scans compare too.
+    const client = await connectMcp(keyA);
+    const viaMcp = await client.callTool({ name: "get_consistency", arguments: { group_id: started.body.group_id } });
+    expect((viaMcp.structuredContent as Record<string, unknown>).consistency).toEqual(c);
+    await client.close();
+    const pair = await rest("GET", `/scans/consistency?a=${started.body.runs[0].scan_id}&b=${started.body.runs[2].scan_id}`);
+    expect(pair.body.consistency.across_questions.decisions.compared).toBe(18);
+    expect(pair.body.consistency.same_question).toBeNull();
+
+    // The latest scan of the business is still run 1, not a repeat or the German run.
+    const note = await rest("GET", `/scans/change-note?business_id=${id}`);
+    expect(note.body.change_note.scans).toEqual({ before: earlier.body.scan_id, after: started.body.runs[0].scan_id });
+    expect((await rest("GET", `/scans/consistency?group_id=${started.body.group_id}`, { key: keyB })).status).toBe(404);
+  });
+
+  it("checks room for a running scan and credits for every run before creating any", async () => {
+    const id = await seedBusiness(keyA);
+    for (let i = 0; i < 3; i++) expect((await rest("POST", "/scans", { body: { ...ai(id), kind: "ai", grid_size: 1, confirm: true } })).status).toBe(202);
+    const before = await scanCount();
+    const busy = await rest("POST", "/scans/consistency", { body: ai(id, { repeat: 2, confirm: true }) });
+    expect(busy.status).toBe(429);
+    expect(busy.body.error).toBe("too_many_running");
+    await drain();
+    const broke = await rest("POST", "/scans/consistency", { body: ai(id, { repeat: 2, funding: "credits", confirm: true }) });
+    expect(broke.status).toBe(402);
+    expect(broke.body.error).toBe("insufficient_credits");
+    expect(await scanCount()).toBe(before);
   });
 });

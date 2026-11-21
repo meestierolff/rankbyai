@@ -12,6 +12,8 @@ import { namesMatch, normalizeName } from "@/lib/scans/match";
 import { fetchPlaces } from "@/lib/scans/places";
 import { CATEGORY_LABEL, runChecks, scoreAudit, type AuditInputs, type CheckResult } from "./checks";
 import { crawlSite, extractFacts, fetchPage, type PageFacts, type SiteCrawl } from "./crawl";
+import { CONTROL_AGENT, PROBE_AGENTS, PROBE_AGENTS_QUICK } from "./crawler-fix";
+import { withoutSideRuns } from "@/lib/scans/consistency";
 import { languageCodeFor } from "@/lib/countries";
 import { heuristicServices, llmServices, missingServices, type ServicePage } from "./services";
 
@@ -42,9 +44,10 @@ type Row = Record<string, unknown>;
 
 async function latestScan(businessId: string, kind: "ai" | "maps"): Promise<{ id: string; created_at: string } | null> {
   const { data } = await dbAdmin()
-    .from("scans").select("id, created_at").eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"])
-    .order("created_at", { ascending: false }).limit(1);
-  return ((data ?? []) as { id: string; created_at: string }[])[0] ?? null;
+    .from("scans").select("id, created_at, label").eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"])
+    .order("created_at", { ascending: false }).limit(10);
+  // A repeat or second-language run of a consistency check is not the business's latest scan.
+  return withoutSideRuns((data ?? []) as { id: string; created_at: string; label: string | null }[])[0] ?? null;
 }
 
 export async function estimateAudit(businessId: string, engines: Engine[]): Promise<AuditEstimate> {
@@ -350,7 +353,7 @@ export async function processAudit(auditId: string): Promise<void> {
       if (isMockMode()) {
         const home = extractFacts(website, mockSiteHtml(business.name, true));
         crawl = { home, pages: [], hasLlmsTxt: false, fetched: 1, robots: { status: 404, text: "" } };
-      } else crawl = await crawlSite(website, quick ? 0 : 20, Math.min(Date.now() + (quick ? 20_000 : CRAWL_BUDGET_MS), startedAt + AUDIT_BUDGET_MS - 90_000)).catch(() => null);
+      } else crawl = await crawlSite(website, quick ? 0 : 20, Math.min(Date.now() + (quick ? 20_000 : CRAWL_BUDGET_MS), startedAt + AUDIT_BUDGET_MS - 90_000), [...(quick ? PROBE_AGENTS_QUICK : PROBE_AGENTS), CONTROL_AGENT]).catch(() => null);
     }
     const rivalSites = await Promise.all(competitors.map(async (c) => ({ name: c.name, facts: await homepageFacts(c.profile?.url ?? null, c.name, false) })));
 
@@ -382,7 +385,7 @@ export async function processAudit(auditId: string): Promise<void> {
     const inputs: AuditInputs = {
       business: { name: business.name, website, phone: business.phone, address: business.address ?? null, city: business.city, category: business.primary_category, language: business.language ?? languageCodeFor(business.country) },
       service, months, profile, competitors,
-      site: crawl ? { home: crawl.home, pages: crawl.pages.map((p) => ({ url: p.url, title: p.title, h1: p.h1, intro: p.intro, h2Sections: p.h2Sections })), hasLlmsTxt: crawl.hasLlmsTxt, knownPages: crawl.fetched, robots: crawl.robots } : null,
+      site: crawl ? { home: crawl.home, pages: crawl.pages.map((p) => ({ url: p.url, title: p.title, h1: p.h1, intro: p.intro, h2Sections: p.h2Sections })), hasLlmsTxt: crawl.hasLlmsTxt, knownPages: crawl.fetched, robots: crawl.robots, probes: crawl.probes ?? null } : null,
       ai: ai.ai, services, areas,
     };
     const checks = runChecks(inputs);

@@ -5,8 +5,8 @@ describe("robots.txt parsing (RFC 9309)", () => {
   it("groups consecutive User-agent lines and starts a new group after rules", () => {
     const g = parseRobots("User-agent: GPTBot\nUser-agent: ClaudeBot\nDisallow: /\n\nUser-agent: *\nDisallow: /admin # private\nSitemap: https://x.example/sitemap.xml");
     expect(g).toEqual([
-      { agents: ["gptbot", "claudebot"], rules: [{ allow: false, pattern: "/" }] },
-      { agents: ["*"], rules: [{ allow: false, pattern: "/admin" }] },
+      { agents: ["gptbot", "claudebot"], agentLines: [0, 1], rules: [{ allow: false, pattern: "/", line: 2 }] },
+      { agents: ["*"], agentLines: [4], rules: [{ allow: false, pattern: "/admin", line: 5 }] },
     ]);
   });
 
@@ -59,13 +59,13 @@ describe("crawler access for the audit", () => {
 
   it("a crawler blocked only from a money page is reported with that page", () => {
     const a = crawlerAccess({ status: 200, text: "User-agent: Bingbot\nDisallow: /services" }, ["/", "/services/drain-cleaning"])!;
-    expect(a.blocked).toEqual([{ agent: "Bingbot", tier: "search", serves: "Bing and Microsoft Copilot", paths: ["/services/drain-cleaning"] }]);
+    expect(a.blocked).toEqual([{ agent: "Bingbot", tier: "search", serves: "Bing and Microsoft Copilot", paths: ["/services/drain-cleaning"], cause: { kind: "named_group", stanza: "User-agent: Bingbot\nDisallow: /services", path: "/services/drain-cleaning" } }]);
   });
 });
 
 describe("Google-Extended is its own tier", () => {
   it("is reported as 'gemini', not as a search or training crawler", () => {
     const a = crawlerAccess({ status: 200, text: "User-agent: Google-Extended\nDisallow: /" }, ["/"])!;
-    expect(a.blocked).toEqual([{ agent: "Google-Extended", tier: "gemini", serves: "Gemini training and Gemini app answers", paths: ["/"] }]);
+    expect(a.blocked).toEqual([{ agent: "Google-Extended", tier: "gemini", serves: "Gemini training and Gemini app answers", paths: ["/"], cause: { kind: "named_group", stanza: "User-agent: Google-Extended\nDisallow: /", path: "/" } }]);
   });
 });

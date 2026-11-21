@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { CrawlerDetail } from "@/lib/audit/crawler-fix";
+import { CopyButton } from "./copy-button";
 import { AiDisclaimer, PriorityBadge, SampleTag, ScoreRing, scoreColor, type Priority } from "@/components/brand/primitives";
 import { FixKitMock } from "@/components/marketing/feature-mocks";
 import { CATEGORY_LABEL, CATEGORY_WEIGHTS, type Category, type CheckResult } from "@/lib/audit/checks";
@@ -116,8 +118,49 @@ function Finding({ f }: { f: FindingRow }) {
         })}
       </dl>
       {f.fix ? <p className="m-0 text-[14px] leading-normal"><span className="font-semibold">How to fix: </span>{f.fix}</p> : null}
+      {Array.isArray(f.data?.crawlers) ? <CrawlerDetails crawlers={f.data.crawlers as CrawlerDetail[]} /> : null}
       {f.impact_note ? <p className="m-0 text-[13px] leading-normal text-dim">{f.impact_note}</p> : null}
     </li>
+  );
+}
+
+const PURPOSE_LABEL: Record<CrawlerDetail["purpose"], string> = { search: "search crawler", training: "training crawler", user_fetch: "opens pages for a user" };
+const CONFIDENCE_LABEL: Record<CrawlerDetail["confidence"], string> = { high: "certain: robots.txt says so", medium: "likely", low: "possible" };
+
+/** Per crawler: purpose, evidence, likely cause with how sure it is, where to look, the steps, and a command to check the fix. */
+function CrawlerDetails({ crawlers }: { crawlers: CrawlerDetail[] }) {
+  // Search crawlers first: they decide whether the business can be recommended.
+  const order = (c: CrawlerDetail) => (c.purpose === "search" ? 0 : c.purpose === "user_fetch" ? 1 : 2);
+  return (
+    <div className="flex flex-col gap-2">
+      {[...crawlers].sort((a, b) => order(a) - order(b)).map((c) => (
+        <details key={`${c.blocked_by}-${c.agent}`} className="rounded-lg border border-border bg-surface px-3 py-2">
+          <summary className="cursor-pointer text-[14px]">
+            <span className="font-medium">{c.agent}</span>
+            <span className="text-dim"> · {PURPOSE_LABEL[c.purpose]} · {c.blocked_by === "robots_txt" ? "robots.txt" : "server answer"} · {CONFIDENCE_LABEL[c.confidence]}</span>
+          </summary>
+          <div className="mt-3 flex flex-col gap-3 text-[14px] leading-normal">
+            <pre className="m-0 overflow-x-auto rounded-md bg-inset px-3 py-2 font-mono text-[12.5px] whitespace-pre-wrap text-fg-2">{c.evidence}</pre>
+            <p className="m-0"><span className="font-semibold">Likely cause: </span>{c.cause}</p>
+            {c.where_to_look.length ? (
+              <div>
+                <span className="font-semibold">Where to look:</span>
+                <ul className="m-0 mt-1 pl-5">{c.where_to_look.map((w) => <li key={w}>{w}</li>)}</ul>
+              </div>
+            ) : null}
+            <div>
+              <span className="font-semibold">Steps:</span>
+              <ol className="m-0 mt-1 pl-5">{c.steps.map((st) => <li key={st}>{st}</li>)}</ol>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="rounded-md bg-inset px-2 py-1 font-mono text-[12.5px] break-all text-fg-2">{c.verify}</code>
+              <CopyButton text={c.verify} label="Copy check" />
+            </div>
+            {c.caveat ? <p className="m-0 text-[13px] text-dim">{c.caveat}</p> : null}
+          </div>
+        </details>
+      ))}
+    </div>
   );
 }
 

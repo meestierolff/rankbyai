@@ -39,6 +39,8 @@ Both ways use `Authorization: Bearer …`.
 | `run_ai_scan` | Ask ChatGPT, Perplexity and Gemini at every grid point (paid, `confirm`) | adds, open world |
 | `run_maps_scan` | Google Maps rank at every grid point (paid, `confirm`) | adds, open world |
 | `list_scans`, `get_scan`, `compare_scans` | Scans, their points and answers, and before/after comparisons | read-only |
+| `run_consistency_check`, `get_consistency` | The same AI grid twice (and optionally in a second language) to tell real differences from normal variation (paid, `confirm`) | adds, open world / read-only |
+| `get_change_note` | Why it changed: mentions, names and cited sources between two AI scans, possible reasons only from stored evidence | read-only |
 | `run_audit` | Local AI Audit against the map pack (paid, `confirm`) | adds, open world |
 | `list_audits`, `get_audit` | Audits, findings P0 to P3 with evidence | read-only |
 | `get_fix_kit` | Copy-ready fixes for a finished audit (built once) | adds, idempotent, open world |

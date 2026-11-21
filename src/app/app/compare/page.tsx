@@ -12,6 +12,11 @@ import { compareAi, compareHeadline, compareMaps, samePlace, type AiCompareSampl
 import { ScanSelect } from "./scan-select";
 import { CompareViewed } from "./viewed";
 import { DEFAULT_PROMPT_TEMPLATE } from "@/lib/scans/prompt";
+import { ChangeNotePanel } from "@/components/app/change-note";
+import { ConsistencyView } from "@/components/app/consistency-view";
+import { withoutSideRuns } from "@/lib/scans/consistency";
+import { changeNoteMarkdown } from "@/lib/scans/change-note";
+import { loadChangeNote, type Read } from "@/lib/scans/change-note-data";
 
 export const metadata: Metadata = { title: "Compare scans" };
 
@@ -23,6 +28,7 @@ interface ScanLite {
   center_lng: number | null;
   radius_miles: number | string | null;
   prompt_template: string | null;
+  label?: string | null;
   keyword: string | null;
   niche: string | null;
   status: string;
@@ -40,7 +46,7 @@ function deltaCell(key: string, delta: number | null, title: string): CellView {
   return { key, bg: "var(--rb-none)", fg: "var(--rb-muted)", label: "=", title: `${title}: unchanged` };
 }
 
-export default async function ComparePage({ searchParams }: { searchParams: Promise<{ kind?: string; business?: string; a?: string; b?: string }> }) {
+export default async function ComparePage({ searchParams }: { searchParams: Promise<{ kind?: string; business?: string; a?: string; b?: string; group?: string; view?: string }> }) {
   const ctx = await requireSession("/app/compare");
   const sp = await searchParams;
   const kind = sp.kind === "maps" ? "maps" : "ai";
@@ -56,13 +62,15 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
 
   const { data: scanRows } = businessId
     ? await memberRead("Scans to compare", wsId, (db) =>
-        db.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at, center_lat, center_lng, radius_miles, prompt_template").eq("workspace_id", wsId).eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60),
+        db.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at, center_lat, center_lng, radius_miles, prompt_template, label").eq("workspace_id", wsId).eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60),
       )
     : { data: [] };
   const scans = (scanRows ?? []) as ScanLite[];
-  // Default: the latest scan (b) against the one before it (a).
-  const b = scans.find((s) => s.id === sp.b) ?? scans[0];
-  const a = scans.find((s) => s.id === sp.a && s.id !== b?.id) ?? scans.find((s) => s.id !== b?.id && new Date(s.created_at) <= new Date(b?.created_at ?? 0)) ?? scans.find((s) => s.id !== b?.id);
+  // Default: the latest scan (b) against the one before it (a). Repeat and second-language runs of a
+  // consistency check are never the default: they would compare a scan with its own repeat.
+  const regular = withoutSideRuns(scans);
+  const b = scans.find((s) => s.id === sp.b) ?? regular[0] ?? scans[0];
+  const a = scans.find((s) => s.id === sp.a && s.id !== b?.id) ?? regular.find((s) => s.id !== b?.id && new Date(s.created_at) <= new Date(b?.created_at ?? 0)) ?? regular.find((s) => s.id !== b?.id) ?? scans.find((s) => s.id !== b?.id);
   const base = `/app/${kind === "ai" ? "ai-visibility" : "maps-grid"}`;
   // With nothing to compare yet, the empty state below holds the page's one primary action.
   const ready = !!(business && a && b);
@@ -91,6 +99,18 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
     />
   );
 
+  // A consistency check (from the scan form): its runs and how stable the answers were.
+  const group = kind === "ai" && sp.group && uuid.test(sp.group) ? sp.group : null;
+  if (group) {
+    return (
+      <>
+        {header}
+        <p className="mt-0 mb-6 border-l-2 border-fg py-1 pl-4 text-[19px] leading-snug font-medium">Consistency check{business ? `: ${business.name}` : ""}</p>
+        <ConsistencyView query={{ group_id: group }} base={base} />
+      </>
+    );
+  }
+
   if (!business || !a || !b) {
     return (
       <>
@@ -117,6 +137,26 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
 
   let body: React.ReactNode;
   let headline: string;
+  const view = kind === "ai" && sp.view === "consistency" ? "consistency" : "change";
+  const viewHref = (v: string) => `/app/compare?kind=ai&business=${business.id}&a=${before.id}&b=${after.id}${v === "consistency" ? "&view=consistency" : ""}`;
+  const toggle = kind === "ai" ? (
+    <nav aria-label="Comparison" className="mb-5 flex gap-2 text-[14px]">
+      {[["change", "Before and after"], ["consistency", "Consistency"]].map(([v, label]) => (
+        <Link key={v} href={viewHref(v)} aria-current={view === v ? "page" : undefined} className={view === v ? ctaClass("sm", "no-underline") : secondaryClass("no-underline")}>{label}</Link>
+      ))}
+    </nav>
+  ) : null;
+  if (view === "consistency") {
+    return (
+      <>
+        <CompareViewed kind={kind} />
+        {header}
+        {toggle}
+        <p className="mt-0 mb-5 text-[14px] text-muted-foreground">How much of the difference between these two scans is normal variation: the mention decisions that agreed and the names in both, point by point. Two runs of the same question are the baseline; two different questions (another language or wording) are compared against it.</p>
+        <ConsistencyView query={{ a: before.id, b: after.id }} base={base} />
+      </>
+    );
+  }
   if (kind === "ai") {
     const sampleRows = await userRead("AI answers", (db) => db.from("ai_samples").select("scan_id, point_idx, engine, status, mentioned, mention_position").in("scan_id", [before.id, after.id]));
     const all = (sampleRows ?? []) as (AiCompareSample & { scan_id: string })[];
@@ -133,6 +173,12 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
         const best = hits.length ? Math.min(...hits.map((s) => s.mention_position ?? 5)) : null;
         return { key: String(idx), ...aiCellColors(best), label: done.length ? `${hits.length}/${done.length}` : "!", title: `${where(idx)}: named by ${hits.length} of ${done.length} engines` };
       });
+    // "Why it changed": the same note as the API's get_change_note, from these two scans. Workspace
+    // tables through memberRead, answers and findings as signed-in reads (both throw on failure).
+    const ws: Read = async (what, run) => (await memberRead(what, wsId, (db) => run(db))).data;
+    const rows: Read = (what, run) => userRead(what, run);
+    const loaded = await loadChangeNote({ ws, rows }, wsId, { a: before.id, b: after.id });
+    const noteBody = loaded.ok ? <ChangeNotePanel note={loaded.note} markdown={changeNoteMarkdown(loaded.note)} /> : <p className="m-0 text-[14px] text-muted-foreground">{loaded.message}</p>;
     // A question asked differently (other wording or language) changes the answers by itself.
     const sameQuestion = (before.prompt_template ?? DEFAULT_PROMPT_TEMPLATE) === (after.prompt_template ?? DEFAULT_PROMPT_TEMPLATE);
     body = (
@@ -159,6 +205,9 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
               </>
             ) : <p className="m-0 text-[14px] text-muted-foreground">These scans used different grids (size, centre or radius), so points cannot be matched one to one. The metrics above still compare.</p>}
           </Panel>
+        </div>
+        <div className="mt-6">
+          <Panel title="Why it changed">{noteBody}</Panel>
         </div>
         <AiDisclaimer className="mt-4" />
       </>
@@ -197,6 +246,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
     <>
       <CompareViewed kind={kind} />
       {header}
+      {toggle}
       <p className="mt-0 mb-6 border-l-2 border-fg py-1 pl-4 text-[19px] leading-snug font-medium">
         {business.name}: {headline}
       </p>

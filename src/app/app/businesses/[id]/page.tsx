@@ -16,6 +16,7 @@ import { combinedInsight, type AiSummary, type MapsSummary } from "@/lib/scans/s
 import { BusinessDetails } from "@/components/app/business-details";
 import { languageNameFor } from "@/lib/countries";
 import { isServiceArea } from "@/lib/service-area";
+import { isSideRun } from "@/lib/scans/consistency";
 
 export const metadata: Metadata = { title: "Business" };
 
@@ -70,7 +71,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
     memberRead("Scans of this business", wsId, (db) =>
       db
         .from("scans")
-        .select("id, kind, grid_size, radius_miles, center_lat, center_lng, status, keyword, niche, summary, actual_cost_usd, created_at")
+        .select("id, kind, grid_size, radius_miles, center_lat, center_lng, status, keyword, niche, summary, actual_cost_usd, created_at, label")
         .eq("workspace_id", wsId)
         .eq("business_id", id)
         .order("created_at", { ascending: false })
@@ -82,7 +83,8 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
   ]);
   const scans = (scanRows ?? []) as ScanLite[];
   const share = ((shareRows ?? []) as { share_slug: string }[])[0] ?? null;
-  const usable = (s: ScanLite) => s.status === "done" || s.status === "partial";
+  // The latest result: finished, and not a repeat or second-language run of a consistency check.
+  const usable = (s: ScanLite & { label?: string | null }) => (s.status === "done" || s.status === "partial") && !isSideRun(s.label);
   const latestMaps = scans.find((s) => s.kind === "maps" && usable(s)) ?? null;
   const latestAi = scans.find((s) => s.kind === "ai" && usable(s)) ?? null;
   // The combined map is centred where the latest grids were run (a grid can be centred away from the pin).

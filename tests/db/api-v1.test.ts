@@ -321,9 +321,9 @@ describe("OpenAPI document", () => {
     expect(documented.sort()).toEqual([
       "DELETE /businesses/{id}",
       "GET /audits", "GET /audits/{id}", "GET /audits/{id}/fix-kit", "GET /branding", "GET /businesses", "GET /businesses/{id}", "GET /prospects", "GET /prospects/{id}", "GET /prospects/{id}/pitch",
-      "GET /scans", "GET /scans/compare", "GET /scans/{id}", "GET /scans/{id}/points", "GET /usage",
+      "GET /scans", "GET /scans/change-note", "GET /scans/compare", "GET /scans/consistency", "GET /scans/{id}", "GET /scans/{id}/points", "GET /usage",
       "PATCH /branding", "PATCH /businesses/{id}",
-      "POST /audits", "POST /businesses", "POST /prospects", "POST /scans",
+      "POST /audits", "POST /businesses", "POST /prospects", "POST /scans", "POST /scans/consistency",
     ]);
     expect(spec.servers[0].url).toBe("https://rankbyai.live/api/v1");
   });

@@ -53,6 +53,7 @@ export default function ApiDocsPage() {
         <section className="flex flex-col gap-4" aria-labelledby="mcp">
           <h2 id="mcp" className={h2}>MCP server</h2>
           <p className={p}>
+            Agents can load the how-to first: <a href="/SKILL.md" className="text-fg underline underline-offset-2">{site}/SKILL.md</a> is an agent skill with the call order, the estimate-then-confirm rule and an output template.
             The MCP server is at <code className={code}>{site}/api/mcp</code> and uses the same API key. It has {MCP_TOOLS.length} tools and one prompt, <code className={code}>fix_plan</code>, which turns a finished audit into a prioritised fix list with guardrails. Tools marked “needs confirm” return the estimate when called without <code className={code}>confirm: true</code> and do nothing else, so an agent has to show you the cost before it can spend anything.
           </p>
           {oauthOpen() ? (

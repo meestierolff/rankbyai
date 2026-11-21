@@ -11,6 +11,7 @@ import { memberRead } from "@/lib/db/member-read";
 import { isMockMode } from "@/lib/mock";
 import { DATAFORSEO_MAPS_PER_POINT } from "@/lib/pricing-constants";
 import { getCreditBalance, getKeyStatuses } from "@/lib/workspace-data";
+import { withoutSideRuns } from "@/lib/scans/consistency";
 
 export const metadata: Metadata = { title: "Businesses" };
 
@@ -44,13 +45,14 @@ export default async function BusinessesPage() {
     getKeyStatuses(wsId),
     getCreditBalance(wsId),
     memberRead("Finished scans", wsId, (db) =>
-      db.from("scans").select("business_id, kind, grid_size, summary, created_at").eq("workspace_id", wsId).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(1000),
+      db.from("scans").select("business_id, kind, grid_size, summary, created_at, label").eq("workspace_id", wsId).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(1000),
     ),
   ]);
   const rows = (data ?? []) as Row[];
   // Latest finished scan of each kind per business (rows arrive newest first).
   const latest = new Map<string, ScanLite>();
-  for (const s of (scanRows ?? []) as ScanLite[]) {
+  // Repeat and second-language runs of a consistency check are not a business's latest result.
+  for (const s of withoutSideRuns((scanRows ?? []) as (ScanLite & { label?: string | null })[])) {
     const key = `${s.business_id}:${s.kind}`;
     if (!latest.has(key)) latest.set(key, s);
   }

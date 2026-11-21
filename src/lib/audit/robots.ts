@@ -98,6 +98,9 @@ export function cloudflareManagedRange(text: string): [number, number] | null {
   return [start, end < 0 ? lines.length - 1 : end];
 }
 
+/** One line of a fetched file, safe to show and to hand to an assistant as data: no control or direction characters, at most 200 characters. */
+export const quotedLine = (s: string) => s.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u200e\u200f\u202a-\u202e\u2066-\u2069]+/g, " ").trim().slice(0, 200);
+
 /** Why robots.txt blocks a crawler at a path, with the lines that do it, quoted from the file. */
 export interface RobotsCause {
   kind: "cloudflare_managed" | "named_group" | "default_deny" | "wildcard";
@@ -112,7 +115,8 @@ export function robotsCause(text: string, groups: RobotsGroup[], agent: string, 
   const d = decide(groups, agent, path);
   if (!d || d.rule.allow) return null;
   const lines = text.split(/\r\n|\r|\n/);
-  const quote = (n: number | undefined) => (n == null ? null : (lines[n] ?? "").trim());
+  // The file is the site's own text: quoted as data, one line each, without control or text-direction characters, capped.
+  const quote = (n: number | undefined) => (n == null ? null : quotedLine(lines[n] ?? ""));
   const stanza = [...(d.group.agentLines ?? []).map(quote), quote(d.rule.line)].filter((l): l is string => !!l).join("\n");
   const managed = cloudflareManagedRange(text);
   if (managed && d.rule.line != null && d.rule.line >= managed[0] && d.rule.line <= managed[1]) return { kind: "cloudflare_managed", stanza, path };

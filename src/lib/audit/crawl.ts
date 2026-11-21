@@ -183,12 +183,14 @@ export const probeUserAgent = (agent: string) => `Mozilla/5.0 (compatible; ${age
 export async function probeCrawlers(homeUrl: string, agents: readonly string[]): Promise<CrawlerProbe[]> {
   return Promise.all(agents.map(async (agent) => {
     const r = await request(homeUrl, { userAgent: probeUserAgent(agent), timeoutMs: 5_000, errorBodyBytes: 4_096 }).catch(() => null);
+    // Header values come from the site: kept short and on one line.
+    const header = (v: string | null | undefined) => (v ? v.replace(/[^\x20-\x7e]+/g, " ").trim().slice(0, 80) : null);
     return {
       agent,
       status: r?.status ?? null,
-      server: r?.headers.server ?? null,
-      cfRay: r?.headers.cfRay ?? null,
-      cfMitigated: r?.headers.cfMitigated ?? null,
+      server: header(r?.headers.server),
+      cfRay: header(r?.headers.cfRay),
+      cfMitigated: header(r?.headers.cfMitigated),
       snippet: r && r.status >= 400 ? r.html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300) : "",
     };
   }));

@@ -1,5 +1,5 @@
 import type { CrawlerProbe } from "./crawl";
-import type { CrawlerAccess, CrawlerTier, RobotsCause } from "./robots";
+import { quotedLine, type CrawlerAccess, type CrawlerTier, type RobotsCause } from "./robots";
 
 /**
  * Turns "a crawler is blocked" into something an agency can act on: the evidence, the likely cause
@@ -65,13 +65,28 @@ export const purposeOf = (tier: CrawlerTier): CrawlerPurpose => (tier === "searc
 
 const PROBE_CAVEAT = "RankbyAI sent this request from its own servers with a user agent that names the crawler. The real crawler comes from its owner's addresses and a firewall can treat it differently, so confirm in the firewall's log.";
 
+/**
+ * The site's origin for a command the user (or their assistant) will paste into a terminal. The host
+ * comes from a Google listing or a user, so only plain host names (letters, digits, dots, hyphens)
+ * and a numeric port pass; anything else gets no command at all. The URL is single-quoted.
+ */
+export function shellOrigin(origin: string): string | null {
+  try {
+    const u = new URL(origin);
+    if ((u.protocol !== "https:" && u.protocol !== "http:") || !/^[a-z0-9.-]+$/i.test(u.hostname) || (u.port && !/^\d{1,5}$/.test(u.port))) return null;
+    return `${u.protocol}//${u.hostname}${u.port ? `:${u.port}` : ""}`;
+  } catch {
+    return null;
+  }
+}
+
 /** The robots.txt rule that blocks a crawler, as advice. */
 export function robotsDetail(b: CrawlerAccess["blocked"][number], origin: string): CrawlerDetail {
   const purpose = purposeOf(b.tier);
   const c: RobotsCause | null = b.cause;
-  const path = c?.path ?? b.paths[0];
-  const rule = c?.stanza.split("\n").pop() ?? `Disallow: ${path}`;
-  const verify = `curl -s ${origin}/robots.txt`;
+  const path = quotedLine(c?.path ?? b.paths[0]);
+  const safe = shellOrigin(origin);
+  const verify = safe ? `curl -s '${safe}/robots.txt'` : "Open /robots.txt on the site in a browser and read the group for this crawler.";
   const base = { agent: b.agent, purpose, serves: b.serves, blocked_by: "robots_txt" as const, evidence: c?.stanza ?? `Disallow covers ${path}`, confidence: "high" as const, where_to_look: [], verify, caveat: null };
   const training = purpose === "training";
   const keepTraining = b.tier === "gemini"
@@ -110,7 +125,7 @@ export function robotsDetail(b: CrawlerAccess["blocked"][number], origin: string
       ...base,
       cause: `robots.txt has its own group for ${b.agent} that disallows ${path}.`,
       steps: training ? [keepTraining] : [
-        `In robots.txt, delete “${rule}” from the User-agent: ${b.agent} group, or change it to Allow: /.`,
+        `In robots.txt, delete the Disallow line quoted in the evidence from the User-agent: ${b.agent} group, or change it to Allow: /.`,
         "If a CMS or SEO plugin writes robots.txt, change it there, or it will write the old file again.",
       ],
     };
@@ -119,7 +134,7 @@ export function robotsDetail(b: CrawlerAccess["blocked"][number], origin: string
     ...base,
     cause: `The rules for all crawlers (User-agent: *) disallow ${path}, and robots.txt has no group of its own for ${b.agent}.`,
     steps: training ? [keepTraining] : [
-      `Narrow or remove “${rule}” in the User-agent: * group so ${path} is allowed, or give ${b.agent} its own group with Allow: /.`,
+      `Narrow or remove the Disallow line quoted in the evidence (in the User-agent: * group) so ${path} is allowed, or give ${b.agent} its own group with Allow: /.`,
       "If a CMS or SEO plugin writes robots.txt, change it there, or it will write the old file again.",
     ],
   };
@@ -145,8 +160,10 @@ export function probeEvidence(p: CrawlerProbe): string {
 export function probeDetail(p: CrawlerProbe, tier: CrawlerTier, serves: string, origin: string): CrawlerDetail | null {
   if (p.status == null || p.status < 400) return null;
   const purpose = purposeOf(tier);
-  const verify = `curl -s -o /dev/null -w "%{http_code}\\n" -A "${p.agent}" ${origin}/`;
-  const snippet = p.snippet ? ` Page text: “${p.snippet.slice(0, 160)}”` : "";
+  const safe = shellOrigin(origin);
+  // p.agent is one of PROBE_AGENTS (our own constant); the site's host only passes as a plain host name.
+  const verify = safe ? `curl -s -o /dev/null -w "%{http_code}\\n" -A "${p.agent}" '${safe}/'` : "Ask whoever runs the site's firewall to check its log for requests that name this crawler.";
+  const snippet = p.snippet ? ` Page text (quoted from the site): “${quotedLine(p.snippet).slice(0, 160)}”` : "";
   const base = { agent: p.agent, purpose, serves, blocked_by: "server" as const, evidence: `${probeEvidence(p)}.${snippet}`, verify, caveat: PROBE_CAVEAT };
   const training = purpose === "training";
   const trainingStep = "Nothing to change if the business does not want its content used for AI training: this crawler does not decide search answers.";

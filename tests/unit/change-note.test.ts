@@ -141,3 +141,21 @@ describe("default pair: the latest finished scan and the previous comparable one
     expect(comparableScans(newest, scan("c", "2026-11-01T00:00:00Z", { center_lat: 30.4 }))).toBe(false);
   });
 });
+
+describe("the in-app panel", () => {
+  it("renders the note with copy and download, and the not-ready message alone", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { ChangeNotePanel } = await import("@/components/app/change-note");
+    const note = changeNote("Northgate Family Dental", A, B, samplesA, samplesB);
+    const html = renderToStaticMarkup(createElement(ChangeNotePanel, { note, markdown: changeNoteMarkdown(note) })).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    expect(html).toContain("ChatGPT: named in 2/3 → 1/3 answers (−33.4 pts)");
+    expect(html).toContain("New healthgrades.com, in 2 answers (ChatGPT, Gemini), 2 of them naming the business");
+    expect(html).toContain("Gone Old Rival, in 2 answers before");
+    expect(html).toContain("Possible reasons (leads, from stored evidence)");
+    expect(html).toContain("Copy the note");
+    expect(html).toContain("Download .md");
+    const waiting = changeNote("X", A, { ...B, status: "running" }, samplesA, []);
+    expect(renderToStaticMarkup(createElement(ChangeNotePanel, { note: waiting, markdown: "" }))).toContain("is running");
+  });
+});

@@ -160,7 +160,8 @@ export type CustomDomainRoute =
 
 /**
  * What a path on a custom domain is. An allow-list: anything not named here is blocked.
- * Allowed: /r/{slug} (with its opengraph/twitter image, its PDF at /r/{slug}/pdf, and Next's
+ * Allowed: /r/{slug} (with its opengraph/twitter image, its PDF at /r/{slug}/pdf, its email-teaser
+ * image at /r/{slug}/pitch-image, and Next's
  * .rsc/.segments transport forms), the older PDF route /api/reports/{slug}/pdf, everything under /_next/ except /_next/data/, the icons,
  * the report map's web worker, Vercel Web Analytics (/_vercel/insights/), robots.txt, and /
  * (which may redirect to the agency's website).
@@ -178,7 +179,7 @@ export function customDomainRoute(path: string): CustomDomainRoute {
   // Vercel Web Analytics: its script and the page-view beacons it sends.
   if (/^\/_vercel\/insights\/[\w./-]+$/.test(path)) return { kind: "asset" };
   const report =
-    path.match(/^\/r\/([^/.]+)(?:\/(?:opengraph-image|twitter-image)(?:-[\w-]+)?(?:\.\w+)?|\/pdf|\.rsc|\.segments\/.+\.segment(?:\.rsc)?)?\/?$/) ??
+    path.match(/^\/r\/([^/.]+)(?:\/(?:opengraph-image|twitter-image)(?:-[\w-]+)?(?:\.\w+)?|\/pdf|\/pitch-image|\.rsc|\.segments\/.+\.segment(?:\.rsc)?)?\/?$/) ??
     path.match(/^\/api\/reports\/([^/]+)\/pdf\/?$/);
   if (report) return SLUG.test(report[1]) ? { kind: "report", slug: report[1] } : { kind: "blocked" };
   return { kind: "blocked" };

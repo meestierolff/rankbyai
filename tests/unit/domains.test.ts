@@ -96,6 +96,7 @@ describe("paths on a custom domain (allow-list)", () => {
     expect(customDomainRoute(`/r/${SLUG_A}/twitter-image.png`)).toEqual({ kind: "report", slug: SLUG_A });
     expect(customDomainRoute(`/api/reports/${SLUG_A}/pdf`)).toEqual({ kind: "report", slug: SLUG_A });
     expect(customDomainRoute(`/r/${SLUG_A}/pdf`)).toEqual({ kind: "report", slug: SLUG_A });
+    expect(customDomainRoute(`/r/${SLUG_A}/pitch-image`)).toEqual({ kind: "report", slug: SLUG_A });
     // Next's transport forms of the report page (RSC payload, segment prefetch).
     expect(customDomainRoute(`/r/${SLUG_A}.rsc`)).toEqual({ kind: "report", slug: SLUG_A });
     expect(customDomainRoute(`/r/${SLUG_A}.segments/_tree.segment.rsc`)).toEqual({ kind: "report", slug: SLUG_A });
@@ -111,7 +112,7 @@ describe("paths on a custom domain (allow-list)", () => {
     for (const p of [
       "/app", "/app/settings/branding", "/login", "/admin", "/free-check", "/pricing", "/docs/api", "/sitemap.xml", "/llms.txt",
       "/api/scans", "/api/v1/businesses", "/api/mcp", "/api/domains", "/api/reports/x/pdf", `/api/reports/${SLUG_A}/zip`, "/api/auth/session",
-      "/r", "/r/short", `/r/${SLUG_A}/extra`, `/r/${SLUG_A}/opengraph-image/x`, "/ai/dentist/austin", "/_next/data/build/app.json",
+      "/r", "/r/short", `/r/${SLUG_A}/extra`, `/r/${SLUG_A}/opengraph-image/x`, `/r/${SLUG_A}/pitch-image/x`, "/ai/dentist/austin", "/_next/data/build/app.json",
       `/r/%2e%2e/app`, `/_next/static/%2e%2e/%2e%2e/app`, `/_next/static/..%2fapp`, "/opengraph-image", "/.well-known/jwks.json",
       `/r/${SLUG_A}.json`, `/r/${SLUG_A}.segments`, "/r/short.rsc", "/vendor", "/vendor/", "/vendor/other.mjs", "/vendor/maplibre-gl-worker.mjs.map", "/_vercel/speed-insights/script.js", "/_vercel/insights/", "/_vercel/insights/../app",
     ]) {

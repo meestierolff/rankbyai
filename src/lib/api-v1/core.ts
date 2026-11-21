@@ -9,6 +9,7 @@ import { resolveCredentials } from "@/lib/keys";
 import { isMockMode } from "@/lib/mock";
 import { DATAFORSEO_MAPS_PER_POINT, FAIR_USE, LLM_FIX_KIT_BUDGET_USD } from "@/lib/pricing-constants";
 import { createBatch, discover, estimateBatch, processBatch, resolveRows, type BatchRow } from "@/lib/prospects/batch";
+import { pitchForProspect } from "@/lib/prospects/pitch";
 import { compareAi, compareHeadline, compareMaps, samePlace, type AiCompareSample, type MapsComparePoint } from "@/lib/scans/compare";
 import { createScan, processScan } from "@/lib/scans/engine";
 import { MAX_POINT_IDX } from "@/lib/scans/skip";
@@ -470,6 +471,21 @@ export async function getProspects(c: ApiCaller, id: string, siteUrl: string, de
       report_url: r.report_slug ? `${siteUrl}/r/${r.report_slug}` : null, business_id: r.business_id ?? null,
     })),
   });
+}
+
+/**
+ * The email teaser of one finished prospect report: a short plain-text email that opens with the
+ * business's own numbers and the rivals ahead of it, the image that goes with it, and the report
+ * link. Formats data the report already holds: free. Nothing is sent.
+ */
+export async function getPitchAsset(c: ApiCaller, batchId: string, q: { business_id?: unknown }, siteUrl: string): Promise<ApiResult> {
+  if (!uuid.safeParse(batchId).success) return invalidId("batch");
+  const business = uuid.safeParse(q.business_id);
+  if (!business.success) return fail(400, "invalid_request", "business_id: send the business_id of a report in this batch (from GET /prospects/{id}).");
+  const { data } = await dbUser(c.ownerId).from("prospect_batches").select("id, rows").eq("id", batchId).eq("workspace_id", c.workspaceId).maybeSingle();
+  if (!data) return badId("batch");
+  const r = await pitchForProspect((data as { rows: BatchRow[] }).rows ?? [], business.data, siteUrl);
+  return r.ok ? ok(r.body) : fail(r.status, r.error, r.message);
 }
 
 // ───────────────────────── branding ─────────────────────────

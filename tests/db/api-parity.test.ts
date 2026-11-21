@@ -504,7 +504,7 @@ describe("MCP: protocol, schemas and the new tools (official MCP client)", () =>
     expect(props("run_maps_scan")).not.toHaveProperty("prompt_template");
 
     // Fixed-shape tools publish an output schema; estimate-or-run tools do not.
-    for (const name of ["list_businesses", "update_business", "delete_business", "estimate_scan", "list_scans", "compare_scans", "list_audits", "get_audit", "list_prospect_batches", "get_prospect_batch", "get_branding", "update_branding", "get_usage"]) {
+    for (const name of ["list_businesses", "update_business", "delete_business", "estimate_scan", "list_scans", "compare_scans", "list_audits", "get_audit", "list_prospect_batches", "get_prospect_batch", "get_pitch_asset", "get_branding", "update_branding", "get_usage"]) {
       expect(tool(name).outputSchema?.type, name).toBe("object");
     }
     for (const name of ["add_business", "run_ai_scan", "run_maps_scan", "get_scan", "run_audit", "get_fix_kit", "create_prospect_batch"]) expect(tool(name).outputSchema, name).toBeUndefined();
@@ -595,10 +595,31 @@ describe("MCP: protocol, schemas and the new tools (official MCP client)", () =>
     expect(reports.body.reports).toHaveLength(2);
     expect(reports.body.reports[0].report_url).toMatch(/\/r\/[A-Za-z0-9_-]{12,}$/);
 
+    // The email teaser of a finished report: same JSON over MCP and REST, numbers from the report, nothing sent.
+    const first = reports.body.reports[0] as { business: string; business_id: string; report_url: string };
+    const pitch = await call(client, "get_pitch_asset", { batch_id: batch.body.batch_id, business_id: first.business_id });
+    expect(pitch.isError).toBe(false);
+    expect(pitch.body).toMatchObject({ business: first.business, business_id: first.business_id, image_url: `${pitch.body.report_url}/pitch-image` });
+    expect(pitch.body.report_url).toMatch(/\/r\/[A-Za-z0-9_-]{12,}$/);
+    expect(pitch.body.email.text).toContain(pitch.body.report_url);
+    expect(pitch.body.email.text).toContain(first.business);
+    expect(pitch.body.email.lines.length).toBeGreaterThanOrEqual(4);
+    expect(pitch.body.email.lines.length).toBeLessThanOrEqual(8);
+    const restPitch = await rest("GET", `/prospects/${batch.body.batch_id}/pitch?business_id=${first.business_id}`);
+    expect(restPitch.status).toBe(200);
+    expect(restPitch.body.email).toEqual(pitch.body.email);
+    expect((await rest("GET", `/prospects/${batch.body.batch_id}/pitch?business_id=${UNKNOWN}`)).status).toBe(404);
+    expect((await rest("GET", `/prospects/${batch.body.batch_id}/pitch`)).status).toBe(400);
+    expect((await rest("GET", `/prospects/${batch.body.batch_id}/pitch?business_id=${first.business_id}`, { key: keyB })).status).toBe(404);
+    expect((await rest("POST", `/prospects/${batch.body.batch_id}/pitch?business_id=${first.business_id}`, { body: {} })).status).toBe(405);
+
     expect((await call(client, "get_branding")).body.branding).toMatchObject({ brand_name: null, has_logo: false });
     const brand = await call(client, "update_branding", { brand_name: "Northside SEO", hide_rankbyai_branding: true });
     expect(brand.isError).toBe(false);
     expect(brand.body.branding).toMatchObject({ brand_name: "Northside SEO", hide_rankbyai_branding: true, brand_website: null });
+    // White-label reaches the teaser: signed with the agency's name.
+    const signed = await call(client, "get_pitch_asset", { batch_id: batch.body.batch_id, business_id: first.business_id });
+    expect(signed.body.email.lines.at(-1)).toBe("— Northside SEO");
     expect((await call(client, "update_branding", { brand_website: "ftp://x" })).isError).toBe(true);
     const usage = await call(client, "get_usage");
     expect(usage.isError).toBe(false);

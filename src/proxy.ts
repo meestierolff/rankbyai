@@ -142,9 +142,9 @@ export async function proxy(request: NextRequest) {
   // entry below skips first-party hosts, but if one reaches us anyway, leave the request alone.
   if (!isPrimaryProxyPath(path)) return NextResponse.next();
 
-  // A report and its public files (PDF, link-preview images): never sent to the sign-in check below,
+  // A report and its public files (PDF, link-preview images, the email-teaser image): never sent to the sign-in check below,
   // which would redirect a signed-out lead to /login. An unknown or revoked slug is a real 404.
-  const reportMatch = path.match(/^\/r\/([^/]+)(?:\/(?:pdf|opengraph-image[\w-]*|twitter-image[\w-]*))?\/?$/);
+  const reportMatch = path.match(/^\/r\/([^/]+)(?:\/(?:pdf|pitch-image|opengraph-image[\w-]*|twitter-image[\w-]*))?\/?$/);
   if (reportMatch) {
     const slug = reportMatch[1];
     const ok = /^[A-Za-z0-9_-]{12,64}$/.test(slug) ? await reportExists(slug) : false;

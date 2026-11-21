@@ -44,6 +44,7 @@ Both ways use `Authorization: Bearer …`.
 | `get_fix_kit` | Copy-ready fixes for a finished audit (built once) | adds, idempotent, open world |
 | `create_prospect_batch` | Prospect reports for agencies (paid, `confirm`) | adds, open world |
 | `list_prospect_batches`, `get_prospect_batch` | Prospect batches and their report links | read-only |
+| `get_pitch_asset` | Email teaser of a finished prospect report: short email text, comparison image, report link (nothing is sent) | read-only |
 | `get_branding`, `update_branding` | White-label branding on reports | read-only / destructive (overwrites) |
 | `get_usage` | This month's own-key spend and credits left | read-only |
 

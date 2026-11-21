@@ -95,6 +95,7 @@ const ROUTES: Route[] = [
   { path: "audits/:id/fix-kit", GET: (x) => core.getFixKit(x.c, x.id, x.q, { readOnly: x.head }) },
   { path: "prospects", GET: (x) => core.listProspectBatches(x.c, x.q), POST: async (x) => core.createProspectsOp(x.c, await x.body(), x.defer) },
   { path: "prospects/:id", GET: async (x) => core.getProspects(x.c, x.id, await reportOriginForAuthorisedWorkspace(x.c.workspaceId), x.head ? undefined : x.defer) },
+  { path: "prospects/:id/pitch", GET: async (x) => core.getPitchAsset(x.c, x.id, x.q, await reportOriginForAuthorisedWorkspace(x.c.workspaceId)) },
   { path: "branding", GET: (x) => core.getBranding(x.c), PATCH: async (x) => core.updateBranding(x.c, await x.body()) },
   { path: "usage", GET: (x) => core.getUsage(x.c) },
 ];

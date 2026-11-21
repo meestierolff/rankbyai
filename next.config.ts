@@ -46,6 +46,14 @@ const nextConfig: NextConfig = {
   // The OAuth consent page must never be framed (clickjacking an "Allow" click), and the code it
   // sends a browser on with must not leak through a Referer header.
   headers: async () => [
+    // The agent skill (public/SKILL.md): plain UTF-8 Markdown for agents that fetch it.
+    {
+      source: "/SKILL.md",
+      headers: [
+        { key: "Content-Type", value: "text/markdown; charset=utf-8" },
+        { key: "Cache-Control", value: "public, max-age=300" },
+      ],
+    },
     {
       source: "/free-check/:path*",
       headers: [

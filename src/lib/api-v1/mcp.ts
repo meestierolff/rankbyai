@@ -8,6 +8,7 @@ import { AI_GRID_SIZES, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 import { MAX_POINT_IDX } from "@/lib/scans/skip";
 import * as core from "./core";
 import { COUNTRY_CODES, DEFAULT_COUNTRY, languageName, languageNameFor } from "@/lib/countries";
+import { SECOND_LANGUAGES } from "@/lib/scans/consistency-run";
 import { auditFixPrompt } from "@/lib/audit/prompt";
 import { MCP_TOOL_HINTS, type McpTool } from "./mcp-tools";
 import { reportOriginForAuthorisedWorkspace } from "@/lib/domains-origin";
@@ -24,6 +25,7 @@ import { reportOriginForAuthorisedWorkspace } from "@/lib/domains-origin";
 const GUIDE =
   "RankbyAI measures whether AI assistants (ChatGPT, Perplexity, Gemini) and Google Maps recommend a local business, point by point on a map grid around it. " +
   "Typical flow: add_business → estimate_scan → run_ai_scan and run_maps_scan with confirm → get_scan until status is done → run_audit → get_audit → get_fix_kit. " +
+  "To check whether a difference is real or normal variation, run_consistency_check asks the same grid twice (and optionally in a second language); get_consistency shows what stayed the same. " +
   "After a re-check, get_change_note explains what changed between the latest scan and the previous one (mentions, names, cited sources), with possible reasons only where stored evidence exists. " +
   "For a finished prospect report, get_pitch_asset returns a short email teaser and an image for the user to copy; RankbyAI never sends email. " +
   "list_scans, list_audits and list_prospect_batches find earlier work; update_business and delete_business manage the tracked businesses; get_branding and update_branding manage the white-label fields on reports. " +
@@ -213,6 +215,31 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
       markdown: z.string(),
     }),
   }, (a) => reply("get_change_note", () => core.getChangeNote(caller, a)));
+
+  server.registerTool("run_consistency_check", {
+    title: "Run a consistency check",
+    annotations: hints("run_consistency_check", "Run a consistency check"),
+    description: "Ask the same AI grid twice (repeat: 2) and/or in a second language (second_language: a language with a written question, or your own prompt_template, plus the service as people say it in that language), one run after another, to tell a real difference from normal variation. One run is not a stable ranking. Costs money: the estimate is the number of runs × one grid's estimate (2 runs for repeat or a second language once, 4 for both). Without confirm it returns the estimate only. Then poll get_consistency with the group_id. The runs are tagged so they never replace the business's latest scan.",
+    inputSchema: z.object({
+      ...scanInput, grid_size: aiGrid, skip_points: skipPoints, engines,
+      prompt_template: z.string().max(400).optional().describe("Optional wording of the first question (same rules as run_ai_scan)."),
+      repeat: z.union([z.literal(1), z.literal(2)]).default(2).describe("2 asks every question twice (measures normal variation). 1 only with second_language."),
+      second_language: z.object({
+        language: z.enum(SECOND_LANGUAGES).optional().describe("A language RankbyAI has a written question in (en is the standard English question)"),
+        prompt_template: z.string().max(400).optional().describe("Or your own question in that language; must contain {service} and {neighbourhood} or {city}"),
+        keyword: z.string().min(2).max(120).describe("The service as people say it in that language, e.g. Zahnarzt. Never translated for you."),
+      }).optional(),
+      confirm,
+    }),
+  }, (a) => reply("run_consistency_check", () => core.createConsistencyOp(caller, a, defer)));
+
+  server.registerTool("get_consistency", {
+    title: "Get a consistency check",
+    annotations: hints("get_consistency", "Get a consistency check"),
+    description: "The runs of a consistency check (group_id from run_consistency_check) and, once they finished: same_question (run 1 vs run 2), second_question_repeat and across_questions (the two languages). Each has the share of mention decisions that agreed (stability_rate), per engine and per point, and the businesses named in both runs or only in one. A language difference only means something when it is larger than the difference between two runs of the same question: say so. Or compare two AI scans you choose (a and b, same grid). Polling also continues the next run. Free.",
+    inputSchema: z.object({ group_id: id("consistency check").optional(), a: id("first AI scan").optional(), b: id("second AI scan").optional() }),
+    outputSchema: open({ consistency: open({ group_id: text, business: z.string(), status: z.enum(["running", "done"]), runs: z.array(open({ role: z.string(), scan_id: z.string(), status: z.string(), question: z.string() })), disclaimer: z.string() }) }),
+  }, (a) => reply("get_consistency", () => core.getConsistency(caller, a, defer)));
 
   // ───────────────────────── audits ─────────────────────────
 

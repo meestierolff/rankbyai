@@ -1,5 +1,6 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
+import { withoutSideRuns } from "@/lib/scans/consistency";
 import { dbAdmin, dbAnon } from "@/lib/db/clients";
 import { ENGINES, ENGINE_LABEL, type Engine } from "@/lib/pricing-constants";
 import { namesMatch, normalizeName } from "@/lib/scans/match";
@@ -69,7 +70,7 @@ export async function getRegionalPage(niche: string, city: string): Promise<Regi
   return (data as RegionalPage | null) ?? null;
 }
 
-interface ScanRow { id: string; kind: "ai" | "maps"; niche: string | null; keyword: string | null; funding: string; created_at: string; summary: { top_competitors?: { name: string; top3_points?: number }[] } | null; businesses: { city: string | null; region: string | null; country: string | null } | { city: string | null; region: string | null; country: string | null }[] | null; workspaces: { share_scans_for_regional_pages: boolean } | { share_scans_for_regional_pages: boolean }[] | null }
+interface ScanRow { id: string; kind: "ai" | "maps"; label?: string | null; niche: string | null; keyword: string | null; funding: string; created_at: string; summary: { top_competitors?: { name: string; top3_points?: number }[] } | null; businesses: { city: string | null; region: string | null; country: string | null } | { city: string | null; region: string | null; country: string | null }[] | null; workspaces: { share_scans_for_regional_pages: boolean } | { share_scans_for_regional_pages: boolean }[] | null }
 const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
 
 /**
@@ -80,9 +81,10 @@ export async function rebuildRegionalPages(): Promise<{ pages: number; indexable
   const admin = dbAdmin();
   const { data } = await admin
     .from("scans")
-    .select("id, kind, niche, keyword, funding, created_at, summary, businesses(city, region, country), workspaces(share_scans_for_regional_pages)")
+    .select("id, kind, niche, keyword, funding, created_at, summary, label, businesses(city, region, country), workspaces(share_scans_for_regional_pages)")
     .in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(3000);
-  const publishable = ((data ?? []) as unknown as ScanRow[]).filter((s) =>
+  // Repeat and second-language runs of a consistency check would count one business twice, or in another language.
+  const publishable = withoutSideRuns((data ?? []) as unknown as ScanRow[]).filter((s) =>
     s.funding === "free" ? false : s.funding !== "byok" || one(s.workspaces)?.share_scans_for_regional_pages === true);
 
   const groups = new Map<string, { labels: RegionalPage["labels"]; ai: ScanRow[]; maps: ScanRow[] }>();

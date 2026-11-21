@@ -10,11 +10,13 @@ const frontmatter = skill.match(/^---\n([\s\S]*?)\n---\n/)?.[1] ?? "";
 
 describe("agent skill (public/SKILL.md)", () => {
   it("is complete: the last line is the END marker of its version", () => {
+    const version = frontmatter.match(/^version: (\d+\.\d+\.\d+)$/m)?.[1];
+    expect(version).toBeTruthy();
     const lines = skill.trimEnd().split("\n");
-    expect(lines[lines.length - 1]).toBe("END SKILL v1.0.0");
+    expect(lines[lines.length - 1]).toBe(`END SKILL v${version}`);
     expect(skill.endsWith("\n")).toBe(true);
-    expect(frontmatter).toMatch(/^version: 1\.0\.0$/m);
-    expect(frontmatter).toMatch(/^ {2}version: 1\.0\.0$/m);
+    expect(frontmatter).toContain(`  version: ${version}`);
+    expect(skill).toContain(`is \`END SKILL v${version}\``);
   });
 
   it("has the frontmatter agents and skill installers read", () => {

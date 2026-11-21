@@ -14,8 +14,11 @@ import { compareAi, compareHeadline, compareMaps, samePlace, type AiCompareSampl
 import { createScan, processScan } from "@/lib/scans/engine";
 import { changeNoteMarkdown } from "@/lib/scans/change-note";
 import { loadChangeNote, type Read } from "@/lib/scans/change-note-data";
+import { loadConsistency, processGroup, SECOND_LANGUAGES, startConsistency } from "@/lib/scans/consistency-run";
+import { parseRunLabel } from "@/lib/scans/consistency";
+import { AI_GRID_SIZES, type AiGridSize } from "@/lib/pricing-constants";
 import { MAX_POINT_IDX } from "@/lib/scans/skip";
-import { ENGINES } from "@/lib/pricing-constants";
+import { ENGINES, type Engine } from "@/lib/pricing-constants";
 import { COUNTRY_CODES, DEFAULT_COUNTRY, isLanguageCode } from "@/lib/countries";
 import { CENTRE_PAIR_MESSAGE, centreBothOrNone, centreFields, centreOf } from "@/lib/scans/centre";
 import { setBusinessLocation } from "@/lib/businesses";
@@ -127,8 +130,8 @@ export async function getBusiness(c: ApiCaller, id: string): Promise<ApiResult> 
   const db = dbUser(c.ownerId);
   const { data } = await db.from("businesses").select(BUSINESS_COLS).eq("id", id).eq("workspace_id", c.workspaceId).maybeSingle();
   if (!data) return badId("business");
-  const { data: scans } = await db.from("scans").select("id, kind, grid_size, status, keyword, niche, created_at").eq("business_id", id).eq("workspace_id", c.workspaceId).order("created_at", { ascending: false }).limit(10);
-  return ok({ business: data, recent_scans: scans ?? [] });
+  const { data: scans } = await db.from("scans").select("id, kind, grid_size, status, keyword, niche, created_at, label").eq("business_id", id).eq("workspace_id", c.workspaceId).order("created_at", { ascending: false }).limit(10);
+  return ok({ business: data, recent_scans: ((scans ?? []) as { label?: string | null }[]).map(scanOut) });
 }
 
 export const UpdateBusiness = z.strictObject({
@@ -223,7 +226,17 @@ export async function createScanOp(c: ApiCaller, input: unknown, defer: Defer): 
   return ok({ scan_id: r.scanId, status: "queued", estimate: r.estimate }, 202);
 }
 
-const SCAN_COLS = "id, business_id, kind, keyword, niche, engines, grid_size, skip_points, radius_miles, mode, funding, status, credits_used, est_cost_usd, actual_cost_usd, summary, error, created_at, finished_at";
+const SCAN_COLS = "id, business_id, kind, keyword, niche, engines, grid_size, skip_points, radius_miles, mode, funding, status, credits_used, est_cost_usd, actual_cost_usd, summary, error, created_at, finished_at, label";
+
+/**
+ * A scan for the API: the internal label becomes `consistency_run` ({ group_id, role } for a run of
+ * a consistency check, else null). Roles A2, B1 and B2 are repeats or second-language runs, never
+ * the business's latest scan.
+ */
+const scanOut = <T extends { label?: string | null }>({ label, ...scan }: T) => {
+  const run = parseRunLabel(label);
+  return { ...scan, consistency_run: run ? { group_id: run.group, role: run.role } : null };
+};
 
 const ListScans = z.object({ ...Page, business_id: z.uuid().optional(), kind: z.enum(["ai", "maps"]).optional(), status: z.enum(["queued", "running", "done", "partial", "failed"]).optional() });
 
@@ -238,14 +251,15 @@ export async function listScans(c: ApiCaller, q: Record<string, unknown>): Promi
   if (f.status) query = query.eq("status", f.status);
   const { data, error } = await query.order("created_at", { ascending: false }).range(f.offset, f.offset + f.limit - 1);
   if (error) return fail(500, "server_error", "The scans could not be loaded.");
-  return ok({ scans: data ?? [], limit: f.limit, offset: f.offset });
+  return ok({ scans: ((data ?? []) as { label?: string | null }[]).map(scanOut), limit: f.limit, offset: f.offset });
 }
 
 export async function getScan(c: ApiCaller, id: string, defer?: Defer): Promise<ApiResult> {
   if (!uuid.safeParse(id).success) return invalidId("scan");
   const { data } = await dbUser(c.ownerId).from("scans").select(`${SCAN_COLS}, lease_until`).eq("id", id).eq("workspace_id", c.workspaceId).maybeSingle();
   if (!data) return badId("scan");
-  const { lease_until, ...scan } = data as Record<string, unknown> & { lease_until: string | null; status: string };
+  const { lease_until, ...stored } = data as Record<string, unknown> & { lease_until: string | null; status: string; label: string | null };
+  const scan = scanOut(stored);
   // Polling continues a scan that has no live worker (for example while the Maps queue is answering).
   if (defer && (scan.status === "queued" || scan.status === "running") && (!lease_until || new Date(lease_until).getTime() < Date.now())) defer(() => processScan(id));
   return ok({ scan });
@@ -293,18 +307,96 @@ export async function compareScans(c: ApiCaller, q: { a?: unknown; b?: unknown }
  * instead, cited sources added or removed, and possible reasons only where stored evidence exists.
  * Reads stored scans only: free, and it never starts a scan.
  */
-export async function getChangeNote(c: ApiCaller, q: { a?: unknown; b?: unknown; business_id?: unknown }): Promise<ApiResult> {
-  const p = z.object({ a: z.uuid().optional(), b: z.uuid().optional(), business_id: z.uuid().optional() }).safeParse(q);
-  if (!p.success || (!p.data.business_id && !(p.data.a && p.data.b))) return fail(400, "invalid_request", "Send business_id (latest scan against the previous comparable one), or two AI scan ids a and b.");
+/** Reads as the workspace owner, under row-level security; a failed read throws (500), never "no data". */
+function ownerRead(c: ApiCaller): Read {
   const db = dbUser(c.ownerId);
-  const read: Read = async (what, run) => {
+  return async (what, run) => {
     const { data, error } = await run(db);
     if (error) throw new Error(`${what} could not be loaded`);
     return data;
   };
+}
+
+export async function getChangeNote(c: ApiCaller, q: { a?: unknown; b?: unknown; business_id?: unknown }): Promise<ApiResult> {
+  const p = z.object({ a: z.uuid().optional(), b: z.uuid().optional(), business_id: z.uuid().optional() }).safeParse(q);
+  if (!p.success || (!p.data.business_id && !(p.data.a && p.data.b))) return fail(400, "invalid_request", "Send business_id (latest scan against the previous comparable one), or two AI scan ids a and b.");
+  const read = ownerRead(c);
   const r = await loadChangeNote({ ws: read, rows: read }, c.workspaceId, { a: p.data.a, b: p.data.b, businessId: p.data.business_id });
   if (!r.ok) return fail(r.status, r.error, r.message);
   return ok({ change_note: r.note as unknown as Record<string, unknown>, markdown: changeNoteMarkdown(r.note) });
+}
+
+/** A consistency check: the same AI grid asked twice, optionally once or twice more in a second language. */
+export const CreateConsistency = z.object({
+  business_id: z.uuid(),
+  keyword: z.string().trim().min(2).max(120),
+  grid_size: z.number().int(),
+  radius_miles: z.number().positive().max(50).default(2),
+  engines: z.array(z.enum(["openai", "perplexity", "gemini"])).min(1).max(3).optional(),
+  prompt_template: z.string().max(400).nullish(),
+  skip_points: z.array(z.number().int().min(0).max(MAX_POINT_IDX)).max(MAX_POINT_IDX).optional(),
+  /** 2 = every question is asked twice, to measure normal variation. */
+  repeat: z.union([z.literal(1), z.literal(2)]).default(2),
+  second_language: z.object({
+    language: z.enum(SECOND_LANGUAGES).optional(),
+    prompt_template: z.string().max(400).optional(),
+    keyword: z.string().trim().min(2).max(120),
+  }).refine((x) => !!x.language !== !!x.prompt_template?.trim(), { message: "Send language or prompt_template, not both." }).optional(),
+  funding: z.enum(["byok", "credits"]).default("byok"),
+  confirm: z.boolean().default(false),
+  ...centreFields,
+}).refine(centreBothOrNone, { message: CENTRE_PAIR_MESSAGE, path: ["center_lat"] });
+
+/** Shared by the REST API, MCP and the app: parsed input → a started (or estimated) consistency check. */
+export async function runConsistency(workspaceId: string, plan: ApiCaller["plan"], b: z.infer<typeof CreateConsistency>, engines: Engine[]) {
+  if (!(AI_GRID_SIZES as readonly number[]).includes(b.grid_size)) return { ok: false as const, status: 400, error: "invalid_spec", message: `AI grids are ${AI_GRID_SIZES.join(", ")} points per side.` };
+  return startConsistency({
+    workspaceId, plan, businessId: b.business_id, keyword: b.keyword, grid: b.grid_size as AiGridSize, engines, radiusMiles: b.radius_miles,
+    promptTemplate: b.prompt_template, skip: b.skip_points, center: centreOf(b), funding: b.funding, repeat: b.repeat,
+    second: b.second_language ? { language: b.second_language.language, promptTemplate: b.second_language.prompt_template, keyword: b.second_language.keyword } : null,
+    confirm: b.confirm,
+  });
+}
+
+/**
+ * Runs the same AI grid twice (repeat: 2), and/or once or twice in a second language, one after
+ * another, to tell a real difference from normal variation. Costs money: without confirm it returns
+ * the estimate (runs × one grid's estimate) and creates nothing.
+ */
+export async function createConsistencyOp(c: ApiCaller, input: unknown, defer: Defer): Promise<ApiResult> {
+  const p = CreateConsistency.safeParse(input);
+  if (!p.success) return invalid(p.error);
+  let engines = p.data.engines;
+  if (!engines) {
+    const creds = await resolveCredentials(c.workspaceId, p.data.funding);
+    engines = ENGINES.filter((e) => !!creds[e]);
+    if (!engines.length) return fail(400, "missing_key", "No AI engine key is available. Add a key in Settings → API keys, or use \"funding\": \"credits\".");
+  }
+  const r = await runConsistency(c.workspaceId, c.plan, p.data, engines);
+  if (!r.ok) {
+    if (r.error === "confirmation_required") return needsConfirm("estimate" in r ? r.estimate : null, "consistency check");
+    return fail(r.status, r.error, r.message, "estimate" in r && r.estimate ? { estimate: r.estimate } : {});
+  }
+  defer(() => processGroup(r.runs.map((x) => x.scanId)));
+  return ok({ group_id: r.groupId, scan_ids: r.runs.map((x) => x.scanId), runs: r.runs.map((x) => ({ role: x.role, scan_id: x.scanId })), status: "queued", estimate: r.estimate }, 202);
+}
+
+/**
+ * The runs of a consistency check and, once they finished, how stable the answers were: mention
+ * decisions that agreed, names in both runs or only one, per engine and per point. Or two AI scans
+ * chosen by the caller (a and b). Polling also continues the next run of a group, in order. Free.
+ */
+export async function getConsistency(c: ApiCaller, q: { group_id?: unknown; a?: unknown; b?: unknown }, defer?: Defer): Promise<ApiResult> {
+  const p = z.object({ group_id: z.uuid().optional(), a: z.uuid().optional(), b: z.uuid().optional() }).safeParse(q);
+  if (!p.success || (!p.data.group_id && !(p.data.a && p.data.b))) return fail(400, "invalid_request", "Send group_id (from run_consistency_check), or two AI scan ids a and b.");
+  const read = ownerRead(c);
+  const r = await loadConsistency({ ws: read, rows: read }, c.workspaceId, { groupId: p.data.group_id, a: p.data.a, b: p.data.b });
+  if (!r.ok) return fail(r.status, r.error, r.message);
+  if (defer && r.next?.leaseFree) {
+    const rest = r.report.runs.filter((x) => x.status === "queued" || x.status === "running").map((x) => x.scan_id);
+    defer(() => processGroup(rest));
+  }
+  return ok({ consistency: r.report as unknown as Record<string, unknown> });
 }
 
 // ───────────────────────── audits ─────────────────────────

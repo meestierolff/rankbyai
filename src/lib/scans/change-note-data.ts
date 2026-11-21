@@ -2,6 +2,7 @@ import "server-only";
 import type { Db } from "@/lib/db/clients";
 import { changeNote, type ChangeNote, type NoteExtras, type NoteSample, type NoteScan } from "./change-note";
 import { samePlace } from "./compare";
+import { withoutSideRuns } from "./consistency";
 import { DEFAULT_PROMPT_TEMPLATE } from "./prompt";
 
 /**
@@ -34,8 +35,9 @@ export function comparableScans(a: NoteScan, b: NoteScan): boolean {
  * The default pair for a business: its latest finished AI scan, and the latest earlier one it can be
  * compared with (the previous run of the same schedule first). `scans` is newest first.
  */
-export function pickPair<T extends NoteScan & { tracked_query_id?: string | null }>(scans: T[]): { before: T; after: T } | null {
-  const done = scans.filter(finished);
+export function pickPair<T extends NoteScan & { tracked_query_id?: string | null; label?: string | null }>(scans: T[]): { before: T; after: T } | null {
+  // A repeat or second-language run of a consistency check is never "the latest" or "the previous" scan.
+  const done = withoutSideRuns(scans).filter(finished);
   const after = done[0];
   if (!after) return null;
   const earlier = done.slice(1).filter((s) => comparableScans(s, after));

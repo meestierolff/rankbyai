@@ -1,6 +1,6 @@
 ---
 name: rankbyai
-description: Use the RankbyAI MCP tools to check whether ChatGPT, Perplexity, Gemini and Google Maps recommend a local business, point by point on a map grid, and to turn the results into a prioritised fix plan. Use when the user asks about AI visibility, AI search, local SEO, map rank grids, or whether AI assistants recommend their own or a client's business.
+description: Use the RankbyAI MCP tools to check whether ChatGPT, Perplexity, Gemini and Google Maps recommend a local business or an online product, which pages (listicles, reviews, directories) their answers cite, and which of those pages link to competitors, and to turn the results into a prioritised fix plan. Use when the user asks about AI visibility, AI search, GEO or AEO, local SEO, map rank grids, "best X" pages and citations, or whether AI assistants recommend their own or a client's business.
 ---
 
 # RankbyAI
@@ -14,7 +14,7 @@ RankbyAI asks AI assistants (ChatGPT, Perplexity, Gemini) "who are the best {ser
 
 ## Costs: always ask first
 
-Six tools can spend money: `add_business` (Maps lookup), `run_ai_scan`, `run_maps_scan`, `run_audit`, `get_fix_kit` (first build) and `create_prospect_batch`.
+These tools can spend money: `add_business` (Maps lookup), `run_ai_scan`, `run_maps_scan`, `run_consistency_check`, `run_audit`, `get_fix_kit` (first build), `create_prospect_batch`, `run_prompt_pack` (the user's own AI keys only) and `find_citation_targets` (the user's own DataForSEO login; an upper-bound estimate).
 
 1. Call the tool **without** `confirm` (or use `estimate_scan`). It returns the estimate and does nothing else.
 2. Show the user the cost and what will run (grid size, engines, keyword).
@@ -31,6 +31,15 @@ Six tools can spend money: `add_business` (Maps lookup), `run_ai_scan`, `run_map
 5. Later: run the same scan again and use `compare_scans` to show what changed.
 
 Agencies can use `create_prospect_batch` (niche and city, or named businesses) to build reports for potential clients; `get_prospect_batch` returns each report's share link.
+
+## Citation workflow: which pages AI answers lean on
+
+1. `get_buyer_prompts` (`business_id`; `scope: "online"` for a product sold online, e.g. "best SEO tools") suggests about ten buyer prompts from stored fields. Let the user edit them.
+2. `run_prompt_pack` without `confirm` shows the estimate (prompts × repeats × one AI scan); with `confirm: true` it asks every prompt on ChatGPT, Perplexity and Gemini. Default `repeats: 1`; 2 for a baseline the user will compare against later. Poll `get_prompt_pack` until the run is done.
+3. `list_cited_sources` (`pack_id`, `missing_only: true`) lists the pages the answers cited that leave the business out. `missing.basis` says whether RankbyAI read the page (`page`) or only counted the answers (`answers`): say which.
+4. `find_citation_targets` (up to three competitor websites; estimate first) and `get_citation_targets`: pages that link to the competitors from a best/top/review list, merged with the cited pages, by estimated traffic, each with an action (`pitch`, `directory_claim`, `skip`). `etv` is DataForSEO's traffic estimate and `page_rank` its own rank, not Ahrefs DR.
+
+RankbyAI supplies the pages and the data; who to contact, and when, is up to the user. Re-run a saved pack monthly (`run_prompt_pack` with `pack_id`) and act on changes that hold across two runs.
 
 ## Reading the results
 

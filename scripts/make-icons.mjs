@@ -139,6 +139,14 @@ const files = [
   // Logo for the social card (src/lib/og.tsx draws it at 118×64 on a #0b0b0b card) and for the
   // Organization structured data (src/lib/seo.ts). Same 148:80 canvas as the file it replaces.
   { path: "public/brand/logo.png", width: 1184, height: 640, mark: 520, bg: [0x0b, 0x0b, 0x0b] },
+  // App icon for directories and clients (MCP server info, MCP Registry, plugin listings): the
+  // favicon tile at the sizes they ask for. Same proportions as public/icon.png.
+  { path: "public/brand/icon-512.png", width: 512, height: 512, mark: 352, bg: BLACK, radius: 112, dotScale: 1.12 },
+  { path: "public/brand/icon-1024.png", width: 1024, height: 1024, mark: 704, bg: BLACK, radius: 224, dotScale: 1.12 },
+  // Full-bleed square for directories that round the corners themselves (as iOS does).
+  { path: "public/brand/icon-square-1024.png", width: 1024, height: 1024, mark: 614, bg: BLACK, dotScale: 1.08 },
+  // The Claude Code / Codex plugin's icon; scripts/build-openai-plugin.mjs puts the same file in the OpenAI plugin.
+  { path: "plugins/rankbyai/assets/logo.png", width: 512, height: 512, mark: 352, bg: BLACK, radius: 112, dotScale: 1.12 },
 ];
 
 if (import.meta.url === `file://${process.argv[1]}`) {

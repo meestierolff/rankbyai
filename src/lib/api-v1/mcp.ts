@@ -8,6 +8,7 @@ import { AI_GRID_SIZES, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 import { MAX_POINT_IDX } from "@/lib/scans/skip";
 import * as core from "./core";
 import * as packs from "./packs";
+import { brandIcons, MCP_SERVER_DESCRIPTION } from "@/lib/brand-icons";
 import * as targets from "./targets";
 import { PACK_MAX_PROMPTS, PACK_MAX_REPEATS, PACK_PROMPT_MAX } from "@/lib/packs/prompts";
 import { COUNTRY_CODES, DEFAULT_COUNTRY, languageName, languageNameFor } from "@/lib/countries";
@@ -65,7 +66,9 @@ const hints = (name: McpTool, title: string) => ({ title, ...MCP_TOOL_HINTS[name
 
 export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: string): McpServer {
   // Stateless and POST only: there is no stream to announce a changed tool list on, so listChanged is off.
-  const server = new McpServer({ name: "rankbyai", version: "1.2.0" }, { instructions: GUIDE, capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } } });
+  const server = new McpServer({
+    name: "rankbyai", title: "RankbyAI", version: "1.2.0", description: MCP_SERVER_DESCRIPTION, websiteUrl: siteUrl, icons: brandIcons(siteUrl),
+  }, { instructions: GUIDE, capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } } });
 
   const reply = async (tool: string, run: () => Promise<core.ApiResult>) => {
     const r = await run();

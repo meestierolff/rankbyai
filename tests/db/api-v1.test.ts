@@ -353,6 +353,14 @@ describe("MCP server (driven by the official MCP client)", () => {
     await expect(connect("rbai_live_" + "B".repeat(32))).rejects.toThrow();
   });
 
+  it("introduces itself with the RankbyAI name, site and app icon", async () => {
+    const client = await connect(keyA);
+    const info = client.getServerVersion();
+    expect(info).toMatchObject({ name: "rankbyai", title: "RankbyAI", version: "1.2.0" });
+    expect(info?.icons?.map((i) => i.src.replace(/^https?:\/\/[^/]+/, ""))).toEqual(["/icon.svg", "/brand/icon-512.png", "/brand/icon-1024.png"]);
+    expect(info?.websiteUrl).toMatch(/^https?:\/\//);
+  });
+
   it("lists every tool, each with a description and an input schema", async () => {
     const client = await connect(keyA);
     const { tools } = await client.listTools();

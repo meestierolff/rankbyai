@@ -17,6 +17,7 @@ import { BusinessDetails } from "@/components/app/business-details";
 import { languageNameFor } from "@/lib/countries";
 import { isServiceArea } from "@/lib/service-area";
 import { isSideRun } from "@/lib/scans/consistency";
+import { NOT_PACK_RUN } from "@/lib/packs/label";
 
 export const metadata: Metadata = { title: "Business" };
 
@@ -74,6 +75,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
         .select("id, kind, grid_size, radius_miles, center_lat, center_lng, status, keyword, niche, summary, actual_cost_usd, created_at, label")
         .eq("workspace_id", wsId)
         .eq("business_id", id)
+        .or(NOT_PACK_RUN)
         .order("created_at", { ascending: false })
         .limit(30),
     ),
@@ -129,6 +131,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
         description={[b.primary_category, b.address ?? [b.city, b.region].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}
         actions={
           <>
+            <SecondaryLink href={`/app/businesses/${b.id}/citations`}>Citation workflow</SecondaryLink>
             <SecondaryLink href={`/app/maps-grid?business=${b.id}`}>Run Maps grid</SecondaryLink>
             <PrimaryLink href={`/app/ai-visibility?business=${b.id}`}>Run AI check</PrimaryLink>
           </>

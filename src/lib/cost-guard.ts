@@ -7,6 +7,7 @@ import {
 } from "@/lib/pricing-constants";
 import { dbAdmin } from "@/lib/db/clients";
 import { validateSkipPoints } from "@/lib/scans/skip";
+import { NOT_PACK_RUN } from "@/lib/packs/label";
 
 /**
  * Cost guard (brief 10.2). Estimate before every run; for house-key scans, hard caps:
@@ -87,8 +88,13 @@ export async function estimateScan(spec: ScanSpec): Promise<Estimate> {
   };
 }
 
+/**
+ * Scans of this workspace that are queued or running. A prompt pack's scans are left out: a pack
+ * counts as one job of its own (one pack at a time, lib/packs/run), so its 10 or more queued scans
+ * do not block the user's other scans while it works.
+ */
 export async function runningScanCount(workspaceId: string): Promise<number> {
-  const { count } = await dbAdmin().from("scans").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).in("status", ["queued", "running"]);
+  const { count } = await dbAdmin().from("scans").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).in("status", ["queued", "running"]).or(NOT_PACK_RUN);
   return count ?? 0;
 }
 

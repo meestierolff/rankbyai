@@ -7,6 +7,8 @@ import { largerMapsGridsText, largestOneCreditMapsGrid } from "@/lib/cost/credit
 import { AI_GRID_SIZES, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 import { MAX_POINT_IDX } from "@/lib/scans/skip";
 import * as core from "./core";
+import * as packs from "./packs";
+import { PACK_MAX_PROMPTS, PACK_MAX_REPEATS, PACK_PROMPT_MAX } from "@/lib/packs/prompts";
 import { COUNTRY_CODES, DEFAULT_COUNTRY, languageName, languageNameFor } from "@/lib/countries";
 import { SECOND_LANGUAGES } from "@/lib/scans/consistency-run";
 import { auditFixPrompt } from "@/lib/audit/prompt";
@@ -28,7 +30,8 @@ const GUIDE =
   "To check whether a difference is real or normal variation, run_consistency_check asks the same grid twice (and optionally in a second language); get_consistency shows what stayed the same. " +
   "After a re-check, get_change_note explains what changed between the latest scan and the previous one (mentions, names, cited sources), with possible reasons only where stored evidence exists. " +
   "For a finished prospect report, get_pitch_asset returns a short email teaser and an image for the user to copy; RankbyAI never sends email. " +
-  "list_scans, list_audits and list_prospect_batches find earlier work; update_business and delete_business manage the tracked businesses; get_branding and update_branding manage the white-label fields on reports. " +
+  "Citation workflow (which pages the AI answers lean on): get_buyer_prompts → let the user edit the prompts → run_prompt_pack without confirm (estimate) → run_prompt_pack with confirm → get_prompt_pack until the run is done → list_cited_sources (missing_only: true for pages that leave the business out). " +
+  "list_scans, list_audits, list_prospect_batches and list_prompt_packs find earlier work; update_business and delete_business manage the tracked businesses; get_branding and update_branding manage the white-label fields on reports. " +
   "Always show the user the estimate before calling a tool with confirm: true. AI answers vary between runs, places and time; report them as observations, not guarantees. " +
   "When advising on an audit, use the prompt fix_plan (or follow the same order): P0 first (the business's identity, and whether search engines and AI crawlers may read the site), then P1 (gaps against the map pack), then P2 (pages, schema, FAQ), then P3. " +
   "Guardrails: never suggest adding keywords or a city to the Google Business Profile name unless it is the registered name, buying or gating reviews, fake listings or second locations that are not real staffed places, fake clicks or visits, link schemes, or blocking search or AI search crawlers; use only facts from the audit, the website or the user.";
@@ -331,6 +334,71 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
       note: z.string(),
     }),
   }, (a) => reply("get_pitch_asset", async () => core.getPitchAsset(caller, a.batch_id, { business_id: a.business_id }, await reportOriginForAuthorisedWorkspace(caller.workspaceId))));
+
+  // ───────────────────────── citation workflow ─────────────────────────
+
+  const missingOut = open({ basis: z.enum(["page", "answers"]), client_absent: z.boolean(), competitors_present: z.array(z.string()) });
+  const pageTypes = z.enum(["listicle", "review", "directory", "official_site", "forum", "social", "maps_listing", "other"]);
+
+  server.registerTool("get_buyer_prompts", {
+    title: "Suggest buyer prompts",
+    annotations: hints("get_buyer_prompts", "Suggest buyer prompts"),
+    description: "About ten buyer prompts for a business (\"Who is the best dentist in Austin?\", \"Who is the best dentist near me?\", \"Top 10 dentist options in Austin\"), written from its stored fields: service, city, the area at its map point, its Google category, and up to two businesses its stored AI answers named often. Nothing is invented and nothing runs: show them to the user to edit, then pass the list to run_prompt_pack. In English; the user may rewrite them in another language. Free.",
+    inputSchema: z.object({ business_id: id("business"), service: z.string().min(2).max(120).optional().describe("What people search for, e.g. dentist. Default: the service of the business's latest AI scan, else its Google category.") }),
+    outputSchema: open({ business_id: z.string(), business: z.string(), service: z.string(), suggestions: z.array(open({ text: z.string(), kind: z.string(), note: z.string().optional() })), note: z.string() }),
+  }, (a) => reply("get_buyer_prompts", () => packs.suggestPromptsOp(caller, a)));
+
+  server.registerTool("run_prompt_pack", {
+    title: "Run a prompt pack",
+    annotations: hints("run_prompt_pack", "Run a prompt pack"),
+    description: `Ask ChatGPT, Perplexity and Gemini a pack of buyer prompts (1 to ${PACK_MAX_PROMPTS}) for one business and store every answer: the businesses named and the pages cited. location pin (default) asks each prompt once at the business's map point; grid asks it at every point of a 3×3 or 5×5 grid. repeats (default 1, up to ${PACK_MAX_REPEATS}) asks each prompt again, because one run is not a stable ranking. Runs on the user's own API keys only. Costs money: without confirm it returns the estimate (one AI scan's estimate × prompts × repeats, with alternatives for pin and grid) and missing_keys, and creates nothing. Send pack_id instead to run a saved pack again with its own prompts and settings. Then poll get_prompt_pack. After the answers are in, RankbyAI reads the most-cited pages (free) to see whether they name the business.`,
+    inputSchema: z.object({
+      business_id: id("business").optional().describe("The business (for a new pack)"),
+      pack_id: id("prompt pack").optional().describe("Run this saved pack again; the other fields are ignored"),
+      name: z.string().max(120).optional(),
+      service: z.string().min(2).max(120).optional().describe("What people search for, e.g. dentist ({service} in a prompt)"),
+      prompts: z.array(z.string().max(PACK_PROMPT_MAX)).min(1).max(PACK_MAX_PROMPTS).optional().describe("The prompts as the user approved them. {service}, {city}, {neighbourhood} and {area} are filled in; any other text is asked as written."),
+      engines: z.array(z.enum(["openai", "perplexity", "gemini"])).min(1).max(3).optional().describe("Default: every engine the user has a key for"),
+      location: z.enum(["pin", "grid"]).default("pin").describe("pin = once at the business's map point (cheapest); grid = at every point of a grid"),
+      grid_size: z.union([z.literal(3), z.literal(5)]).default(3).describe("Grid size when location is grid"),
+      radius_miles: z.number().positive().max(50).default(2).describe("Half the grid's width when location is grid"),
+      repeats: z.number().int().min(1).max(PACK_MAX_REPEATS).default(1).describe("Times each prompt is asked in this run; each repeat costs one more scan per prompt"),
+      confirm,
+    }),
+  }, (a) => reply("run_prompt_pack", () => packs.runPackOp(caller, a, defer)));
+
+  server.registerTool("list_prompt_packs", {
+    title: "List prompt packs",
+    annotations: hints("list_prompt_packs", "List prompt packs"),
+    description: "The workspace's prompt packs, newest first, each with its prompts, settings and latest run (status, estimated and actual cost). Narrow with business_id. Free.",
+    inputSchema: z.object({ ...paging, business_id: id("business").optional() }),
+    outputSchema: open({ packs: z.array(open({ id: z.string(), business_id: z.string(), name: z.string(), service: z.string(), prompts: z.array(z.string()), runs: z.number(), latest_run: open({ id: z.string(), status: z.string() }).nullable() })), ...page }),
+  }, (a) => reply("list_prompt_packs", () => packs.listPacksOp(caller, a)));
+
+  server.registerTool("get_prompt_pack", {
+    title: "Get a prompt pack run",
+    annotations: hints("get_prompt_pack", "Get a prompt pack run"),
+    description: "A prompt pack and one run (default: the latest): status and cost, and per prompt and engine how many answers named the business, its average position, and the businesses named instead; the run's share of answers per business (answers naming it ÷ answers naming any business); and its ten most-cited pages. Every number is counted from stored answers. Polling also continues the run. Free.",
+    inputSchema: z.object({ pack_id: id("prompt pack"), run_id: id("run").optional() }),
+  }, (a) => reply("get_prompt_pack", () => packs.getPackOp(caller, a.pack_id, { run_id: a.run_id }, defer)));
+
+  server.registerTool("list_cited_sources", {
+    title: "List cited sources",
+    annotations: hints("list_cited_sources", "List cited sources"),
+    description: "Every page (group_by url) or site (group_by domain) that prompt pack answers cited, most cited first: page type with a confidence (listicle, review, directory, official_site, forum, social, maps_listing, other: from the address and title only), answers that cited it and how many named the business, engines, first seen, last seen and disappeared on. missing says whether the business is left out and on what basis: page (RankbyAI read the page) or answers (only the answers that cited it). missing_only: true lists the pages to work on. Scope: run_id, pack_id (its latest runs) or business_id (all its packs). Send url or domain for its history run by run. No authority or traffic figures here. Free.",
+    inputSchema: z.object({
+      ...paging, business_id: id("business").optional(), pack_id: id("prompt pack").optional(), run_id: id("run").optional(),
+      group_by: z.enum(["url", "domain"]).default("url"), missing_only: z.boolean().default(false), page_type: pageTypes.optional(),
+      url: z.string().max(2048).optional().describe("One page's history run by run"), domain: z.string().max(253).optional().describe("One site's history run by run"),
+    }),
+    outputSchema: open({
+      scope: open({ business_id: z.string(), business: z.string(), runs: z.number(), answers: z.number() }),
+      urls: z.array(open({ url: z.string(), domain: z.string(), page_type: pageTypes, answers: z.number(), answers_naming_client: z.number(), first_seen: z.string(), last_seen: z.string(), disappeared_on: text, missing: missingOut })).optional(),
+      domains: z.array(open({ domain: z.string(), answers: z.number(), urls: z.number(), client_absent: z.boolean() })).optional(),
+      history: z.array(open({ run_id: z.string(), date: z.string(), answers: z.number(), answers_naming_client: z.number() })).optional(),
+      note: z.string(),
+    }),
+  }, (a) => reply("list_cited_sources", () => packs.listCitedSourcesOp(caller, a)));
 
   // ───────────────────────── branding and usage ─────────────────────────
 

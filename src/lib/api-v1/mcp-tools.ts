@@ -4,12 +4,13 @@ export const MCP_TOOLS = [
   "estimate_scan", "run_ai_scan", "run_maps_scan", "list_scans", "get_scan", "compare_scans", "get_change_note", "run_consistency_check", "get_consistency",
   "run_audit", "list_audits", "get_audit", "get_fix_kit",
   "create_prospect_batch", "list_prospect_batches", "get_prospect_batch", "get_pitch_asset",
+  "get_buyer_prompts", "run_prompt_pack", "list_prompt_packs", "get_prompt_pack", "list_cited_sources",
   "get_branding", "update_branding", "get_usage",
 ] as const;
 export type McpTool = (typeof MCP_TOOLS)[number];
 
 /** Tools that can spend money. Each takes `confirm` and does nothing but estimate without it. */
-export const MCP_PAID_TOOLS = ["add_business", "run_ai_scan", "run_maps_scan", "run_consistency_check", "run_audit", "get_fix_kit", "create_prospect_batch"] as const;
+export const MCP_PAID_TOOLS = ["add_business", "run_ai_scan", "run_maps_scan", "run_consistency_check", "run_audit", "get_fix_kit", "create_prospect_batch", "run_prompt_pack"] as const;
 
 export interface ToolHints {
   /** Changes nothing in the workspace. */
@@ -58,6 +59,13 @@ export const MCP_TOOL_HINTS: Record<McpTool, ToolHints> = {
   list_prospect_batches: read,
   get_prospect_batch: read,
   get_pitch_asset: read,
+  // Reads stored fields and answers, plus one cached OpenStreetMap place-name lookup at the business's map point.
+  get_buyer_prompts: { ...read, openWorldHint: true },
+  run_prompt_pack: run,
+  list_prompt_packs: read,
+  // Like get_scan: may continue the run the user already started (its scans, then reading the cited pages).
+  get_prompt_pack: read,
+  list_cited_sources: read,
   get_branding: read,
   update_branding: overwrite,
   get_usage: read,

@@ -22,6 +22,7 @@ import { ENGINES, type Engine } from "@/lib/pricing-constants";
 import { COUNTRY_CODES, DEFAULT_COUNTRY, isLanguageCode } from "@/lib/countries";
 import { CENTRE_PAIR_MESSAGE, centreBothOrNone, centreFields, centreOf } from "@/lib/scans/centre";
 import { setBusinessLocation } from "@/lib/businesses";
+import { NOT_PACK_RUN, parsePackLabel } from "@/lib/packs/label";
 
 /**
  * The public API's operations (brief 7.8). REST routes and MCP tools both call these, so the two
@@ -130,7 +131,7 @@ export async function getBusiness(c: ApiCaller, id: string): Promise<ApiResult> 
   const db = dbUser(c.ownerId);
   const { data } = await db.from("businesses").select(BUSINESS_COLS).eq("id", id).eq("workspace_id", c.workspaceId).maybeSingle();
   if (!data) return badId("business");
-  const { data: scans } = await db.from("scans").select("id, kind, grid_size, status, keyword, niche, created_at, label").eq("business_id", id).eq("workspace_id", c.workspaceId).order("created_at", { ascending: false }).limit(10);
+  const { data: scans } = await db.from("scans").select("id, kind, grid_size, status, keyword, niche, created_at, label").eq("business_id", id).eq("workspace_id", c.workspaceId).or(NOT_PACK_RUN).order("created_at", { ascending: false }).limit(10);
   return ok({ business: data, recent_scans: ((scans ?? []) as { label?: string | null }[]).map(scanOut) });
 }
 
@@ -230,12 +231,14 @@ const SCAN_COLS = "id, business_id, kind, keyword, niche, engines, grid_size, sk
 
 /**
  * A scan for the API: the internal label becomes `consistency_run` ({ group_id, role } for a run of
- * a consistency check, else null). Roles A2, B1 and B2 are repeats or second-language runs, never
- * the business's latest scan.
+ * a consistency check, else null) and `prompt_pack_run` ({ run_id, prompt, repeat } for a scan of a
+ * prompt pack, else null). Roles A2, B1 and B2 and every prompt-pack scan are side runs, never the
+ * business's latest scan.
  */
 const scanOut = <T extends { label?: string | null }>({ label, ...scan }: T) => {
   const run = parseRunLabel(label);
-  return { ...scan, consistency_run: run ? { group_id: run.group, role: run.role } : null };
+  const pack = parsePackLabel(label);
+  return { ...scan, consistency_run: run ? { group_id: run.group, role: run.role } : null, prompt_pack_run: pack ? { run_id: pack.run, prompt: pack.prompt, repeat: pack.repeat } : null };
 };
 
 const ListScans = z.object({ ...Page, business_id: z.uuid().optional(), kind: z.enum(["ai", "maps"]).optional(), status: z.enum(["queued", "running", "done", "partial", "failed"]).optional() });
@@ -308,7 +311,7 @@ export async function compareScans(c: ApiCaller, q: { a?: unknown; b?: unknown }
  * Reads stored scans only: free, and it never starts a scan.
  */
 /** Reads as the workspace owner, under row-level security; a failed read throws (500), never "no data". */
-function ownerRead(c: ApiCaller): Read {
+export function ownerRead(c: ApiCaller): Read {
   const db = dbUser(c.ownerId);
   return async (what, run) => {
     const { data, error } = await run(db);

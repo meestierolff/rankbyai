@@ -4,6 +4,7 @@ import { changeNote, type ChangeNote, type NoteExtras, type NoteSample, type Not
 import { samePlace } from "./compare";
 import { withoutSideRuns } from "./consistency";
 import { DEFAULT_PROMPT_TEMPLATE } from "./prompt";
+import { NOT_PACK_RUN } from "@/lib/packs/label";
 
 /**
  * Loads what a "why it changed" note needs, for one workspace, and builds it. Reads only: no scan is
@@ -55,7 +56,7 @@ export async function loadChangeNote(read: { ws: Read; rows: Read }, workspaceId
     if (a.kind !== "ai" || b.kind !== "ai" || a.business_id !== b.business_id) return { ok: false, status: 400, error: "not_comparable", message: "Both scans must be AI scans of the same business." };
     pair = new Date(a.created_at) <= new Date(b.created_at) ? { before: a, after: b } : { before: b, after: a };
   } else if (q.businessId) {
-    const rows = (await read.ws<ScanRow[]>("Scans", (db) => db.from("scans").select(SCAN_COLS).eq("workspace_id", workspaceId).eq("business_id", q.businessId!).eq("kind", "ai").in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60))) ?? [];
+    const rows = (await read.ws<ScanRow[]>("Scans", (db) => db.from("scans").select(SCAN_COLS).eq("workspace_id", workspaceId).eq("business_id", q.businessId!).eq("kind", "ai").in("status", ["done", "partial"]).or(NOT_PACK_RUN).order("created_at", { ascending: false }).limit(60))) ?? [];
     pair = pickPair(rows);
     if (!pair) {
       return {

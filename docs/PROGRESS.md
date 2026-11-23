@@ -17,6 +17,29 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | P0 / Maps 20+ red | `oklch(0.60 0.19 25)` | 4.5:1 contrast | `oklch(0.56 0.19 25)` so white text passes contrast |
 | Database, sign-in, files | n/a | Supabase (Postgres, magic-link sign-in, Storage) | Neon (Postgres, Neon Auth with Google sign-in, Data API, Object Storage), on the operator's instruction of 17 Nov 2026. The brief's rules are unchanged: RLS on every table, an automated RLS test, secrets on the server only |
 
+## Citation workflow, steps 1 and 2: prompt packs and cited pages (23 Nov 2026)
+
+**Status: built and tested locally (mock vendors, plus one live check of buyer prompts on the three engines). Needs migration 0016 on Neon before deploy. Not deployed.**
+
+### What it does
+
+- **Prompt pack** (`get_buyer_prompts`, `run_prompt_pack`, `list_prompt_packs`, `get_prompt_pack`; REST `/packs`, `/packs/suggest`, `/packs/{id}`; app: Business → Citation workflow). About ten buyer prompts are suggested from stored fields only (no model call); the user edits them. A run is one ordinary AI scan per prompt and repeat, tagged `pack:<run>:<prompt>:<repeat>`, at the map point (default) or on a 3×3 / 5×5 grid, 1 to 3 repeats (default 1). Own keys only; one pack running per workspace; all or nothing when the scans are created.
+- **Cited pages** (`list_cited_sources`; REST `/citations`). Every page or site the answers cited, with a page type and confidence (from the address and title only), counts, engines, first seen, last seen, disappeared on, and `missing` on an explicit basis: `page` (RankbyAI read the page, it names a business the answers named, and not this one) or `answers`. A page read never overrules an answer that named the business; that disagreement is reported. After each run the 40 most-cited pages are read once (audit fetcher, no vendor cost; not again within 7 days).
+- Pack scans are side runs: kept out of every latest-scan read in the query itself (`NOT_PACK_RUN`, null-safe), marked `prompt_pack_run` in `list_scans` / `get_scan`, and not counted against the three-running-scans limit.
+
+### Estimates
+
+One AI scan's estimate (the same `estimateScan` as `run_ai_scan`, measured medians once 50 samples exist) × prompts × repeats, with `alternatives` for the map point and both grids and `missing_keys`. Without `confirm` nothing is created. Example on published rates: 10 prompts × 3 engines at the map point ≈ $0.16 (≈ $0.30 if Gemini is past its free grounding allowance).
+
+### Live check (23 Nov 2026, about $0.03, `tests/live/prompt-pack-live.test.ts`)
+
+Two buyer prompts at an Austin point. ChatGPT cited 1 to 3 listicles per answer, Perplexity 15 web pages (listicles, directories, reviews), Gemini only Google Maps listings. Cost: ChatGPT $0.0115–0.0117 (estimate $0.0117), Perplexity $0.0034 (published-rate estimate $0.0025: the measured median corrects this in production), Gemini $0.0008–0.0017. The shared list parser stored non-names for free-form answers ("10 Austin dentist options", "shortlist, not a definitive ranking", a cut-off "(Dr"): pack results and the inventory now drop clear headings and sentences (`businessNameOrNull`); the shared parser is unchanged. Location sent: city for ChatGPT, coordinates for Perplexity and Gemini (Maps grounding).
+
+### Needs the operator
+
+1. Apply `db/migrations/0016_prompt_packs.sql` to Neon `preview` and `main`, then refresh both Data API schema caches.
+2. Known gap until the scheduled re-runs slice: the daily cron continues stalled scans but not a pack run's own finishing step, so a run nobody opens keeps a stale status and unread pages until someone polls it.
+
 ## Free check without sign-in, search pages, conversion tracking (20 Nov 2026)
 
 **Status: built and tested locally (mock vendors) on branch `free-check-public-landing-pages`. Needs migration 0013 on Neon before deploy.**

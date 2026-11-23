@@ -23,6 +23,7 @@ import { businessLanguage } from "@/lib/countries";
 import { normalizeSkip } from "./skip";
 import { summarizeAi, summarizeMaps, type AiSampleRow, type MapsPointRow } from "./summary";
 import { parseRunLabel, RUN_ROLES, runLabel } from "./consistency";
+import { validatePackPrompt } from "@/lib/packs/prompts";
 
 /**
  * Scan engine (brief 7.2, 7.3, 10.2).
@@ -79,6 +80,12 @@ export interface CreateScanInput {
    * runs its scans one after another, so the per-scan running-scan limit does not apply to it.
    */
   groupMember?: boolean;
+  /**
+   * How promptTemplate is checked. "template" (default): a question asked around the business, with
+   * {service} and a place (run_ai_scan). "pack": a buyer prompt from a prompt pack, asked as written
+   * (lib/packs/prompts validatePackPrompt), so "Who is the best dentist near me?" is allowed.
+   */
+  promptCheck?: "template" | "pack";
   confirm: boolean;
 }
 
@@ -119,7 +126,7 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
   if (!(input.radiusMiles > 0 && input.radiusMiles <= 50)) return fail(400, "invalid_radius", "The radius must be between 0.1 and 50 miles.");
   const customTemplate = spec.kind === "ai" ? (input.promptTemplate?.trim() || null) : null;
   if (customTemplate) {
-    const tErr = validateTemplate(customTemplate);
+    const tErr = input.promptCheck === "pack" ? validatePackPrompt(customTemplate) : validateTemplate(customTemplate);
     if (tErr) return fail(400, "invalid_prompt", tErr);
   }
 

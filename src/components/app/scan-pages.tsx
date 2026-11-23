@@ -17,6 +17,7 @@ import { isServiceArea } from "@/lib/service-area";
 import { businessLanguage, languageName } from "@/lib/countries";
 import { QUESTIONS, defaultQuestionFor, questionLanguage } from "@/lib/scans/prompt";
 import { parseRunLabel, type RunRole } from "@/lib/scans/consistency";
+import { NOT_PACK_RUN } from "@/lib/packs/label";
 
 const RUN_NAME: Record<RunRole, string> = { A1: "run 1", A2: "run 2", B1: "second question", B2: "second question again" };
 
@@ -62,6 +63,7 @@ export async function ScanIndexPage({ ctx, kind, businessId }: { ctx: SessionCon
         .select("id, business_id, kind, grid_size, skip_points, status, funding, keyword, niche, engines, est_cost_usd, actual_cost_usd, summary, created_at, finished_at, label, businesses(name)")
         .eq("workspace_id", ws.id)
         .eq("kind", kind)
+        .or(NOT_PACK_RUN)
         .order("created_at", { ascending: false })
         .limit(50),
     ),
@@ -174,7 +176,7 @@ export async function ScanDetailPage({ ctx, kind, scanId }: { ctx: SessionContex
   if (!scan || scan.kind !== kind) notFound();
   const business = (Array.isArray(scan.businesses) ? scan.businesses[0] : scan.businesses) as { id: string; name: string } | null;
   const { data: siblings } = await memberRead("Other scans of this business", wsId, (db) =>
-    db.from("scans").select("id, grid_size, keyword, niche, status, created_at").eq("workspace_id", wsId).eq("business_id", scan.business_id).eq("kind", kind).order("created_at", { ascending: false }).limit(12),
+    db.from("scans").select("id, grid_size, keyword, niche, status, created_at").eq("workspace_id", wsId).eq("business_id", scan.business_id).eq("kind", kind).or(NOT_PACK_RUN).order("created_at", { ascending: false }).limit(12),
   );
   const history = (siblings ?? []) as { id: string; grid_size: number; keyword: string | null; niche: string | null; status: string; created_at: string }[];
   return (

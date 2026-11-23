@@ -1,4 +1,5 @@
 import { ENGINE_LABEL, type Engine } from "@/lib/pricing-constants";
+import { isPackRun } from "@/lib/packs/label";
 import { namesMatch, normalizeName } from "./match";
 
 /**
@@ -24,8 +25,12 @@ export function parseRunLabel(label: string | null | undefined): { group: string
   return m ? { group: m[1], role: m[2] as RunRole } : null;
 }
 
-/** A repeat or a second-language run: never a business's "latest scan". */
+/**
+ * A repeat or a second-language run, or a prompt-pack scan (lib/packs/label): never a business's
+ * "latest scan". Pack scans ask other questions than the business's tracked scans.
+ */
 export const isSideRun = (label: string | null | undefined) => {
+  if (isPackRun(label)) return true;
   const r = parseRunLabel(label);
   return !!r && r.role !== "A1";
 };

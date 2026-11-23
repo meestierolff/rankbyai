@@ -16,6 +16,7 @@ import { CONTROL_AGENT, PROBE_AGENTS, PROBE_AGENTS_QUICK } from "./crawler-fix";
 import { withoutSideRuns } from "@/lib/scans/consistency";
 import { languageCodeFor } from "@/lib/countries";
 import { heuristicServices, llmServices, missingServices, type ServicePage } from "./services";
+import { NOT_PACK_RUN } from "@/lib/packs/label";
 
 /**
  * Local AI Audit (brief 7.4): gather the inputs, run the deterministic checks, store the result.
@@ -44,7 +45,7 @@ type Row = Record<string, unknown>;
 
 async function latestScan(businessId: string, kind: "ai" | "maps"): Promise<{ id: string; created_at: string } | null> {
   const { data } = await dbAdmin()
-    .from("scans").select("id, created_at, label").eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"])
+    .from("scans").select("id, created_at, label").eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).or(NOT_PACK_RUN)
     .order("created_at", { ascending: false }).limit(10);
   // A repeat or second-language run of a consistency check is not the business's latest scan.
   return withoutSideRuns((data ?? []) as { id: string; created_at: string; label: string | null }[])[0] ?? null;

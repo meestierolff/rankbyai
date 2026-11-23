@@ -6,6 +6,7 @@ import { ENGINES, ENGINE_LABEL, type Engine } from "@/lib/pricing-constants";
 import { namesMatch, normalizeName } from "@/lib/scans/match";
 import { publicEnv } from "@/lib/env";
 import { pingIndexNow } from "@/lib/indexnow";
+import { NOT_PACK_RUN } from "@/lib/packs/label";
 
 /**
  * Public regional pages (brief 12): "Which {niche} do AI assistants recommend in {City}?"
@@ -82,7 +83,7 @@ export async function rebuildRegionalPages(): Promise<{ pages: number; indexable
   const { data } = await admin
     .from("scans")
     .select("id, kind, niche, keyword, funding, created_at, summary, label, businesses(city, region, country), workspaces(share_scans_for_regional_pages)")
-    .in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(3000);
+    .in("status", ["done", "partial"]).or(NOT_PACK_RUN).order("created_at", { ascending: false }).limit(3000);
   // Repeat and second-language runs of a consistency check would count one business twice, or in another language.
   const publishable = withoutSideRuns((data ?? []) as unknown as ScanRow[]).filter((s) =>
     s.funding === "free" ? false : s.funding !== "byok" || one(s.workspaces)?.share_scans_for_regional_pages === true);

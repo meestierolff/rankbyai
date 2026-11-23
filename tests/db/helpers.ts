@@ -59,7 +59,8 @@ export async function resetData() {
     public.tracked_queries, public.businesses, public.clients, public.free_checks, public.spend_log, public.jobs,
     public.rate_limits, public.removal_requests, public.feature_request_votes, public.feature_requests,
     public.regional_pages, public.geo_cache, public.oauth_tokens, public.oauth_codes, public.oauth_grants,
-    public.oauth_clients, public.citation_target_lists, public.cited_pages, public.prompt_pack_runs, public.prompt_packs cascade`);
+    public.oauth_clients, public.citation_target_lists, public.cited_pages, public.prompt_pack_runs, public.prompt_packs,
+    public.appsumo_codes, public.appsumo_code_batches cascade`);
   await sql(`update public.ladder_lock set base_price_cents = 2900, step_cents = 1000, seats_per_step = 5,
     closes_at = '2026-12-16T13:00:00Z' where id = 1`);
   await sql(`update public.workspaces set plan = 'locked', lifetime_seat = null, stripe_customer_id = null`);

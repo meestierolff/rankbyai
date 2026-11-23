@@ -278,6 +278,102 @@ export async function businessInfoLive(creds: DfsCreds, ref: { cid?: string | nu
   return { info: parseBusinessInfo(task.result?.[0]?.items?.[0]), costUsd: task.cost ?? env.cost ?? DATAFORSEO_BUSINESS_INFO_PER_CALL };
 }
 
+// ───────────────────────── backlinks and traffic (citation targets) ─────────────────────────
+
+/** One page that links to the target, as DataForSEO Backlinks reports it. */
+export interface BacklinkPage {
+  url: string;
+  domain: string;
+  title: string | null;
+  /** DataForSEO's own page and domain rank (0–1000): not Ahrefs DR, not traffic. */
+  pageRank: number | null;
+  domainRank: number | null;
+  dofollow: boolean | null;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  /** The page of the target it links to. */
+  urlTo: string | null;
+}
+
+export interface RawBacklink {
+  url_from?: string | null; domain_from?: string | null; page_from_title?: string | null; page_from_rank?: number | null; domain_from_rank?: number | null;
+  dofollow?: boolean | null; first_seen?: string | null; last_seen?: string | null; url_to?: string | null;
+}
+
+export function parseBacklinks(result: { items?: RawBacklink[] | null; total_count?: number | null } | null | undefined): { items: BacklinkPage[]; total: number | null } {
+  const items = (result?.items ?? []).flatMap((i): BacklinkPage[] => {
+    if (!i?.url_from || !/^https?:\/\//i.test(i.url_from)) return [];
+    let domain = i.domain_from ?? "";
+    try {
+      domain ||= new URL(i.url_from).hostname;
+    } catch {
+      return [];
+    }
+    return [{
+      url: i.url_from, domain: domain.toLowerCase().replace(/^www\./, ""), title: i.page_from_title?.trim() || null,
+      pageRank: i.page_from_rank ?? null, domainRank: i.domain_from_rank ?? null, dofollow: i.dofollow ?? null,
+      firstSeen: i.first_seen ?? null, lastSeen: i.last_seen ?? null, urlTo: i.url_to ?? null,
+    }];
+  });
+  return { items, total: result?.total_count ?? null };
+}
+
+/** A task-level error (HTTP 200, task status ≥ 40000), with DataForSEO's own message. Access refusals say so. */
+function taskError(task: { status_code: number; status_message: string } | undefined, what: string): ProviderError {
+  const code = task?.status_code ?? 0;
+  const msg = task?.status_message ?? "no task returned";
+  const kind = code === 40100 || code === 40101 || code === 40204 || /access|subscri|plan/i.test(msg) ? "auth" : code === 40200 || code === 40210 ? "quota" : "bad_request";
+  return new ProviderError("dataforseo", kind, `${what}: ${msg} (${code})`, code);
+}
+
+/**
+ * Pages that link to `target` (a domain without protocol or www, or a full URL), live.
+ * `filters` is DataForSEO's filter array (at most 8 conditions); rows are billed per row returned.
+ */
+export async function backlinksLive(creds: DfsCreds, q: { target: string; limit: number; filters?: unknown[]; orderBy?: string[] }): Promise<{ items: BacklinkPage[]; total: number | null; costUsd: number }> {
+  const env = assertOk(
+    await providerFetch<DfsEnvelope<{ items?: RawBacklink[]; total_count?: number }>>(`${BASE}/backlinks/backlinks/live`, {
+      provider: "dataforseo",
+      headers: auth(creds),
+      body: [{
+        target: q.target, limit: q.limit, mode: "as_is", backlinks_status_type: "live", include_subdomains: true, exclude_internal_backlinks: true,
+        ...(q.filters?.length ? { filters: q.filters } : {}), order_by: q.orderBy ?? ["page_from_rank,desc"],
+      }],
+      timeoutMs: 90_000,
+      retries: 1,
+    }),
+  );
+  const task = env.tasks?.[0];
+  if (!task || task.status_code >= 40000) throw taskError(task, "Backlinks");
+  return { ...parseBacklinks(task.result?.[0]), costUsd: task.cost ?? env.cost ?? 0 };
+}
+
+export interface RawTrafficItem { target?: string; metrics?: { organic?: { etv?: number | null } | null } | null }
+
+/** target → estimated monthly organic traffic (DataForSEO etv); null when DataForSEO returned no figure. */
+export function parseTraffic(result: { items?: RawTrafficItem[] | null } | null | undefined): Map<string, number | null> {
+  const out = new Map<string, number | null>();
+  for (const i of result?.items ?? []) if (i?.target) out.set(i.target, typeof i.metrics?.organic?.etv === "number" ? i.metrics.organic.etv : null);
+  return out;
+}
+
+/** Estimated organic traffic for up to 1,000 page URLs or domains (DataForSEO Labs, Google), live. */
+export async function bulkTrafficLive(creds: DfsCreds, targets: string[], country?: string | null): Promise<{ etv: Map<string, number | null>; costUsd: number }> {
+  if (!targets.length) return { etv: new Map(), costUsd: 0 };
+  const env = assertOk(
+    await providerFetch<DfsEnvelope<{ items?: RawTrafficItem[] }>>(`${BASE}/dataforseo_labs/google/bulk_traffic_estimation/live`, {
+      provider: "dataforseo",
+      headers: auth(creds),
+      body: [{ targets: targets.slice(0, 1000), location_code: locationCodeFor(country), language_code: languageCodeFor(country), item_types: ["organic"] }],
+      timeoutMs: 90_000,
+      retries: 1,
+    }),
+  );
+  const task = env.tasks?.[0];
+  if (!task || task.status_code >= 40000) throw taskError(task, "Traffic estimation");
+  return { etv: parseTraffic(task.result?.[0]), costUsd: task.cost ?? env.cost ?? 0 };
+}
+
 /**
  * @deprecated Use `locationCodeFor` from "@/lib/countries". Country → DataForSEO location code for every
  * country in the table; kept because src/lib/scans/engine.ts still imports it.

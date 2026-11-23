@@ -4,6 +4,7 @@ import { dbAdmin } from "@/lib/db/clients";
 import { MissingEnvError } from "@/lib/env";
 import * as core from "./core";
 import * as packs from "./packs";
+import * as targets from "./targets";
 import { reportOriginForAuthorisedWorkspace } from "@/lib/domains-origin";
 
 /**
@@ -103,6 +104,8 @@ const ROUTES: Route[] = [
   { path: "packs/suggest", GET: (x) => packs.suggestPromptsOp(x.c, x.q) },
   { path: "packs/:id", GET: (x) => packs.getPackOp(x.c, x.id, x.q, x.head ? undefined : x.defer) },
   { path: "citations", GET: (x) => packs.listCitedSourcesOp(x.c, x.q) },
+  { path: "citation-targets", GET: (x) => targets.listTargetsOp(x.c, x.q), POST: async (x) => targets.findTargetsOp(x.c, await x.body(), x.defer) },
+  { path: "citation-targets/:id", GET: (x) => targets.getTargetsOp(x.c, { ...x.q, list_id: x.id }, x.head ? undefined : x.defer) },
   { path: "branding", GET: (x) => core.getBranding(x.c), PATCH: async (x) => core.updateBranding(x.c, await x.body()) },
   { path: "usage", GET: (x) => core.getUsage(x.c) },
 ];

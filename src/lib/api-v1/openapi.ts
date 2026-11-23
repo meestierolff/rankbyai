@@ -304,6 +304,33 @@ export function openApiSpec(siteUrl: string) {
           responses: { "200": { description: "The inventory.", content: json(obj({ scope: { type: "object" }, group_by: { type: "string" }, total: { type: "integer" }, urls: { type: "array", items: { type: "object" } }, domains: { type: "array", items: { type: "object" } }, history: { type: "array", items: { type: "object" } }, note: { type: "string" }, ...page })) }, ...errors },
         },
       },
+      "/citation-targets": {
+        get: {
+          operationId: "listCitationTargetSearches", tags: ["Citations"], summary: "List citation target searches",
+          parameters: [...paging, { name: "business_id", in: "query", schema: uuid }],
+          responses: { "200": { description: "Searches, newest first (without their pages).", content: json(obj({ searches: { type: "array", items: { type: "object" } }, ...page })) }, ...errors },
+        },
+        post: {
+          operationId: "findCitationTargets", tags: ["Citations"], summary: "Estimate or run a citation target search (DataForSEO Backlinks, your own login)",
+          description: "Pages that link to up to three competitors from a list page (the linking page's address contains `url_contains`: default best, top-, review, plus the city and near-me and known directories for a local business), which of them already link to the business, the pages AI answers cited in the business's prompt packs that leave it out, and DataForSEO's estimated monthly traffic per page. Without `competitors`, the businesses the answers named most often that a stored Google Maps scan gives a website for (never guessed). The estimate is an upper bound from DataForSEO's published per-call and per-row prices; the cost each response reports is recorded. Runs on your own DataForSEO login only. Without `confirm: true` nothing is created.",
+          requestBody: { required: true, content: json(obj({
+            business_id: uuid, pack_id: uuid,
+            competitors: { type: "array", maxItems: 3, items: obj({ name: { type: "string" }, domain: { type: "string", description: "Website, e.g. localfalcon.com" } }, ["domain"]) },
+            url_contains: { type: "array", maxItems: 7, items: { type: "string" } },
+            rows_per_site: { type: "integer", minimum: 1, maximum: 1000, default: 200 }, traffic_pages: { type: "integer", minimum: 0, maximum: 1000, default: 400 },
+            scope: { type: "string", enum: ["local", "online"] }, confirm,
+          }, ["business_id"])) },
+          responses: estimateOr("202", "The search was created and runs.", obj({ list_id: uuid, status: { type: "string" }, estimate: { type: "object" }, competitors: { type: "array", items: { type: "object" } }, client_domain: nullable("string"), url_contains: { type: "array", items: { type: "string" } } })),
+        },
+      },
+      "/citation-targets/{id}": {
+        get: {
+          operationId: "getCitationTargets", tags: ["Citations"], summary: "The pages of a citation target search",
+          description: "Per page: url, title, page_type, etv (DataForSEO's estimated monthly organic traffic; null when none), page_rank (DataForSEO's own 0–1000 rank, not Ahrefs DR), competitors_linked, client_linked, client_named_on_page, cited (how AI answers cited it), source and action (pitch, directory_claim, skip) with action_reason. Sorted: cited pages first, then by estimated traffic. Polling finishes a search. Free.",
+          parameters: [idParam("citation target search"), ...paging, { name: "action", in: "query", schema: { type: "string", enum: ["pitch", "directory_claim", "skip"] } }, { name: "cited_only", in: "query", schema: { type: "boolean", default: false } }],
+          responses: { "200": { description: "The search and its pages.", content: json(obj({ search: { type: "object" }, total: { type: "integer" }, targets: { type: "array", items: { type: "object" } }, note: { type: "string" }, ...page })) }, ...errors },
+        },
+      },
       "/branding": {
         get: { operationId: "getBranding", tags: ["Branding"], summary: "White-label branding shown on share links and PDF reports", responses: { "200": { description: "The branding.", content: json(obj({ branding: ref("Branding") })) }, ...errors } },
         patch: {

@@ -21,6 +21,16 @@ export type MapsMode = keyof typeof DATAFORSEO_MAPS_PER_POINT;
  *  Source: https://dataforseo.com/pricing/business-data/google-my-business-info (see docs/CONFIRM.md) */
 export const DATAFORSEO_BUSINESS_INFO_PER_CALL = 0.0054;
 
+/** DataForSEO Backlinks API (live), every /backlinks/* endpoint: USD per task + per row returned, at most 1,000 rows a task.
+ *  Source: https://dataforseo.com/pricing/backlinks/backlinks (read 23 Nov 2026). Confirmed the same day by the
+ *  costs real responses reported: 10 rows $0.02436; 0 rows $0.024036 (one row is billed even when none come back). */
+export const DATAFORSEO_BACKLINKS = { perTask: 0.024, perRow: 0.000036, maxRows: 1000, minBilledRows: 1, readOn: "23 Nov 2026" } as const;
+
+/** DataForSEO Labs, Google endpoints (bulk traffic estimation, live): USD per task + per target, at most 1,000 targets a task.
+ *  Source: https://dataforseo.com/pricing/dataforseo-labs/dataforseo-google-api (read 23 Nov 2026; not on the
+ *  higher-priced exceptions list). Confirmed the same day: 10 URLs cost $0.0132. */
+export const DATAFORSEO_LABS = { perTask: 0.012, perItem: 0.00012, maxItems: 1000, readOn: "23 Nov 2026" } as const;
+
 /** OpenAI Responses API. Source: https://platform.openai.com/docs/pricing (read 17 Nov 2026).
  *  Default model gpt-6-luna: the brief assumed gpt-5-mini, which OpenAI retires on 11 Dec 2026. */
 export const OPENAI = {

@@ -17,6 +17,15 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | P0 / Maps 20+ red | `oklch(0.60 0.19 25)` | 4.5:1 contrast | `oklch(0.56 0.19 25)` so white text passes contrast |
 | Database, sign-in, files | n/a | Supabase (Postgres, magic-link sign-in, Storage) | Neon (Postgres, Neon Auth with Google sign-in, Data API, Object Storage), on the operator's instruction of 17 Nov 2026. The brief's rules are unchanged: RLS on every table, an automated RLS test, secrets on the server only |
 
+## Citation workflow, step 3: citation targets from DataForSEO (23 Nov 2026)
+
+**Status: built and tested locally (simulated DataForSEO answers, plus live probes of the endpoints). Needs migration 0018 on Neon before deploy.** Scope set by the operator on 23 Nov 2026: RankbyAI supplies the pages and the data; who to contact and when is left to the user's own agent. No outreach drafts, contact discovery or placement prices.
+
+- `find_citation_targets` (paid, confirm; REST `POST /citation-targets`), `get_citation_targets`, `list_citation_targets`; app: Citation workflow → 3 · Citation targets, with a CSV download.
+- For up to three competitor websites (given, or from stored data only: names the pack's answers used, with the website a stored Google Maps scan gives them, then the Maps leaders; never guessed): DataForSEO Backlinks pages whose address contains best, top- or review (plus the city and near-me, and known local directories, for a local business); the same search for the business's own site marks pages that already link to it; the pages the business's prompt packs saw cited that leave it out join the list; DataForSEO Labs estimates traffic for up to 400 pages (cited ones first). Sorted: cited pages first, then estimated traffic. Each page gets `pitch`, `directory_claim` or `skip` with a reason.
+- Own DataForSEO login only. Estimate: an upper bound from the published prices in `pricing-constants.ts` (`DATAFORSEO_BACKLINKS`, `DATAFORSEO_LABS`); each call's reported cost is stored on the search.
+- Live probes, 23 Nov 2026 (about $0.086 in all, house login): Backlinks works on a pay-as-you-go account; 10 rows cost $0.02436, 0 rows $0.024036 (one row billed even when none return), 10 traffic estimates $0.0132; the local filter with the ~100-domain directory list is accepted (1,086 matching pages for one site). `%review%` also matches how-to posts about reviews, which is why cited pages and traffic decide the order.
+
 ## Citation workflow, steps 1 and 2: prompt packs and cited pages (23 Nov 2026)
 
 **Status: LIVE since 23 Nov 2026 (PR #19, production `rankbyai-ld7v7e8x8`; migration 0016 on both Neon branches, Data API caches refreshed). Online packs (below) follow in the next PR with migration 0017.**

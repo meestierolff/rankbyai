@@ -5,12 +5,13 @@ export const MCP_TOOLS = [
   "run_audit", "list_audits", "get_audit", "get_fix_kit",
   "create_prospect_batch", "list_prospect_batches", "get_prospect_batch", "get_pitch_asset",
   "get_buyer_prompts", "run_prompt_pack", "list_prompt_packs", "get_prompt_pack", "list_cited_sources",
+  "find_citation_targets", "list_citation_targets", "get_citation_targets",
   "get_branding", "update_branding", "get_usage",
 ] as const;
 export type McpTool = (typeof MCP_TOOLS)[number];
 
 /** Tools that can spend money. Each takes `confirm` and does nothing but estimate without it. */
-export const MCP_PAID_TOOLS = ["add_business", "run_ai_scan", "run_maps_scan", "run_consistency_check", "run_audit", "get_fix_kit", "create_prospect_batch", "run_prompt_pack"] as const;
+export const MCP_PAID_TOOLS = ["add_business", "run_ai_scan", "run_maps_scan", "run_consistency_check", "run_audit", "get_fix_kit", "create_prospect_batch", "run_prompt_pack", "find_citation_targets"] as const;
 
 export interface ToolHints {
   /** Changes nothing in the workspace. */
@@ -66,6 +67,10 @@ export const MCP_TOOL_HINTS: Record<McpTool, ToolHints> = {
   // Like get_scan: may continue the run the user already started (its scans, then reading the cited pages).
   get_prompt_pack: read,
   list_cited_sources: read,
+  find_citation_targets: run,
+  list_citation_targets: read,
+  // Like get_scan: may finish the search the user already started.
+  get_citation_targets: read,
   get_branding: read,
   update_branding: overwrite,
   get_usage: read,

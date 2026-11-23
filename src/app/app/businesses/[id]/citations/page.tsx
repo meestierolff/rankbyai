@@ -13,6 +13,9 @@ import { listPacks, loadInventory, loadPack, suggestionInputs } from "@/lib/pack
 import { ENGINE_LABEL, ENGINES, type Engine } from "@/lib/pricing-constants";
 import type { Read } from "@/lib/scans/change-note-data";
 import { getKeyStatuses } from "@/lib/workspace-data";
+import { TargetsForm, TargetsPoller } from "@/components/app/targets-form";
+import type { TargetRow } from "@/lib/targets/plan";
+import { loadTargets, suggestCompetitors, TARGETS_NOTE } from "@/lib/targets/run";
 
 export const metadata: Metadata = { title: "Citation workflow" };
 
@@ -46,6 +49,12 @@ export default async function CitationsPage({ params, searchParams }: { params: 
   const loaded = packId ? await loadPack({ ws, rows }, wsId, { packId, runId: sp.run && /^[0-9a-f-]{36}$/.test(sp.run) ? sp.run : undefined }) : null;
   const report = loaded?.ok ? (loaded.report as unknown as PackReport) : null;
   const inv = report?.run ? await loadInventory({ ws, rows }, wsId, { packId: report.pack.id }) : null;
+  const hasDataForSeo = keys.some((k) => k.provider === "dataforseo" && k.status !== "invalid");
+  const [targets, suggestions3] = await Promise.all([
+    loadTargets(ws, wsId, { businessId: id, limit: 100, offset: 0 }),
+    suggestCompetitors(ws, wsId, { id, workspace_id: wsId, name: business.name, website: business.website, city: business.city, country: null }, report?.pack.id ?? null),
+  ]);
+  const suggestedCompetitors = suggestions3.resolved;
   const missingOnly = sp.view === "missing";
   const byDomain = sp.group === "domain";
   const base = `/app/businesses/${id}/citations?pack=${report?.pack.id ?? ""}`;
@@ -123,6 +132,23 @@ export default async function CitationsPage({ params, searchParams }: { params: 
           </div>
         </Panel>
       ) : null}
+
+      <Panel title="3 · Citation targets" action={targets?.ok ? <a href={`/api/citation-targets/${targets.list.id}/csv`} className="text-[14px] text-fg underline">Download CSV</a> : undefined}>
+        <div className="flex flex-col gap-5">
+          <TargetsForm businessId={id} packId={report?.pack.id ?? null} suggested={suggestedCompetitors} hasDataForSeo={hasDataForSeo} locked={locked} />
+          {targets?.ok ? (
+            <>
+              <TargetsPoller listId={targets.list.id} status={targets.list.status} />
+              <p className="m-0 text-[13px] text-dim">
+                Search of {fmtDateTime(targets.list.created_at)} · {targets.list.status} · competitors {targets.list.competitors.map((c) => c.name ?? c.domain).join(", ")} · {targets.total} pages · cost {targets.list.actual_cost_usd != null ? fmtUsd(targets.list.actual_cost_usd, 3) : "–"} (estimated up to {targets.list.est_cost_usd != null ? fmtUsd(targets.list.est_cost_usd, 3) : "–"})
+                {targets.list.error ? <span className="text-danger"> · {targets.list.error}</span> : null}
+              </p>
+              <TargetTable rows={targets.targets} />
+              <p className="m-0 text-[13px] text-dim">{TARGETS_NOTE}</p>
+            </>
+          ) : null}
+        </div>
+      </Panel>
     </div>
   );
 }
@@ -213,6 +239,36 @@ function DomainTable({ rows }: { rows: CitedDomain[] }) {
               <td className="py-2 pr-3 font-mono text-[13px]">{d.answers}</td>
               <td className="py-2 pr-3 font-mono text-[13px]">{d.answers_naming_client}</td>
               <td className="py-2 text-[13px] text-muted-foreground">{day(d.first_seen)}{d.last_seen !== d.first_seen ? ` – ${day(d.last_seen)}` : ""}{d.disappeared_on ? <div className="text-[12px] text-danger">gone {day(d.disappeared_on)}</div> : null}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const ACTION_LABEL: Record<TargetRow["action"], string> = { pitch: "Ask to be listed", directory_claim: "Claim the listing", skip: "Skip" };
+
+function TargetTable({ rows }: { rows: TargetRow[] }) {
+  if (!rows.length) return <p className="m-0 text-[14px] text-muted-foreground">No pages yet.</p>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-left text-[14px]">
+        <thead className="text-[12.5px] text-dim">
+          <tr><th className="py-2 pr-3 font-medium">Page</th><th className="py-2 pr-3 font-medium">Type</th><th className="py-2 pr-3 font-medium">Est. traffic</th><th className="py-2 pr-3 font-medium">Links to</th><th className="py-2 pr-3 font-medium">Cited by AI</th><th className="py-2 font-medium">Action</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((t) => (
+            <tr key={t.key} className="border-t border-border align-top">
+              <td className="max-w-[420px] py-2 pr-3">
+                <a href={t.url} target="_blank" rel="noopener noreferrer nofollow" className="break-words text-fg underline">{t.title ?? t.key}</a>
+                <div className="text-[12px] break-all text-dim">{t.domain}{t.page_rank != null ? ` · DataForSEO rank ${t.page_rank}` : ""}</div>
+              </td>
+              <td className="py-2 pr-3">{TYPE_LABEL[t.page_type]}</td>
+              <td className="py-2 pr-3 font-mono text-[13px]">{t.etv == null ? "–" : Math.round(t.etv).toLocaleString("en-US")}</td>
+              <td className="py-2 pr-3 text-[13px] text-muted-foreground">{t.competitors_linked.join(", ") || "–"}{t.client_linked ? <div className="text-[12px] text-fg">and this business</div> : null}</td>
+              <td className="py-2 pr-3 font-mono text-[13px]">{t.cited ? `${t.cited.answers} (${t.cited.engines.map((e) => ENGINE_LABEL[e].short).join(", ")})` : "–"}</td>
+              <td className="py-2" title={t.action_reason}>{t.action === "skip" ? <span className="text-dim">{ACTION_LABEL[t.action]}</span> : <StatusChip tone={t.action === "pitch" ? "warn" : "idle"}>{ACTION_LABEL[t.action]}</StatusChip>}<div className="text-[12px] text-dim">{t.action_reason}</div></td>
             </tr>
           ))}
         </tbody>

@@ -15,7 +15,7 @@ const PRIVATE_TABLES = [
   "orders", "entitlements", "credit_ledger", "ladder_lock", "ladder_holds", "stripe_events", "api_keys",
   "free_checks", "spend_log", "jobs", "rate_limits", "geo_cache", "removal_requests", "feature_request_votes",
   "workspace_domains", "oauth_clients", "oauth_grants", "oauth_codes", "oauth_tokens",
-  "prompt_packs", "prompt_pack_runs", "cited_pages",
+  "prompt_packs", "prompt_pack_runs", "cited_pages", "citation_target_lists",
 ];
 
 let a: TestUser;
@@ -80,6 +80,7 @@ beforeAll(async () => {
   const pack = await ins("prompt_packs", { workspace_id: a.workspaceId, business_id: businessId, name: "Pack", service: "dentist", prompts: ["Who is the best dentist?"], engines: ["openai"] });
   await ins("prompt_pack_runs", { workspace_id: a.workspaceId, pack_id: pack.id, business_id: businessId, prompts: ["Who is the best dentist?"], engines: ["openai"], grid_size: 1, repeats: 1 });
   await ins("cited_pages", { workspace_id: a.workspaceId, business_id: businessId, url_key: "example.com/best", url: "https://example.com/best", status: "ok", client_named: false });
+  await ins("citation_target_lists", { workspace_id: a.workspaceId, business_id: businessId, competitors: [{ name: null, domain: "rival.example" }], rows_per_site: 10, traffic_cap: 10 });
 });
 
 afterAll(async () => {
@@ -251,6 +252,8 @@ describe("members cannot grant themselves anything", () => {
     expect(run.error ?? (run.data ?? []).length === 0).toBeTruthy();
     const page = await a.client.from("cited_pages").update({ client_named: true }).eq("workspace_id", a.workspaceId).select("id");
     expect(page.error ?? (page.data ?? []).length === 0).toBeTruthy();
+    const list = await a.client.from("citation_target_lists").insert({ workspace_id: a.workspaceId, business_id: businessId, competitors: [{ domain: "x.example" }], rows_per_site: 1, traffic_cap: 1 });
+    expect(list.error).not.toBeNull();
   });
 });
 

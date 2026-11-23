@@ -50,6 +50,8 @@ Both ways use `Authorization: Bearer …`.
 | `get_buyer_prompts` | About ten buyer prompts written from the business's stored fields, to edit before a prompt pack | read-only, open world (one cached place-name lookup) |
 | `run_prompt_pack` | Ask a pack of buyer prompts on ChatGPT, Perplexity and Gemini at the map point or on a grid, on the user's own keys (paid, `confirm`) | adds, open world |
 | `list_prompt_packs`, `get_prompt_pack` | Prompt packs, and per prompt and engine who the answers named, with the run's most-cited pages | read-only |
+| `find_citation_targets` | Pages that link to up to three competitors from a best/top/review list (DataForSEO Backlinks on the user's own login), merged with the cited pages, with estimated traffic (paid, `confirm`) | adds, open world |
+| `list_citation_targets`, `get_citation_targets` | Citation target searches and their pages, with action per page | read-only |
 | `list_cited_sources` | Every page or site the pack answers cited: type, counts, first and last seen, and whether the business is missing (from the page itself or from the answers) | read-only |
 | `get_branding`, `update_branding` | White-label branding on reports | read-only / destructive (overwrites) |
 | `get_usage` | This month's own-key spend and credits left | read-only |

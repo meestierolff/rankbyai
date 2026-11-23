@@ -90,6 +90,20 @@ describe("citation workflow page", () => {
     expect(text(await render(u, { pack: packId, group: "domain" }))).toContain("mock-directory.example");
   });
 
+  it("shows step 3: the competitor form and the latest search's pages with a CSV link", async () => {
+    const { startTargets, processTargets } = await import("@/lib/targets/run");
+    const r = await startTargets({ workspaceId: u.workspaceId, plan: "lifetime", businessId, competitors: [{ name: "Smile Haus", domain: "smilehaus.example" }], confirm: true });
+    if (!r.ok) throw new Error(r.message);
+    await processTargets(r.listId);
+    const html = await render(u, { pack: packId });
+    const t = text(html);
+    expect(t).toContain("3 · Citation targets");
+    expect(t).toContain("The 10 Best Dentists in 2026");
+    expect(t).toContain("Ask to be listed");
+    expect(t).toContain("Claim the listing");
+    expect(html).toContain(`/api/citation-targets/${r.listId}/csv`);
+  });
+
   it("another workspace gets a 404, not the pack", async () => {
     await expect(render(other)).rejects.toThrow("NOT_FOUND");
   });

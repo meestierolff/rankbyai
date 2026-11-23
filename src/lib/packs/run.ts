@@ -238,7 +238,7 @@ async function readSamples(read: Read, scans: { id: string; run: string; prompt:
   return out;
 }
 
-const adminRead: Read = async (what, run) => {
+export const adminRead: Read = async (what, run) => {
   const { data, error } = await run(dbAdmin());
   if (error) throw new Error(`${what} could not be loaded`);
   return data;

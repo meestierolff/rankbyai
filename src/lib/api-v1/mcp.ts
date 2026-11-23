@@ -8,6 +8,7 @@ import { AI_GRID_SIZES, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 import { MAX_POINT_IDX } from "@/lib/scans/skip";
 import * as core from "./core";
 import * as packs from "./packs";
+import * as targets from "./targets";
 import { PACK_MAX_PROMPTS, PACK_MAX_REPEATS, PACK_PROMPT_MAX } from "@/lib/packs/prompts";
 import { COUNTRY_CODES, DEFAULT_COUNTRY, languageName, languageNameFor } from "@/lib/countries";
 import { SECOND_LANGUAGES } from "@/lib/scans/consistency-run";
@@ -30,7 +31,7 @@ const GUIDE =
   "To check whether a difference is real or normal variation, run_consistency_check asks the same grid twice (and optionally in a second language); get_consistency shows what stayed the same. " +
   "After a re-check, get_change_note explains what changed between the latest scan and the previous one (mentions, names, cited sources), with possible reasons only where stored evidence exists. " +
   "For a finished prospect report, get_pitch_asset returns a short email teaser and an image for the user to copy; RankbyAI never sends email. " +
-  "Citation workflow (which pages the AI answers lean on): get_buyer_prompts → let the user edit the prompts → run_prompt_pack without confirm (estimate) → run_prompt_pack with confirm → get_prompt_pack until the run is done → list_cited_sources (missing_only: true for pages that leave the business out). " +
+  "Citation workflow (which pages the AI answers lean on): get_buyer_prompts → let the user edit the prompts → run_prompt_pack without confirm (estimate) → run_prompt_pack with confirm → get_prompt_pack until the run is done → list_cited_sources (missing_only: true for pages that leave the business out) → find_citation_targets without confirm (estimate), then with confirm → get_citation_targets: the pages that link to up to three competitors from a best/top/review list, merged with the cited pages, by estimated traffic. RankbyAI supplies pages and data; it contacts no one. " +
   "list_scans, list_audits, list_prospect_batches and list_prompt_packs find earlier work; update_business and delete_business manage the tracked businesses; get_branding and update_branding manage the white-label fields on reports. " +
   "Always show the user the estimate before calling a tool with confirm: true. AI answers vary between runs, places and time; report them as observations, not guarantees. " +
   "When advising on an audit, use the prompt fix_plan (or follow the same order): P0 first (the business's identity, and whether search engines and AI crawlers may read the site), then P1 (gaps against the map pack), then P2 (pages, schema, FAQ), then P3. " +
@@ -404,6 +405,44 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
       note: z.string(),
     }),
   }, (a) => reply("list_cited_sources", () => packs.listCitedSourcesOp(caller, a)));
+
+  const targetOut = open({
+    url: z.string(), domain: z.string(), title: text, page_type: pageTypes, etv: num, page_rank: num, competitors_linked: z.array(z.string()),
+    client_linked: z.boolean().nullable(), client_named_on_page: z.boolean().nullable(), cited: open({ answers: z.number() }).nullable(),
+    source: z.enum(["backlinks", "citations", "both"]), action: z.enum(["pitch", "directory_claim", "skip"]), action_reason: z.string(),
+  });
+
+  server.registerTool("find_citation_targets", {
+    title: "Find citation targets",
+    annotations: hints("find_citation_targets", "Find citation targets"),
+    description: "Step 3 of the citation workflow: pages that link to up to three competitors from a list page (the linking page's address contains best, top- or review, plus the city and near-me and known directories for a local business), from DataForSEO Backlinks on the user's own DataForSEO login. Also checks which of them already link to the business, adds the pages AI answers cited in its prompt packs (pack_id) that leave it out, and gets DataForSEO's estimated monthly traffic per page. competitors: websites, or leave them out to use the businesses the answers named most often that a stored Google Maps scan gives a website for (never guessed). Costs money: without confirm it returns the estimate (an upper bound: DataForSEO bills rows as returned) with the competitors and words it would use, and creates nothing. Then poll get_citation_targets. RankbyAI contacts no one.",
+    inputSchema: z.object({
+      business_id: id("business"),
+      pack_id: id("prompt pack").optional().describe("The business's prompt pack whose cited pages join the list (and whose scope sets the filter)"),
+      competitors: z.array(z.object({ name: z.string().max(120).nullish(), domain: z.string().min(3).max(253).describe("Website, e.g. localfalcon.com") })).min(1).max(3).optional(),
+      url_contains: z.array(z.string().min(2).max(40)).min(1).max(7).optional().describe("Words the linking page's address must contain (any of them). Default: best, top-, review (and the city and near-me for a local business)"),
+      rows_per_site: z.number().int().min(1).max(1000).default(200).describe("Backlink rows read per site (DataForSEO bills per row returned)"),
+      traffic_pages: z.number().int().min(0).max(1000).default(400).describe("Pages that get a traffic estimate, best candidates first"),
+      scope: z.enum(["local", "online"]).optional().describe("Default: the pack's scope, else local"),
+      confirm,
+    }),
+  }, (a) => reply("find_citation_targets", () => targets.findTargetsOp(caller, a, defer)));
+
+  server.registerTool("list_citation_targets", {
+    title: "List citation target searches",
+    annotations: hints("list_citation_targets", "List citation target searches"),
+    description: "The workspace's citation target searches, newest first, with competitors, status, estimated and actual cost and each DataForSEO call. Narrow with business_id. Use get_citation_targets for the pages. Free.",
+    inputSchema: z.object({ ...paging, business_id: id("business").optional() }),
+    outputSchema: open({ searches: z.array(open({ id: z.string(), business_id: z.string(), status: z.string() })), ...page }),
+  }, (a) => reply("list_citation_targets", () => targets.listTargetsOp(caller, a)));
+
+  server.registerTool("get_citation_targets", {
+    title: "Get citation targets",
+    annotations: hints("get_citation_targets", "Get citation targets"),
+    description: "The pages of a citation target search (list_id, or business_id for its latest): per page its address and title, page type, etv (DataForSEO's estimated monthly organic traffic), page_rank (DataForSEO's own 0–1000 rank, not Ahrefs DR), the competitors it links to, whether it links to (client_linked) or names (client_named_on_page) the business, how AI answers cited it, and action (pitch, directory_claim, skip) with the reason. Sorted: pages AI answers cited first, then by estimated traffic. Filter with action or cited_only. Polling also finishes a search. Free.",
+    inputSchema: z.object({ ...paging, list_id: id("citation target search").optional(), business_id: id("business").optional(), action: z.enum(["pitch", "directory_claim", "skip"]).optional(), cited_only: z.boolean().default(false) }),
+    outputSchema: open({ search: open({ id: z.string(), status: z.string() }), total: z.number(), targets: z.array(targetOut), note: z.string(), ...page }),
+  }, (a) => reply("get_citation_targets", () => targets.getTargetsOp(caller, a, defer)));
 
   // ───────────────────────── branding and usage ─────────────────────────
 

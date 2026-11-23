@@ -86,6 +86,11 @@ export interface CreateScanInput {
    * (lib/packs/prompts validatePackPrompt), so "Who is the best dentist near me?" is allowed.
    */
   promptCheck?: "template" | "pack";
+  /**
+   * "online": a question with no place in it, for a business that sells online. Asked once (1×1),
+   * without location settings, Gemini grounded on Google Search. The business needs no map point.
+   */
+  geoMode?: "local" | "online";
   confirm: boolean;
 }
 
@@ -119,6 +124,8 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
   if (chosenCentre && !validCoord(chosenCentre)) return fail(400, "invalid_center", "The grid centre is not a valid map point.");
   const specError = validateSpec(spec);
   if (specError) return fail(400, "invalid_spec", specError);
+  const online = input.geoMode === "online";
+  if (online && (spec.kind !== "ai" || spec.grid !== 1)) return fail(400, "invalid_spec", "An online question is asked once, without a place: use a 1×1 AI scan.");
   const skip = normalizeSkip(spec.skip);
   spec = { ...spec, skip };
   const keyword = input.keyword.trim();
@@ -136,7 +143,7 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
   // is asked in it; see lib/scans/prompt). Stored with the scan, so a scan always shows what was asked.
   const template = spec.kind === "ai" ? (customTemplate ?? defaultQuestionFor({ ask_in_language: business.ask_in_language, language: businessLanguage(business) })) : null;
   const businessAt = business.lat != null && business.lng != null ? { lat: Number(business.lat), lng: Number(business.lng) } : null;
-  if (!chosenCentre && !businessAt) return fail(400, "business_has_no_location", "This business has no map location yet. Set it on the business page, or choose where to centre the grid.");
+  if (!online && !chosenCentre && !businessAt) return fail(400, "business_has_no_location", "This business has no map location yet. Set it on the business page, or choose where to centre the grid.");
   if (chosenCentre && businessAt) {
     const away = milesBetween(chosenCentre, businessAt);
     if (away > MAX_CENTRE_MILES) return fail(400, "center_too_far", `The grid centre is ${Math.round(away)} miles from the business. Keep it within ${MAX_CENTRE_MILES} miles, or correct the business's location on its page.`);
@@ -169,7 +176,8 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
     if (!budget.ok) return fail(429, "daily_cap", budget.message ?? "Daily capacity reached.", estimate);
   }
 
-  const center = chosenCentre ?? businessAt!;
+  // An online scan without a map point stores 0,0: no place is sent to any engine for it.
+  const center = chosenCentre ?? businessAt ?? { lat: 0, lng: 0 };
   const points = buildGrid(center, spec.grid, input.radiusMiles);
   const skipped = new Set(skip);
   const mode: MapsMode = spec.kind === "maps" ? spec.mode : "standard";
@@ -197,6 +205,7 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
       est_cost_usd: estimate.totalUsd,
       summary: isMockMode() ? { mock: true } : {},
       label: input.label ?? null,
+      geo_mode: online ? "online" : "local",
     })
     .select("id")
     .single<{ id: string }>();
@@ -211,7 +220,7 @@ export async function createScan(input: CreateScanInput): Promise<CreateScanResu
   }
 
   let labels: (string | null)[] = points.map(() => null);
-  if (spec.kind === "ai") labels = labelPoints(points, await fetchPlaces(center, input.radiusMiles));
+  if (spec.kind === "ai" && !online) labels = labelPoints(points, await fetchPlaces(center, input.radiusMiles));
 
   // Skipped points are stored (so results can show them as not checked) but get no sample and no task.
   await admin.from("scan_points").insert(points.map((p, i) => ({
@@ -258,6 +267,8 @@ interface ScanRow {
   actual_cost_usd: number | null;
   summary: Record<string, unknown>;
   created_at: string;
+  /** "online": asked without location settings (lib/packs online packs). */
+  geo_mode?: "local" | "online";
 }
 
 const LEASE_SECONDS = 120;
@@ -332,11 +343,13 @@ function mockCtx(scan: ScanRow, business: BusinessRow, lat: number, lng: number)
   return { businessName: business.name, distance: Math.min(1, d / (Number(scan.radius_miles) * Math.SQRT2 || 1)), failEngine: fail ?? null };
 }
 
-async function askEngine(engine: Engine, creds: ProviderCredentials, prompt: string, geo: GeoContext, mock: MockCtx | null): Promise<AiAnswer> {
+/** `online`: ask without location settings (the engines get no place). */
+async function askEngine(engine: Engine, creds: ProviderCredentials, prompt: string, geoAt: GeoContext, mock: MockCtx | null, online = false): Promise<AiAnswer> {
   if (mock) {
     if (mock.failEngine === engine) throw new ProviderError(engine, "auth", "Simulated engine failure (mock mode).", 401);
-    return mockAiAnswer(engine, prompt, geo, mock);
+    return mockAiAnswer(engine, prompt, geoAt, mock);
   }
+  const geo = online ? null : geoAt;
   if (engine === "openai") return askOpenAi(creds.openai!, prompt, geo);
   if (engine === "perplexity") return askPerplexity(creds.perplexity!, prompt, geo);
   return askGemini(creds.gemini!, prompt, geo);
@@ -394,7 +407,7 @@ async function runAi(scan: ScanRow, business: BusinessRow, creds: ProviderCreden
       const pt = pointAt.get(s.point_idx) ?? { lat: scan.center_lat, lng: scan.center_lng };
       const geo: GeoContext = { lat: pt.lat, lng: pt.lng, city: business.city, region: business.region, country: business.country };
       try {
-        const answer = await askEngine(engine, creds, s.prompt, geo, mock ? mockCtx(scan, business, pt.lat, pt.lng) : null);
+        const answer = await askEngine(engine, creds, s.prompt, geo, mock ? mockCtx(scan, business, pt.lat, pt.lng) : null, scan.geo_mode === "online");
         let cost = answer.costUsd + (engine === "gemini" && geminiBeyondFree ? GEMINI.groundedPer1000 / 1000 : 0);
 
         let named = parseNamedBusinesses(answer.text);

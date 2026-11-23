@@ -50,21 +50,22 @@ export const openAiCostUsd = (u: { inputTokens: number; outputTokens: number; se
 
 export const OPENAI_SEARCHES_PER_ANSWER = 1;
 
-export async function askOpenAi(key: string, prompt: string, geo: GeoContext, timeoutMs = 60_000): Promise<AiAnswer> {
+/** `geo` null: an online question (no place), asked without location settings. */
+export async function askOpenAi(key: string, prompt: string, geo: GeoContext | null, timeoutMs = 60_000): Promise<AiAnswer> {
   const model = MODELS.openai();
   const user_location: Record<string, string> = { type: "approximate" };
   // "two-letter ISO country code". Sent for every supported country; left out when unknown (OpenAI then assumes the US).
-  const country = normalizeCountry(geo.country);
+  const country = normalizeCountry(geo?.country);
   if (country) user_location.country = country;
-  if (geo.region) user_location.region = geo.region;
-  if (geo.city) user_location.city = geo.city;
+  if (geo?.region) user_location.region = geo.region;
+  if (geo?.city) user_location.city = geo.city;
   const json = await providerFetch<ResponsesOutput>("https://api.openai.com/v1/responses", {
     provider: "openai",
     headers: auth(key),
     // One search per answer. Left free, the model ran three searches for one answer (measured
     // 18 Nov 2026), and the search fee is most of what an answer costs. max_tool_calls is OpenAI's
     // documented cap on built-in tool calls in one response.
-    body: { model, input: prompt, tools: [{ type: "web_search", user_location }], tool_choice: "required", max_tool_calls: OPENAI_SEARCHES_PER_ANSWER },
+    body: { model, input: prompt, tools: [{ type: "web_search", ...(geo ? { user_location } : {}) }], tool_choice: "required", max_tool_calls: OPENAI_SEARCHES_PER_ANSWER },
     timeoutMs,
     retries: 1,
   });

@@ -50,7 +50,11 @@ export function parseGeminiResponse(json: GenerateContent) {
 export const geminiTokenCostUsd = (u: { inputTokens: number; outputTokens: number }) =>
   (u.inputTokens * GEMINI.inputPer1M + u.outputTokens * GEMINI.outputPer1M) / 1_000_000;
 
-export async function askGemini(key: string, prompt: string, geo: GeoContext, timeoutMs = 60_000): Promise<AiAnswer> {
+/**
+ * `geo` null: an online question (no place, e.g. "best SEO tools"). It is grounded on Google Search
+ * without a location: Google Maps grounding answers with places, which is the wrong tool for it.
+ */
+export async function askGemini(key: string, prompt: string, geo: GeoContext | null, timeoutMs = 60_000): Promise<AiAnswer> {
   const model = MODELS.gemini();
   const url = `${BASE}/models/${encodeURIComponent(model)}:generateContent`;
   const contents = [{ role: "user", parts: [{ text: prompt }] }];
@@ -61,25 +65,28 @@ export async function askGemini(key: string, prompt: string, geo: GeoContext, ti
       body: {
         contents,
         tools,
-        ...(withLatLng ? { toolConfig: { retrievalConfig: { latLng: { latitude: geo.lat, longitude: geo.lng }, languageCode: "en_US" } } } : {}),
+        ...(withLatLng && geo ? { toolConfig: { retrievalConfig: { latLng: { latitude: geo.lat, longitude: geo.lng }, languageCode: "en_US" } } } : {}),
       },
       timeoutMs,
       retries: 1,
     });
 
-  let variant = "maps";
+  let variant = geo ? "maps" : "search";
   let json: GenerateContent;
   try {
-    json = await call([{ googleMaps: {} }], true);
+    json = geo ? await call([{ googleMaps: {} }], true) : await call([{ google_search: {} }], false);
   } catch (e) {
+    if (!geo) throw e;
     // Auth, quota and rate-limit errors would fail the same way with Search: only fall back on tool/model errors.
     if (!(e instanceof ProviderError) || !["bad_request", "unknown"].includes(e.kind)) throw e;
     variant = "search";
     json = await call([{ google_search: {} }], false);
   }
   const p = parseGeminiResponse(json);
+  // Google Search grounding cites redirect links, not the pages (seen on real answers, 23 Nov 2026).
+  const sources = variant === "search" ? await resolveGroundingLinks(p.sources) : p.sources;
   return {
-    engine: "gemini", variant, model, text: p.text, places: p.places, sources: p.sources,
+    engine: "gemini", variant, model, text: p.text, places: p.places, sources,
     costUsd: geminiTokenCostUsd(p), costReported: false,
     usage: { inputTokens: p.inputTokens, outputTokens: p.outputTokens, searches: 1 },
     raw: json,
@@ -94,4 +101,35 @@ export async function validateGemini(key: string): Promise<ValidationResult> {
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Google rejected this key." };
   }
+}
+
+const GROUNDING_REDIRECT_HOST = "vertexaisearch.cloud.google.com";
+
+/**
+ * Gemini's Google Search grounding cites links like vertexaisearch.cloud.google.com/grounding-api-redirect/…
+ * with the cited site as the title. Each answers with a redirect to the real page, so the page is
+ * read from its Location header (one request per link to Google's own host, nothing else is
+ * fetched). A link that does not resolve keeps the cited site (from the title) rather than an
+ * address that expires.
+ */
+export async function resolveGroundingLinks(sources: AiSource[], timeoutMs = 4_000): Promise<AiSource[]> {
+  return Promise.all(sources.map(async (s): Promise<AiSource> => {
+    let host: string;
+    try {
+      host = new URL(s.url).hostname;
+    } catch {
+      return s;
+    }
+    if (host !== GROUNDING_REDIRECT_HOST) return s;
+    try {
+      const res = await fetch(s.url, { method: "GET", redirect: "manual", signal: AbortSignal.timeout(timeoutMs), cache: "no-store" });
+      const location = res.headers.get("location");
+      void res.body?.cancel().catch(() => {});
+      if (location && /^https?:\/\//i.test(location) && new URL(location).hostname !== GROUNDING_REDIRECT_HOST) return { url: location, title: s.title };
+    } catch {
+      // not resolved: fall back to the cited site below
+    }
+    const site = s.title.trim().toLowerCase();
+    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(site) ? { url: `https://${site}/`, title: site } : s;
+  }));
 }

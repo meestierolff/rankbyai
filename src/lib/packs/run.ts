@@ -13,7 +13,7 @@ import { milesBetween } from "@/lib/scans/grid";
 import { fetchPlaces } from "@/lib/scans/places";
 import { alternativeOf, packEstimate, type PackEstimate } from "./estimate";
 import { packLabel, parsePackLabel } from "./label";
-import { PACK_MAX_REPEATS, validatePackPrompts } from "./prompts";
+import { PACK_MAX_REPEATS, validatePackPrompts, type PackScope } from "./prompts";
 
 /**
  * Prompt packs (citation workflow, step 1): starting a run, working through it, reading it.
@@ -34,15 +34,15 @@ export const PAGE_CHECK_FRESH_DAYS = 7;
 /** Runs read for an inventory: the latest ones (first seen and disappeared on are measured over these). */
 export const INVENTORY_MAX_RUNS = 12;
 
-export const PACK_COLS = "id, workspace_id, business_id, name, service, prompts, engines, grid_size, radius_miles, repeats, created_at, updated_at";
-export const RUN_COLS = "id, workspace_id, pack_id, business_id, prompts, engines, grid_size, repeats, status, est_cost_usd, actual_cost_usd, trigger, pages_checked_at, pages_lease_until, created_at, finished_at";
+export const PACK_COLS = "id, workspace_id, business_id, name, service, prompts, engines, grid_size, radius_miles, repeats, scope, created_at, updated_at";
+export const RUN_COLS = "id, workspace_id, pack_id, business_id, prompts, engines, grid_size, repeats, scope, status, est_cost_usd, actual_cost_usd, trigger, pages_checked_at, pages_lease_until, created_at, finished_at";
 
 export interface PackRow {
   id: string; workspace_id: string; business_id: string; name: string; service: string; prompts: string[]; engines: Engine[];
-  grid_size: PackGrid; radius_miles: number | string; repeats: number; created_at: string; updated_at: string;
+  grid_size: PackGrid; radius_miles: number | string; repeats: number; scope: PackScope; created_at: string; updated_at: string;
 }
 export interface RunRow {
-  id: string; workspace_id: string; pack_id: string; business_id: string; prompts: string[]; engines: Engine[]; grid_size: number; repeats: number;
+  id: string; workspace_id: string; pack_id: string; business_id: string; prompts: string[]; engines: Engine[]; grid_size: number; repeats: number; scope: PackScope;
   status: "queued" | "running" | "done" | "partial" | "failed"; est_cost_usd: number | string | null; actual_cost_usd: number | string | null;
   trigger: "manual" | "schedule"; pages_checked_at: string | null; pages_lease_until: string | null; created_at: string; finished_at: string | null;
 }
@@ -62,6 +62,8 @@ export interface StartPackInput {
   grid?: number;
   radiusMiles?: number;
   repeats?: number;
+  /** "online": prompts with no place, asked once without location settings (Gemini on Google Search). */
+  scope?: PackScope;
   trigger?: "manual" | "schedule";
   confirm: boolean;
 }
@@ -96,19 +98,21 @@ export async function startPack(input: StartPackInput): Promise<PackStart> {
   const radiusMiles = Number(existing?.radius_miles ?? input.radiusMiles ?? 2);
   const repeats = existing?.repeats ?? input.repeats ?? 1;
   if (!PACK_GRIDS.includes(grid)) return fail(400, "invalid_spec", "A pack runs at the business's map point (1) or on a 3×3 or 5×5 grid.");
+  const scope: PackScope = existing?.scope ?? input.scope ?? "local";
+  if (scope === "online" && grid !== 1) return fail(400, "invalid_spec", "An online pack asks each prompt once, without a place: use location pin.");
   if (!Number.isInteger(repeats) || repeats < 1 || repeats > PACK_MAX_REPEATS) return fail(400, "invalid_request", `repeats is 1 to ${PACK_MAX_REPEATS}.`);
   const spec = { kind: "ai" as const, grid, engines };
   const specError = validateSpec(spec);
   if (specError) return fail(400, "invalid_spec", specError);
 
   // A dry run of the first scan checks the business, its map point and the prompt, and prices one scan.
-  const common = { workspaceId: input.workspaceId, plan: input.plan, businessId, spec, keyword: service, radiusMiles, funding: "byok" as const, promptCheck: "pack" as const };
+  const common = { workspaceId: input.workspaceId, plan: input.plan, businessId, spec, keyword: service, radiusMiles, funding: "byok" as const, promptCheck: "pack" as const, geoMode: scope };
   const dry = await createScan({ ...common, promptTemplate: prompts[0], confirm: false });
   if (dry.ok) return fail(500, "server_error", "Unexpected run.");
   if (dry.error !== "confirmation_required" || !dry.estimate) return fail(dry.status, dry.error, dry.message);
   const estimate: PackEstimate = {
     ...packEstimate(dry.estimate, prompts.length, repeats),
-    alternatives: await Promise.all(PACK_GRIDS.map(async (g) => alternativeOf(packEstimate(await estimateScan({ kind: "ai", grid: g, engines }), prompts.length, repeats), g))),
+    alternatives: await Promise.all((scope === "online" ? [1 as const] : PACK_GRIDS).map(async (g) => alternativeOf(packEstimate(await estimateScan({ kind: "ai", grid: g, engines }), prompts.length, repeats), g))),
   };
   const creds = await resolveCredentials(input.workspaceId, "byok");
   const missingKeys = engines.filter((e) => !creds[e]);
@@ -128,13 +132,13 @@ export async function startPack(input: StartPackInput): Promise<PackStart> {
   if (!packId) {
     const name = (input.name ?? "").trim() || `${service}: buyer prompts`;
     const { data, error } = await admin.from("prompt_packs").insert({
-      workspace_id: input.workspaceId, business_id: businessId, name: name.slice(0, 120), service, prompts, engines, grid_size: grid, radius_miles: radiusMiles, repeats,
+      workspace_id: input.workspaceId, business_id: businessId, name: name.slice(0, 120), service, prompts, engines, grid_size: grid, radius_miles: radiusMiles, repeats, scope,
     }).select("id").single<{ id: string }>();
     if (error || !data) return fail(500, "server_error", "The prompt pack could not be saved. Nothing was charged.", { estimate });
     packId = data.id;
   }
   const { data: run, error: runError } = await admin.from("prompt_pack_runs").insert({
-    workspace_id: input.workspaceId, pack_id: packId, business_id: businessId, prompts, engines, grid_size: grid, repeats,
+    workspace_id: input.workspaceId, pack_id: packId, business_id: businessId, prompts, engines, grid_size: grid, repeats, scope,
     status: "queued", est_cost_usd: estimate.totalUsd, trigger: input.trigger ?? "manual",
   }).select("id").single<{ id: string }>();
   const undoPack = async () => { if (!existing && packId) await admin.from("prompt_packs").delete().eq("id", packId); };
@@ -292,11 +296,11 @@ async function checkRunPages(runId: string, end: number, reader: NonNullable<Pro
 const runOut = (r: RunRow) => ({
   id: r.id, pack_id: r.pack_id, status: r.status, trigger: r.trigger, created_at: r.created_at, finished_at: r.finished_at,
   est_cost_usd: r.est_cost_usd == null ? null : Number(r.est_cost_usd), actual_cost_usd: r.actual_cost_usd == null ? null : Number(r.actual_cost_usd),
-  pages_checked: !!r.pages_checked_at, grid_size: r.grid_size, repeats: r.repeats, engines: r.engines,
+  pages_checked: !!r.pages_checked_at, grid_size: r.grid_size, repeats: r.repeats, engines: r.engines, scope: r.scope,
 });
 export const packOut = (p: PackRow) => ({
   id: p.id, business_id: p.business_id, name: p.name, service: p.service, prompts: p.prompts, engines: p.engines,
-  location: p.grid_size === 1 ? "pin" : "grid", grid_size: p.grid_size, radius_miles: Number(p.radius_miles), repeats: p.repeats, created_at: p.created_at,
+  scope: p.scope, location: p.grid_size === 1 ? "pin" : "grid", grid_size: p.grid_size, radius_miles: Number(p.radius_miles), repeats: p.repeats, created_at: p.created_at,
 });
 
 export const PACK_DISCLAIMER = "AI answers vary between runs, places and time, and API answers can differ from what people see in the consumer apps. One run is an observation, not a ranking.";

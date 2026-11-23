@@ -25,7 +25,21 @@ const engines = [
   { name: "gemini" as const, key: process.env.GEMINI_API_KEY, ask: askGemini, est: AI_SAMPLE_EST_USD.geminiPaid },
 ];
 
-describe.skipIf(!live)("prompt pack prompts on real engines", () => {
+/** Online packs: one prompt without a place, no location settings. Expected spend: about $0.02. */
+describe.skipIf(!live || process.env.LIVE_AI_ONLINE !== "1")("online prompt on real engines", () => {
+  for (const e of engines) {
+    it.skipIf(!e.key)(`${e.name}: answers and cites web pages without a place`, async () => {
+      const a = await e.ask(e.key!, "What are the best local rank tracking tools?", null);
+      const named = parseNamedBusinesses(a.text);
+      console.log(`[live-online] ${e.name} | variant ${a.variant ?? "-"} | ${named.length} names: ${named.slice(0, 6).map((n) => n.name).join("; ")}`);
+      console.log(`[live-online] ${e.name} | sources ${a.sources.length}: ${a.sources.slice(0, 5).map((s) => `${s.url.slice(0, 90)} [${s.title.slice(0, 40)}]`).join(" ; ")}`);
+      console.log(`[live-online] ${e.name} | cost $${a.costUsd.toFixed(4)}`);
+      expect(a.text.length).toBeGreaterThan(0);
+    }, 180_000);
+  }
+});
+
+describe.skipIf(!live || process.env.LIVE_AI_ONLINE === "1")("prompt pack prompts on real engines", () => {
   for (const e of engines) {
     it.skipIf(!e.key)(`${e.name}: names, sources and cost for buyer prompts`, async () => {
       for (const prompt of PROMPTS) {

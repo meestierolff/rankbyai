@@ -144,7 +144,12 @@ class NameCounter {
 export function businessNameOrNull(raw: string): string | null {
   let n = raw.trim().replace(/\s+/g, " ");
   if ((n.match(/\(/g) ?? []).length > (n.match(/\)/g) ?? []).length) n = n.replace(/\s*\([^)]*$/, "").trim();
+  // A description after a spaced dash: "Local Falcon — best dedicated map-grid tracker" → "Local Falcon".
+  n = n.split(/\s[–—-]\s/)[0].trim();
   if (n.length < 2) return null;
+  // A section heading: "Best Dedicated Geo-Grid Trackers", "Top All-In-One Suites".
+  if (/^(best|top)\s/i.test(n) && /\b(tools?|trackers?|suites?|options?|software|apps?|platforms?|services|providers|picks|choices|alternatives)\b/i.test(n)) return null;
+  if (/^(best|top)\s+(for|in|of)\s/i.test(n) || /\svs\.?\s/i.test(n)) return null;
   // A list heading, not a business: a count followed by a generic list word.
   if (/^(top\s+)?\d+\s/i.test(n) && /\b(options?|picks?|choices?|places?|businesses|companies|providers|best|top)\b/i.test(n)) return null;
   // A phrase, not a name: three or more words, most of them lower case.

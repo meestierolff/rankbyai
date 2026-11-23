@@ -49,11 +49,12 @@ export function parsePerplexityResponse(json: AgentOutput) {
   return { text, sources, inputTokens, outputTokens, searches, costUsd: typeof reported === "number" ? reported : computed, costReported: typeof reported === "number" };
 }
 
-export async function askPerplexity(key: string, prompt: string, geo: GeoContext, timeoutMs = 60_000): Promise<AiAnswer> {
+/** `geo` null: an online question (no place), asked without location settings. */
+export async function askPerplexity(key: string, prompt: string, geo: GeoContext | null, timeoutMs = 60_000): Promise<AiAnswer> {
   const model = MODELS.perplexity();
   const user_location: Record<string, string | number> = {};
-  const country = normalizeCountry(geo.country);
-  if (country) {
+  const country = geo ? normalizeCountry(geo.country) : null;
+  if (geo && country) {
     user_location.country = country;
     if (geo.region) user_location.region = geo.region;
     if (geo.city) user_location.city = geo.city;

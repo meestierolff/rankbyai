@@ -201,6 +201,44 @@ describe("a pack run (acceptance: stored prompt, engine, time, answer, names, ci
   });
 });
 
+describe("online packs (a product sold online, prompts without a place)", () => {
+  const online = (over: Record<string, unknown> = {}) => runBody({ service: "local rank tracking", prompts: ["What are the best local rank tracking tools?", "What is the best alternative to Local Falcon?"], scope: "online", ...over });
+
+  it("suggests prompts without a place", async () => {
+    const r = await rest("GET", `/packs/suggest?business_id=${businessId}&service=local%20rank%20tracking&scope=online`);
+    expect(r.body.scope).toBe("online");
+    expect(r.body.suggestions[0].text).toBe("What are the best local rank tracking tools?");
+  });
+
+  it("asks once per prompt, marks the scans online, and refuses a grid", async () => {
+    expect((await rest("POST", "/packs", { body: online({ location: "grid" }) })).status).toBe(400);
+    const est = await rest("POST", "/packs", { body: online() });
+    expect(est.body.estimate.alternatives.map((a: { grid_size: number }) => a.grid_size)).toEqual([1]);
+    const r = await rest("POST", "/packs", { body: online({ confirm: true }) });
+    expect(r.status).toBe(202);
+    await drain();
+    const scans = await sql<{ geo_mode: string; grid_size: number; status: string }>("select geo_mode, grid_size, status from public.scans");
+    expect(scans.map((s) => [s.geo_mode, s.grid_size, s.status])).toEqual([["online", 1, "done"], ["online", 1, "done"]]);
+    const g = await rest("GET", `/packs/${r.body.pack_id}`);
+    expect(g.body.pack.scope).toBe("online");
+    expect(g.body.run.scope).toBe("online");
+    // A re-run keeps the pack's scope.
+    const again = await rest("POST", "/packs", { body: { pack_id: r.body.pack_id, confirm: true } });
+    await drain();
+    expect(again.status).toBe(202);
+    expect((await sql<{ n: string }>("select count(*) as n from public.scans where geo_mode = 'online'"))[0].n).toBe("4");
+  });
+
+  it("works for a business without a map point (an online product)", async () => {
+    await sql("update public.businesses set lat = null, lng = null where id = $1", [businessId]);
+    expect((await rest("POST", "/packs", { body: runBody({ confirm: true }) })).body.error).toBe("business_has_no_location");
+    const r = await rest("POST", "/packs", { body: online({ confirm: true }) });
+    expect(r.status).toBe(202);
+    await drain();
+    expect((await rest("GET", `/packs/${r.body.pack_id}`)).body.run.status).toBe("done");
+  });
+});
+
 describe("cited-page inventory", () => {
   async function finishedPack() {
     const r = await rest("POST", "/packs", { body: runBody({ confirm: true }) });

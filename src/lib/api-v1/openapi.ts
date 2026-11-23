@@ -264,7 +264,8 @@ export function openApiSpec(siteUrl: string) {
             prompts: { type: "array", minItems: 1, maxItems: PACK_MAX_PROMPTS, items: { type: "string", maxLength: PACK_PROMPT_MAX }, description: "{service}, {city}, {neighbourhood} and {area} are filled in; any other text is asked as written." },
             engines: { type: "array", items: { type: "string", enum: ["openai", "perplexity", "gemini"] }, description: "Default: every engine you have a key for." },
             location: { type: "string", enum: ["pin", "grid"], default: "pin" }, grid_size: { type: "integer", enum: [3, 5], default: 3 }, radius_miles: { type: "number", default: 2 },
-            repeats: { type: "integer", minimum: 1, maximum: PACK_MAX_REPEATS, default: 1 }, confirm,
+            repeats: { type: "integer", minimum: 1, maximum: PACK_MAX_REPEATS, default: 1 },
+            scope: { type: "string", enum: ["local", "online"], default: "local", description: "online: prompts without a place, for something sold online. Asked once with no location settings; Gemini is grounded on Google Search instead of Google Maps. location must be pin." }, confirm,
           })) },
           responses: estimateOr("202", "The pack's scans were created and run.", obj({ pack_id: uuid, run_id: uuid, scan_ids: { type: "array", items: uuid }, status: { type: "string" }, estimate: ref("Estimate") })),
         },
@@ -273,7 +274,10 @@ export function openApiSpec(siteUrl: string) {
         get: {
           operationId: "suggestBuyerPrompts", tags: ["Citations"], summary: "Suggested buyer prompts for a business",
           description: "About ten prompts written from the business's stored fields (service, city, the area at its map point, its Google category) and up to two businesses its stored answers named often. Nothing is invented and nothing runs. In English. Free.",
-          parameters: [{ name: "business_id", in: "query", required: true, schema: uuid }, { name: "service", in: "query", description: "Default: the service of the latest AI scan, else the Google category.", schema: { type: "string" } }],
+          parameters: [
+            { name: "business_id", in: "query", required: true, schema: uuid }, { name: "service", in: "query", description: "Default: the service of the latest AI scan, else the Google category.", schema: { type: "string" } },
+            { name: "scope", in: "query", description: "online: prompts without a place, for something sold online.", schema: { type: "string", enum: ["local", "online"], default: "local" } },
+          ],
           responses: { "200": { description: "The suggestions.", content: json(obj({ business_id: uuid, business: { type: "string" }, service: { type: "string" }, suggestions: { type: "array", items: obj({ text: { type: "string" }, kind: { type: "string" }, note: { type: "string" } }) }, note: { type: "string" } })) }, ...errors },
         },
       },

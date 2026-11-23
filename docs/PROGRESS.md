@@ -19,7 +19,7 @@ Where the design handoff and the build brief disagree, the brief wins on content
 
 ## Citation workflow, steps 1 and 2: prompt packs and cited pages (23 Nov 2026)
 
-**Status: built and tested locally (mock vendors, plus one live check of buyer prompts on the three engines). Needs migration 0016 on Neon before deploy. Not deployed.**
+**Status: LIVE since 23 Nov 2026 (PR #19, production `rankbyai-ld7v7e8x8`; migration 0016 on both Neon branches, Data API caches refreshed). Online packs (below) follow in the next PR with migration 0017.**
 
 ### What it does
 
@@ -35,9 +35,13 @@ One AI scan's estimate (the same `estimateScan` as `run_ai_scan`, measured media
 
 Two buyer prompts at an Austin point. ChatGPT cited 1 to 3 listicles per answer, Perplexity 15 web pages (listicles, directories, reviews), Gemini only Google Maps listings. Cost: ChatGPT $0.0115–0.0117 (estimate $0.0117), Perplexity $0.0034 (published-rate estimate $0.0025: the measured median corrects this in production), Gemini $0.0008–0.0017. The shared list parser stored non-names for free-form answers ("10 Austin dentist options", "shortlist, not a definitive ranking", a cut-off "(Dr"): pack results and the inventory now drop clear headings and sentences (`businessNameOrNull`); the shared parser is unchanged. Location sent: city for ChatGPT, coordinates for Perplexity and Gemini (Maps grounding).
 
+### Online packs (`scope: "online"`)
+
+For a product or service sold online, prompts without a place ("What are the best local rank tracking tools?"). Each prompt is asked once, with no location settings (ChatGPT and Perplexity get no `user_location`; Gemini is grounded on Google Search instead of Google Maps). The business needs no map point. `scans.geo_mode` = `online` (migration 0017). Measured on 23 Nov 2026 with one prompt: ChatGPT $0.0117, Perplexity $0.0035 (15 pages cited), Gemini $0.0024–0.0026. Gemini's Google Search grounding cites `vertexaisearch.cloud.google.com/grounding-api-redirect/…` links: each is now resolved to the cited page from its redirect (only Google's host is requested), falling back to the cited site. Gemini's online answers are mostly section headings, so its "named instead" list stays noisy; whether it names the business comes from matching the answer text and is unaffected.
+
 ### Needs the operator
 
-1. Apply `db/migrations/0016_prompt_packs.sql` to Neon `preview` and `main`, then refresh both Data API schema caches.
+1. Done 23 Nov 2026 for 0016. Apply `db/migrations/0017_online_packs.sql` to Neon `preview` and `main` and refresh both Data API caches before deploying the online packs.
 2. Known gap until the scheduled re-runs slice: the daily cron continues stalled scans but not a pack run's own finishing step, so a run nobody opens keeps a stale status and unread pages until someone polls it.
 
 ## Free check without sign-in, search pages, conversion tracking (20 Nov 2026)

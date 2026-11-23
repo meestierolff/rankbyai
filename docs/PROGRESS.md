@@ -17,6 +17,14 @@ Where the design handoff and the build brief disagree, the brief wins on content
 | P0 / Maps 20+ red | `oklch(0.60 0.19 25)` | 4.5:1 contrast | `oklch(0.56 0.19 25)` so white text passes contrast |
 | Database, sign-in, files | n/a | Supabase (Postgres, magic-link sign-in, Storage) | Neon (Postgres, Neon Auth with Google sign-in, Data API, Object Storage), on the operator's instruction of 17 Nov 2026. The brief's rules are unchanged: RLS on every table, an automated RLS test, secrets on the server only |
 
+## One app icon everywhere, and the OAuth consent screen (23 Nov 2026)
+
+- App icon (the dot-grid tile from `scripts/make-icons.mjs`) at 512 and 1024 px (`public/brand/icon-512.png`, `icon-1024.png`, full-bleed `icon-square-1024.png`); the Claude Code / Codex plugin icon is now the 512 px tile, and the OpenAI plugin ZIP takes the same file.
+- The MCP server introduces itself with `title`, `description`, `websiteUrl` and `icons` (SVG, 512, 1024); `server.json` lists the same icons (`src/lib/brand-icons.ts`; `tests/unit/brand.test.ts` keeps them equal). Server version unchanged (1.2.0).
+- `public/SKILL.md` metadata names the icon. RFC 9728 metadata adds `resource_policy_uri` and `resource_tos_uri`.
+- OAuth consent screen redesigned in the sign-in frame: the app's monogram and the RankbyAI tile joined by the brand's dots; "It can" (read, change, start paid work, now including prompt packs and citation targets) and "It can't"; app name, address and return address kept visible; one shape for both buttons. An app's own logo is never loaded (its name is not verified). Preview with invented data at `/dev/oauth-preview` (development only, 404 in production builds).
+- Needs the operator: the MCP Registry shows the new icons only after a new registry version is published (`server.json` version bump + `mcp-publisher login dns` + `publish`); the OpenAI plugin and the directory listings keep their current (same-looking, 256 px) icon until they are updated.
+
 ## Citation workflow, step 3: citation targets from DataForSEO (23 Nov 2026)
 
 **Status: built and tested locally (simulated DataForSEO answers, plus live probes of the endpoints). Needs migration 0018 on Neon before deploy.** Scope set by the operator on 23 Nov 2026: RankbyAI supplies the pages and the data; who to contact and when is left to the user's own agent. No outreach drafts, contact discovery or placement prices.

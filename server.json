@@ -10,7 +10,27 @@
     "source": "github"
   },
   "icons": [
-    { "src": "https://rankbyai.live/icon.svg", "mimeType": "image/svg+xml", "sizes": ["any"] }
+    {
+      "src": "https://rankbyai.live/icon.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "any"
+      ]
+    },
+    {
+      "src": "https://rankbyai.live/brand/icon-512.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "512x512"
+      ]
+    },
+    {
+      "src": "https://rankbyai.live/brand/icon-1024.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "1024x1024"
+      ]
+    }
   ],
   "remotes": [
     {

@@ -10,6 +10,9 @@ export function protectedResourceMetadata() {
     bearer_methods_supported: ["header"],
     resource_name: "RankbyAI",
     resource_documentation: `${issuer()}/docs/api#mcp`,
+    // RFC 9728 §2: what clients may show next to the name on their own consent screens.
+    resource_policy_uri: `${issuer()}/privacy`,
+    resource_tos_uri: `${issuer()}/terms`,
   };
 }
 

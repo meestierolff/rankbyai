@@ -29,7 +29,7 @@ export function ConsentButtons({ ticket, clientName }: { ticket: string; clientN
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-3 sm:flex-row-reverse">
-        <button type="button" onClick={() => answer(true)} disabled={busy !== null} aria-busy={busy === "allow"} className={ctaClass("block", "flex-1 cursor-pointer border-0 text-[16px]")}>
+        <button type="button" onClick={() => answer(true)} disabled={busy !== null} aria-busy={busy === "allow"} className={ctaClass("block", "flex-1 cursor-pointer border-0 p-[15px] text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-lp-accent focus-visible:ring-offset-2 focus-visible:ring-offset-inset")}>
           {busy === "allow" ? "Connecting…" : `Allow ${clientName}`}
         </button>
         <button
@@ -37,7 +37,7 @@ export function ConsentButtons({ ticket, clientName }: { ticket: string; clientN
           onClick={() => answer(false)}
           disabled={busy !== null}
           aria-busy={busy === "deny"}
-          className="flex-1 cursor-pointer rounded-full border border-border-strong bg-transparent px-5 py-3 text-[15px] text-fg transition-colors hover:bg-surface-2 disabled:opacity-60"
+          className="flex-1 cursor-pointer rounded-xl border border-border-strong bg-transparent p-[15px] text-[16px] font-medium text-fg transition-colors outline-none hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-lp-accent focus-visible:ring-offset-2 focus-visible:ring-offset-inset disabled:opacity-60"
         >
           Cancel
         </button>

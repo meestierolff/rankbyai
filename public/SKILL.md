@@ -18,6 +18,7 @@ metadata:
   docs: https://rankbyai.live/docs/api
   mcp: https://rankbyai.live/api/mcp
   llms: https://rankbyai.live/llms.txt
+  icon: https://rankbyai.live/brand/icon-512.png
 ---
 
 # RankbyAI: local AI visibility grid, agent skill

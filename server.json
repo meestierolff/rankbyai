@@ -3,7 +3,7 @@
   "name": "live.rankbyai/rankbyai",
   "title": "RankbyAI",
   "description": "Check if ChatGPT, Perplexity, Gemini and Google Maps recommend a local business, then fix it.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "websiteUrl": "https://rankbyai.live/docs/api#mcp",
   "repository": {
     "url": "https://github.com/meestierolff/rankbyai",

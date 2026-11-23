@@ -12,6 +12,7 @@ import { isMockMode } from "@/lib/mock";
 import { DATAFORSEO_MAPS_PER_POINT } from "@/lib/pricing-constants";
 import { getCreditBalance, getKeyStatuses } from "@/lib/workspace-data";
 import { withoutSideRuns } from "@/lib/scans/consistency";
+import { NOT_PACK_RUN } from "@/lib/packs/label";
 
 export const metadata: Metadata = { title: "Businesses" };
 
@@ -45,7 +46,7 @@ export default async function BusinessesPage() {
     getKeyStatuses(wsId),
     getCreditBalance(wsId),
     memberRead("Finished scans", wsId, (db) =>
-      db.from("scans").select("business_id, kind, grid_size, summary, created_at, label").eq("workspace_id", wsId).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(1000),
+      db.from("scans").select("business_id, kind, grid_size, summary, created_at, label").eq("workspace_id", wsId).in("status", ["done", "partial"]).or(NOT_PACK_RUN).order("created_at", { ascending: false }).limit(1000),
     ),
   ]);
   const rows = (data ?? []) as Row[];

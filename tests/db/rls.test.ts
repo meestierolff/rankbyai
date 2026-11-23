@@ -15,6 +15,7 @@ const PRIVATE_TABLES = [
   "orders", "entitlements", "credit_ledger", "ladder_lock", "ladder_holds", "stripe_events", "api_keys",
   "free_checks", "spend_log", "jobs", "rate_limits", "geo_cache", "removal_requests", "feature_request_votes",
   "workspace_domains", "oauth_clients", "oauth_grants", "oauth_codes", "oauth_tokens",
+  "prompt_packs", "prompt_pack_runs", "cited_pages",
 ];
 
 let a: TestUser;
@@ -76,6 +77,9 @@ beforeAll(async () => {
   await admin.from("feature_request_votes").insert({ request_id: fr.id, user_id: a.id });
   // Random hostname: resetData() does not truncate this table; the row goes with Alice's workspace.
   await ins("workspace_domains", { workspace_id: a.workspaceId, hostname: `reports-${randomUUID().slice(0, 8)}.alice-agency.com`, status: "active" });
+  const pack = await ins("prompt_packs", { workspace_id: a.workspaceId, business_id: businessId, name: "Pack", service: "dentist", prompts: ["Who is the best dentist?"], engines: ["openai"] });
+  await ins("prompt_pack_runs", { workspace_id: a.workspaceId, pack_id: pack.id, business_id: businessId, prompts: ["Who is the best dentist?"], engines: ["openai"], grid_size: 1, repeats: 1 });
+  await ins("cited_pages", { workspace_id: a.workspaceId, business_id: businessId, url_key: "example.com/best", url: "https://example.com/best", status: "ok", client_named: false });
 });
 
 afterAll(async () => {
@@ -238,6 +242,15 @@ describe("members cannot grant themselves anything", () => {
     expect(scan.error).not.toBeNull();
     const upd = await a.client.from("scans").update({ actual_cost_usd: 0 }).eq("id", scanId);
     expect(upd.error).not.toBeNull();
+  });
+
+  it("cannot write prompt packs, their runs or cited pages directly (server-only writes)", async () => {
+    const pack = await a.client.from("prompt_packs").insert({ workspace_id: a.workspaceId, business_id: businessId, name: "x", service: "dentist", prompts: ["Who is the best dentist?"], engines: ["openai"] });
+    expect(pack.error).not.toBeNull();
+    const run = await a.client.from("prompt_pack_runs").update({ status: "done" }).eq("workspace_id", a.workspaceId).select("id");
+    expect(run.error ?? (run.data ?? []).length === 0).toBeTruthy();
+    const page = await a.client.from("cited_pages").update({ client_named: true }).eq("workspace_id", a.workspaceId).select("id");
+    expect(page.error ?? (page.data ?? []).length === 0).toBeTruthy();
   });
 });
 

@@ -1,6 +1,7 @@
 import "server-only";
 import { memberRead } from "@/lib/db/member-read";
 import { REFUND_DAYS, type Engine } from "@/lib/pricing-constants";
+import { NOT_PACK_RUN } from "@/lib/packs/label";
 
 /**
  * Reads shared by app pages. Each runs as the signed-in user under row-level security and is also
@@ -78,6 +79,7 @@ export async function getRecentScans(workspaceId: string, limit = 8): Promise<Sc
       .from("scans")
       .select("id, business_id, kind, grid_size, status, funding, keyword, niche, engines, est_cost_usd, actual_cost_usd, summary, created_at, finished_at, businesses(name)")
       .eq("workspace_id", workspaceId)
+      .or(NOT_PACK_RUN)
       .order("created_at", { ascending: false })
       .limit(limit),
   );

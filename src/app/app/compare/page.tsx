@@ -17,6 +17,7 @@ import { ConsistencyView } from "@/components/app/consistency-view";
 import { withoutSideRuns } from "@/lib/scans/consistency";
 import { changeNoteMarkdown } from "@/lib/scans/change-note";
 import { loadChangeNote, type Read } from "@/lib/scans/change-note-data";
+import { NOT_PACK_RUN } from "@/lib/packs/label";
 
 export const metadata: Metadata = { title: "Compare scans" };
 
@@ -62,7 +63,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
 
   const { data: scanRows } = businessId
     ? await memberRead("Scans to compare", wsId, (db) =>
-        db.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at, center_lat, center_lng, radius_miles, prompt_template, label").eq("workspace_id", wsId).eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(60),
+        db.from("scans").select("id, kind, grid_size, keyword, niche, status, created_at, center_lat, center_lng, radius_miles, prompt_template, label").eq("workspace_id", wsId).eq("business_id", businessId).eq("kind", kind).in("status", ["done", "partial"]).or(NOT_PACK_RUN).order("created_at", { ascending: false }).limit(60),
       )
     : { data: [] };
   const scans = (scanRows ?? []) as ScanLite[];

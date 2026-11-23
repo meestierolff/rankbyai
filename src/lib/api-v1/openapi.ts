@@ -2,6 +2,7 @@ import { gridSizesText, largerMapsGridsText, largestOneCreditMapsGrid } from "@/
 import { AI_GRID_SIZES, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 import { MAX_POINT_IDX } from "@/lib/scans/skip";
 import { COUNTRY_CODES } from "@/lib/countries";
+import { PACK_MAX_PROMPTS, PACK_MAX_REPEATS, PACK_PROMPT_MAX } from "@/lib/packs/prompts";
 
 /**
  * OpenAPI 3.1 description of /api/v1. Kept next to the handlers (core.ts, rest.ts); the test suite
@@ -65,7 +66,7 @@ export function openApiSpec(siteUrl: string) {
     },
     servers: [{ url: `${siteUrl}/api/v1` }],
     security: [{ apiKey: [] }],
-    tags: [{ name: "Businesses" }, { name: "Scans" }, { name: "Audits" }, { name: "Prospects" }, { name: "Branding" }, { name: "Usage" }],
+    tags: [{ name: "Businesses" }, { name: "Scans" }, { name: "Audits" }, { name: "Prospects" }, { name: "Citations" }, { name: "Branding" }, { name: "Usage" }],
     paths: {
       "/businesses": {
         get: {
@@ -248,6 +249,57 @@ export function openApiSpec(siteUrl: string) {
           },
         },
       },
+      "/packs": {
+        get: {
+          operationId: "listPromptPacks", tags: ["Citations"], summary: "List prompt packs",
+          parameters: [...paging, { name: "business_id", in: "query", description: "Packs of this business.", schema: uuid }],
+          responses: { "200": { description: "Packs, newest first, each with its latest run.", content: json(obj({ packs: { type: "array", items: { type: "object", description: "id, business_id, name, service, prompts, engines, location, grid_size, radius_miles, repeats, runs, latest_run." } }, ...page })) }, ...errors },
+        },
+        post: {
+          operationId: "runPromptPack", tags: ["Citations"], summary: "Estimate or run a prompt pack (buyer prompts on ChatGPT, Perplexity and Gemini)",
+          description: "Asks a pack of buyer prompts for one business and stores every answer, the businesses it named and the pages it cited. One AI scan per prompt and repeat, so the estimate is one AI scan's estimate × prompts × repeats; `alternatives` prices the same pack at the business's map point and on 3×3 and 5×5 grids, and `missing_keys` lists engines without a key. Runs on your own API keys only. Without `confirm: true` nothing is created. Send `pack_id` to run a saved pack again with its own prompts and settings. The scans never replace the business's latest scan. After the answers are in, RankbyAI reads the most-cited pages (no vendor cost) to see whether they name the business.",
+          requestBody: { required: true, content: json(obj({
+            business_id: uuid, pack_id: { ...uuid, description: "Run this saved pack again; the other fields are ignored." },
+            name: { type: "string", maxLength: 120 }, service: { type: "string", description: "What people search for, e.g. dentist." },
+            prompts: { type: "array", minItems: 1, maxItems: PACK_MAX_PROMPTS, items: { type: "string", maxLength: PACK_PROMPT_MAX }, description: "{service}, {city}, {neighbourhood} and {area} are filled in; any other text is asked as written." },
+            engines: { type: "array", items: { type: "string", enum: ["openai", "perplexity", "gemini"] }, description: "Default: every engine you have a key for." },
+            location: { type: "string", enum: ["pin", "grid"], default: "pin" }, grid_size: { type: "integer", enum: [3, 5], default: 3 }, radius_miles: { type: "number", default: 2 },
+            repeats: { type: "integer", minimum: 1, maximum: PACK_MAX_REPEATS, default: 1 }, confirm,
+          })) },
+          responses: estimateOr("202", "The pack's scans were created and run.", obj({ pack_id: uuid, run_id: uuid, scan_ids: { type: "array", items: uuid }, status: { type: "string" }, estimate: ref("Estimate") })),
+        },
+      },
+      "/packs/suggest": {
+        get: {
+          operationId: "suggestBuyerPrompts", tags: ["Citations"], summary: "Suggested buyer prompts for a business",
+          description: "About ten prompts written from the business's stored fields (service, city, the area at its map point, its Google category) and up to two businesses its stored answers named often. Nothing is invented and nothing runs. In English. Free.",
+          parameters: [{ name: "business_id", in: "query", required: true, schema: uuid }, { name: "service", in: "query", description: "Default: the service of the latest AI scan, else the Google category.", schema: { type: "string" } }],
+          responses: { "200": { description: "The suggestions.", content: json(obj({ business_id: uuid, business: { type: "string" }, service: { type: "string" }, suggestions: { type: "array", items: obj({ text: { type: "string" }, kind: { type: "string" }, note: { type: "string" } }) }, note: { type: "string" } })) }, ...errors },
+        },
+      },
+      "/packs/{id}": {
+        get: {
+          operationId: "getPromptPack", tags: ["Citations"], summary: "A prompt pack and one run's results",
+          description: "Status and cost of a run (default: the latest), per prompt and engine the answers that named the business and its average position, the businesses named instead, the run's share of answers per business, and its ten most-cited pages. Counted from stored answers only. Polling continues the run. Free.",
+          parameters: [idParam("prompt pack"), { name: "run_id", in: "query", description: "Another run of this pack.", schema: uuid }],
+          responses: { "200": { description: "The pack and run.", content: json(obj({ pack: { type: "object" }, business: { type: "string" }, runs: { type: "array", items: { type: "object" } }, run: nullable("object"), results: nullable("object"), top_sources: { type: "array", items: { type: "object" } }, disclaimer: { type: "string" } })) }, ...errors },
+        },
+      },
+      "/citations": {
+        get: {
+          operationId: "listCitedSources", tags: ["Citations"], summary: "Pages and sites the prompt pack answers cited",
+          description: "Most cited first, by page (`group_by=url`) or site (`group_by=domain`): page type with a confidence (from the address and title only), answers that cited it and how many named the business, engines, first seen, last seen and disappeared on. `missing` says whether the business is left out and on which basis: `page` (RankbyAI read the page) or `answers` (only the answers that cited it). Scope with `run_id`, `pack_id` (its latest runs) or `business_id` (all its packs). `url` or `domain` returns that page's or site's history run by run. No authority or traffic figures. Free.",
+          parameters: [
+            ...paging,
+            { name: "business_id", in: "query", schema: uuid }, { name: "pack_id", in: "query", schema: uuid }, { name: "run_id", in: "query", schema: uuid },
+            { name: "group_by", in: "query", schema: { type: "string", enum: ["url", "domain"], default: "url" } },
+            { name: "missing_only", in: "query", description: "Only pages that leave the business out (never Google Maps listings or its own site).", schema: { type: "boolean", default: false } },
+            { name: "page_type", in: "query", schema: { type: "string", enum: ["listicle", "review", "directory", "official_site", "forum", "social", "maps_listing", "other"] } },
+            { name: "url", in: "query", description: "One page's history.", schema: { type: "string" } }, { name: "domain", in: "query", description: "One site's history.", schema: { type: "string" } },
+          ],
+          responses: { "200": { description: "The inventory.", content: json(obj({ scope: { type: "object" }, group_by: { type: "string" }, total: { type: "integer" }, urls: { type: "array", items: { type: "object" } }, domains: { type: "array", items: { type: "object" } }, history: { type: "array", items: { type: "object" } }, note: { type: "string" }, ...page })) }, ...errors },
+        },
+      },
       "/branding": {
         get: { operationId: "getBranding", tags: ["Branding"], summary: "White-label branding shown on share links and PDF reports", responses: { "200": { description: "The branding.", content: json(obj({ branding: ref("Branding") })) }, ...errors } },
         patch: {
@@ -304,6 +356,7 @@ export function openApiSpec(siteUrl: string) {
           est_cost_usd: nullable("number"), actual_cost_usd: nullable("number"), summary: { type: "object", description: "Headline metrics once finished. Skipped points are left out of every metric: `points` counts the active points and `points_skipped` the skipped ones." }, error: nullable("string"),
           created_at: dateTime, finished_at: nullable("string", { format: "date-time" }),
           consistency_run: { ...nullable("object"), description: "Set for a run of a consistency check: `group_id` (for GET /scans/consistency) and `role` (A1 the question as asked, A2 the same again, B1 and B2 the second question). A2, B1 and B2 are repeats or second-language runs: never treat them as the business's latest scan.", properties: { group_id: uuid, role: { type: "string", enum: ["A1", "A2", "B1", "B2"] } } },
+          prompt_pack_run: { ...nullable("object"), description: "Set for a scan of a prompt pack: `run_id`, `prompt` (0-based index in the pack) and `repeat` (from 1). It asked a buyer prompt, not the business's tracked question: never treat it as the business's latest scan. See GET /packs/{id}.", properties: { run_id: uuid, prompt: { type: "integer" }, repeat: { type: "integer" } } },
         }, ["id", "kind", "status"]),
         ScanPoints: obj({
           scan_id: uuid, kind: { type: "string", enum: ["ai", "maps"] }, grid_size: { type: "integer" }, status: scanStatus,

@@ -10,6 +10,7 @@ import { businessLanguage, languageName } from "@/lib/countries";
 import { CENTRED_MILES, milesBetween } from "@/lib/scans/grid";
 import { signedUrl } from "@/lib/storage";
 import { withoutSideRuns } from "@/lib/scans/consistency";
+import { NOT_PACK_RUN } from "@/lib/packs/label";
 
 /**
  * Public report view for /r/{slug} (brief 7.6). Read with the service role on the server and reduced
@@ -73,7 +74,7 @@ async function buildReportView(report: any): Promise<ReportView | null> {
   let scans: ScanLite[] = [];
   const cols = "id, kind, grid_size, keyword, niche, engines, status, summary, radius_miles, center_lat, center_lng, created_at, label";
   if (report.kind === "share") {
-    const { data } = await admin.from("scans").select(cols).eq("business_id", business.id).in("status", ["done", "partial"]).order("created_at", { ascending: false }).limit(20);
+    const { data } = await admin.from("scans").select(cols).eq("business_id", business.id).in("status", ["done", "partial"]).or(NOT_PACK_RUN).order("created_at", { ascending: false }).limit(20);
     // Repeat and second-language runs of a consistency check are never the "latest" scan on a share link.
     scans = withoutSideRuns((data ?? []) as ScanLite[]);
   } else if ((report.scan_ids ?? []).length) {

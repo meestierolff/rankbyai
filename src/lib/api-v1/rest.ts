@@ -3,6 +3,7 @@ import { RATE_LIMIT_PER_MINUTE, verifyApiKey, withinRateLimit, type ApiCaller } 
 import { dbAdmin } from "@/lib/db/clients";
 import { MissingEnvError } from "@/lib/env";
 import * as core from "./core";
+import * as packs from "./packs";
 import { reportOriginForAuthorisedWorkspace } from "@/lib/domains-origin";
 
 /**
@@ -98,6 +99,10 @@ const ROUTES: Route[] = [
   { path: "prospects", GET: (x) => core.listProspectBatches(x.c, x.q), POST: async (x) => core.createProspectsOp(x.c, await x.body(), x.defer) },
   { path: "prospects/:id", GET: async (x) => core.getProspects(x.c, x.id, await reportOriginForAuthorisedWorkspace(x.c.workspaceId), x.head ? undefined : x.defer) },
   { path: "prospects/:id/pitch", GET: async (x) => core.getPitchAsset(x.c, x.id, x.q, await reportOriginForAuthorisedWorkspace(x.c.workspaceId)) },
+  { path: "packs", GET: (x) => packs.listPacksOp(x.c, x.q), POST: async (x) => packs.runPackOp(x.c, await x.body(), x.defer) },
+  { path: "packs/suggest", GET: (x) => packs.suggestPromptsOp(x.c, x.q) },
+  { path: "packs/:id", GET: (x) => packs.getPackOp(x.c, x.id, x.q, x.head ? undefined : x.defer) },
+  { path: "citations", GET: (x) => packs.listCitedSourcesOp(x.c, x.q) },
   { path: "branding", GET: (x) => core.getBranding(x.c), PATCH: async (x) => core.updateBranding(x.c, await x.body()) },
   { path: "usage", GET: (x) => core.getUsage(x.c) },
 ];

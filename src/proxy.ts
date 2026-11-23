@@ -130,7 +130,7 @@ async function regionalExists(niche: string, city: string): Promise<boolean | nu
  *    localhost): only that workspace's reports and static files; everything else 404s. See lib/domains.
  * 1. Share links: real 404s.
  * 2. /app, /admin, /free-check/run (the signed-in free check, kept for links issued before the public
- *    check) and the OAuth consent page (/oauth/authorize): signed-out visitors go
+ *    check), the OAuth consent page (/oauth/authorize) and AppSumo redemption (/redeem): signed-out visitors go
  *    to /login (keeping where they wanted to go), the session cookie is refreshed, and the verifier a
  *    Google sign-in returns with becomes the session cookie. Every page and route authorises again.
  */
@@ -188,7 +188,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/app/:path*", "/admin/:path*", "/free-check/run/:path*", "/r/:path*", "/ai/:niche/:city", "/oauth/authorize",
+    "/app/:path*", "/admin/:path*", "/free-check/run/:path*", "/r/:path*", "/ai/:niche/:city", "/oauth/authorize", "/redeem",
     // Custom report domains: every path, on every host except the first-party ones. Values are
     // matched as ^value$ against the lower-case host without its port, and must be literals (the
     // matcher is read at build time). Keep in step with isFirstPartyHost in lib/domains.ts; the

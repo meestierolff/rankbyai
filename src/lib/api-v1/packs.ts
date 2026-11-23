@@ -5,7 +5,7 @@ import { normalizeUrl, type PageType } from "@/lib/citations/classify";
 import { pageHistory } from "@/lib/citations/inventory";
 import { resolveCredentials } from "@/lib/keys";
 import { ENGINE_LABEL, ENGINES, type Engine } from "@/lib/pricing-constants";
-import { PACK_MAX_PROMPTS, PACK_MAX_REPEATS, PACK_PROMPT_MAX, suggestBuyerPrompts } from "@/lib/packs/prompts";
+import { PACK_MAX_PROMPTS, PACK_MAX_REPEATS, PACK_PROMPT_MAX, suggestBuyerPrompts, suggestOnlinePrompts } from "@/lib/packs/prompts";
 import { listPacks, loadInventory, loadPack, processPackRun, startPack, suggestionInputs } from "@/lib/packs/run";
 import { ownerRead, PAGE_LIMIT_MAX, PAGE_OFFSET_MAX, roundMoney, type ApiResult, type Defer } from "./core";
 
@@ -34,7 +34,7 @@ export const MISSING_NOTE =
 
 // ───────────────────────── step 1: prompts ─────────────────────────
 
-export const SuggestPrompts = z.object({ business_id: z.uuid(), service: z.string().trim().min(2).max(120).optional() });
+export const SuggestPrompts = z.object({ business_id: z.uuid(), service: z.string().trim().min(2).max(120).optional(), scope: z.enum(["local", "online"]).default("local") });
 
 export async function suggestPromptsOp(c: ApiCaller, q: unknown): Promise<ApiResult> {
   const p = SuggestPrompts.safeParse(q);
@@ -43,8 +43,10 @@ export async function suggestPromptsOp(c: ApiCaller, q: unknown): Promise<ApiRes
   if (!inp) return fail(404, "not_found", "Unknown business.");
   const service = p.data.service ?? inp.service ?? inp.business.primary_category;
   if (!service) return fail(400, "invalid_request", "Send service: what people search for, for example \"dentist\". This business has no AI scan or Google category to take it from.");
-  const suggestions = suggestBuyerPrompts({ service, city: inp.business.city, neighbourhood: inp.neighbourhood, category: inp.business.primary_category, competitors: inp.competitors });
-  return ok({ business_id: inp.business.id, business: inp.business.name, service, suggestions, note: SUGGEST_NOTE });
+  const suggestions = p.data.scope === "online"
+    ? suggestOnlinePrompts({ service, category: inp.business.primary_category, competitors: inp.competitors })
+    : suggestBuyerPrompts({ service, city: inp.business.city, neighbourhood: inp.neighbourhood, category: inp.business.primary_category, competitors: inp.competitors });
+  return ok({ business_id: inp.business.id, business: inp.business.name, service, scope: p.data.scope, suggestions, note: SUGGEST_NOTE });
 }
 
 export const RunPack = z.object({
@@ -58,8 +60,11 @@ export const RunPack = z.object({
   grid_size: z.union([z.literal(3), z.literal(5)]).default(3),
   radius_miles: z.number().positive().max(50).default(2),
   repeats: z.number().int().min(1).max(PACK_MAX_REPEATS).default(1),
+  /** "online": prompts with no place in them ("best SEO tools"), asked once without location settings. */
+  scope: z.enum(["local", "online"]).default("local"),
   confirm: z.boolean().default(false),
-}).refine((x) => !!x.pack_id || (!!x.business_id && !!x.service && !!x.prompts), { message: "Send pack_id (run a saved pack again), or business_id with service and prompts (a new pack)." });
+}).refine((x) => !!x.pack_id || (!!x.business_id && !!x.service && !!x.prompts), { message: "Send pack_id (run a saved pack again), or business_id with service and prompts (a new pack)." })
+  .refine((x) => !(x.scope === "online" && x.location === "grid"), { message: "An online pack asks each prompt once, without a place: leave location at pin.", path: ["location"] });
 
 const keyNames = (engines: Engine[]) => engines.map((e) => ENGINE_LABEL[e].short).join(", ");
 
@@ -73,7 +78,7 @@ export async function runPack(workspaceId: string, plan: ApiCaller["plan"], b: z
   }
   return startPack({
     workspaceId, plan, businessId: b.business_id, packId: b.pack_id, name: b.name, service: b.service, prompts: b.prompts, engines,
-    grid: b.location === "pin" ? 1 : b.grid_size, radiusMiles: b.radius_miles, repeats: b.repeats, confirm: b.confirm,
+    grid: b.location === "pin" ? 1 : b.grid_size, radiusMiles: b.radius_miles, repeats: b.repeats, scope: b.pack_id ? undefined : b.scope, confirm: b.confirm,
   });
 }
 

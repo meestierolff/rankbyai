@@ -28,10 +28,12 @@ type Where = "pin" | "3" | "5";
  * Step 1 of the citation workflow: edit the buyer prompts, see the estimate (with the same pack at
  * the map point and on the grids), confirm. The server recomputes and checks everything.
  */
-export function PackForm({ businessId, defaultService, suggestions, enginesWithKeys, locked }: {
+export function PackForm({ businessId, defaultService, suggestions, onlineSuggestions, enginesWithKeys, locked }: {
   businessId: string;
   defaultService: string;
   suggestions: string[];
+  /** The same, written for something sold online (no place in the prompts). */
+  onlineSuggestions: string[];
   enginesWithKeys: Engine[];
   locked: boolean;
 }) {
@@ -40,6 +42,7 @@ export function PackForm({ businessId, defaultService, suggestions, enginesWithK
   const [prompts, setPrompts] = useState<string[]>(suggestions.length ? suggestions : [""]);
   const [engines, setEngines] = useState<Engine[]>(enginesWithKeys.length ? enginesWithKeys : [...ENGINES]);
   const [where, setWhere] = useState<Where>("pin");
+  const [scope, setScope] = useState<"local" | "online">("local");
   const [repeats, setRepeats] = useState(1);
   const [name, setName] = useState("");
   const [fetched, setEstimate] = useState<PackEstimate | null>(null);
@@ -51,7 +54,7 @@ export function PackForm({ businessId, defaultService, suggestions, enginesWithK
   const cleaned = prompts.map((p) => p.trim()).filter(Boolean);
   const body = (confirm: boolean) => ({
     business_id: businessId, service: service.trim(), prompts: cleaned, engines, name: name.trim() || undefined,
-    location: where === "pin" ? "pin" : "grid", grid_size: where === "5" ? 5 : 3, repeats, confirm,
+    location: scope === "online" || where === "pin" ? "pin" : "grid", grid_size: where === "5" ? 5 : 3, repeats, scope, confirm,
   });
   const ready = service.trim().length >= 2 && cleaned.length > 0 && engines.length > 0;
   // An estimate is shown only for a complete setup; an incomplete one shows none.
@@ -89,6 +92,13 @@ export function PackForm({ businessId, defaultService, suggestions, enginesWithK
   }
 
   const setPrompt = (i: number, v: string) => setPrompts((xs) => xs.map((x, j) => (j === i ? v : x)));
+  // Switching between local and online swaps in that kind's suggestions, unless the user already edited the prompts.
+  function switchScope(next: "local" | "online") {
+    const from = scope === "online" ? onlineSuggestions : suggestions;
+    const untouched = prompts.length === from.length && prompts.every((p, i) => p === from[i]);
+    if (untouched) setPrompts(next === "online" ? (onlineSuggestions.length ? onlineSuggestions : [""]) : (suggestions.length ? suggestions : [""]));
+    setScope(next);
+  }
   const toggle = (e: Engine) => setEngines((xs) => (xs.includes(e) ? xs.filter((x) => x !== e) : [...xs, e]));
 
   return (
@@ -103,6 +113,12 @@ export function PackForm({ businessId, defaultService, suggestions, enginesWithK
             <span className={labelClass}>Pack name (optional)</span>
             <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} maxLength={120} placeholder={`${service || "service"}: buyer prompts`} />
           </label>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className={labelClass}>What the business sells</span>
+          <Segmented<"local" | "online"> label="What the business sells" value={scope} onChange={switchScope} options={[{ value: "local", label: "Locally (people visit or call)" }, { value: "online", label: "Online (a product or service)" }]} />
+          {scope === "online" ? <span className="text-[13px] text-dim">Prompts without a place (&quot;best SEO tools&quot;), asked once with no location settings. Gemini searches Google instead of Google Maps.</span> : null}
         </div>
 
         <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
@@ -131,10 +147,12 @@ export function PackForm({ businessId, defaultService, suggestions, enginesWithK
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <span className={labelClass}>Where to ask</span>
-            <Segmented<Where> label="Where to ask" value={where} onChange={setWhere} options={[{ value: "pin", label: "Map point" }, { value: "3", label: "3×3 grid" }, { value: "5", label: "5×5 grid" }]} />
-          </div>
+          {scope === "local" ? (
+            <div className="flex flex-col gap-2">
+              <span className={labelClass}>Where to ask</span>
+              <Segmented<Where> label="Where to ask" value={where} onChange={setWhere} options={[{ value: "pin", label: "Map point" }, { value: "3", label: "3×3 grid" }, { value: "5", label: "5×5 grid" }]} />
+            </div>
+          ) : null}
           <div className="flex flex-col gap-2">
             <span className={labelClass}>Runs of each prompt</span>
             <Segmented<number> label="Runs of each prompt" value={repeats} onChange={setRepeats} options={[{ value: 1, label: "1" }, { value: 2, label: "2" }, { value: 3, label: "3" }]} />

@@ -65,6 +65,51 @@ export interface SuggestInput {
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
+/** "local": a business people visit or call in a place (dentist in Austin). "online": a product or service sold online (SEO tools). */
+export type PackScope = "local" | "online";
+
+/** Up to two competitor names from stored answers, distinct and of a sensible length. */
+function rivalsOf(competitors: readonly string[] | undefined): string[] {
+  const rivals: string[] = [];
+  for (const c of competitors ?? []) {
+    const name = c.trim().replace(/\s+/g, " ");
+    if (name.length >= 2 && name.length <= 80 && !rivals.some((r) => norm(r) === norm(name))) rivals.push(name);
+    if (rivals.length === 2) break;
+  }
+  return rivals;
+}
+
+/** Distinct, valid and within the cap. */
+function finish(out: PromptSuggestion[]): PromptSuggestion[] {
+  const seen = new Set<string>();
+  return out.filter((p) => {
+    const k = norm(p.text);
+    if (seen.has(k) || validatePackPrompt(p.text)) return false;
+    seen.add(k);
+    return true;
+  }).slice(0, PACK_SUGGESTIONS_MAX);
+}
+
+/** Buyer prompts for something sold online: no place in them ("What are the best SEO tools?"). */
+export function suggestOnlinePrompts(input: Pick<SuggestInput, "service" | "category" | "competitors">): PromptSuggestion[] {
+  const s = input.service.trim().replace(/\s+/g, " ");
+  const out: PromptSuggestion[] = [
+    { kind: "local_best", text: `What are the best ${s} tools?` },
+    { kind: "recommend", text: `Which ${s} tool would you recommend, and why?` },
+    { kind: "list", text: `Top 10 ${s} tools` },
+    { kind: "choose", text: `Which ${s} software should I choose?` },
+    { kind: "reviews", text: `Best-reviewed ${s} tools` },
+    { kind: "price", text: `Affordable ${s} tools that are worth it` },
+  ];
+  const category = input.category?.trim();
+  if (category && norm(category) !== norm(s)) out.push({ kind: "category", text: `What are the best ${category} tools?`, note: "The business's category." });
+  for (const c of rivalsOf(input.competitors)) {
+    out.push({ kind: "competitor", text: `What is the best alternative to ${c}?`, note: "A business that stored answers named often." });
+    out.push({ kind: "competitor", text: `Is ${c} worth it, or is there a better ${s} tool?`, note: "A business that stored answers named often." });
+  }
+  return finish(out);
+}
+
 export function suggestBuyerPrompts(input: SuggestInput): PromptSuggestion[] {
   const s = input.service.trim().replace(/\s+/g, " ");
   const city = input.city?.trim() || null;
@@ -82,20 +127,6 @@ export function suggestBuyerPrompts(input: SuggestInput): PromptSuggestion[] {
   ];
   const category = input.category?.trim();
   if (category && norm(category) !== norm(s)) out.push({ kind: "category", text: `Who is the best ${category} ${at}?`, note: "The business's Google category." });
-  const rivals: string[] = [];
-  for (const c of input.competitors ?? []) {
-    const name = c.trim().replace(/\s+/g, " ");
-    if (name.length >= 2 && name.length <= 80 && !rivals.some((r) => norm(r) === norm(name))) rivals.push(name);
-    if (rivals.length === 2) break;
-  }
-  for (const c of rivals) out.push({ kind: "competitor", text: `Is ${c} a good ${s} ${at}, or is there a better option?`, note: "A business that stored scans named often." });
-
-  // Distinct, valid and within the cap; nothing here is longer than a prompt may be.
-  const seen = new Set<string>();
-  return out.filter((p) => {
-    const k = norm(p.text);
-    if (seen.has(k) || validatePackPrompt(p.text)) return false;
-    seen.add(k);
-    return true;
-  }).slice(0, PACK_SUGGESTIONS_MAX);
+  for (const c of rivalsOf(input.competitors)) out.push({ kind: "competitor", text: `Is ${c} a good ${s} ${at}, or is there a better option?`, note: "A business that stored scans named often." });
+  return finish(out);
 }

@@ -343,15 +343,19 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
   server.registerTool("get_buyer_prompts", {
     title: "Suggest buyer prompts",
     annotations: hints("get_buyer_prompts", "Suggest buyer prompts"),
-    description: "About ten buyer prompts for a business (\"Who is the best dentist in Austin?\", \"Who is the best dentist near me?\", \"Top 10 dentist options in Austin\"), written from its stored fields: service, city, the area at its map point, its Google category, and up to two businesses its stored AI answers named often. Nothing is invented and nothing runs: show them to the user to edit, then pass the list to run_prompt_pack. In English; the user may rewrite them in another language. Free.",
-    inputSchema: z.object({ business_id: id("business"), service: z.string().min(2).max(120).optional().describe("What people search for, e.g. dentist. Default: the service of the business's latest AI scan, else its Google category.") }),
-    outputSchema: open({ business_id: z.string(), business: z.string(), service: z.string(), suggestions: z.array(open({ text: z.string(), kind: z.string(), note: z.string().optional() })), note: z.string() }),
+    description: "About ten buyer prompts for a business (\"Who is the best dentist in Austin?\", \"Who is the best dentist near me?\", \"Top 10 dentist options in Austin\"), written from its stored fields: service, city, the area at its map point, its Google category, and up to two businesses its stored AI answers named often. Nothing is invented and nothing runs: show them to the user to edit, then pass the list to run_prompt_pack. In English; the user may rewrite them in another language. scope online gives prompts without a place, for a product or service sold online (\"What are the best SEO tools?\", \"What is the best alternative to <competitor>?\"). Free.",
+    inputSchema: z.object({
+      business_id: id("business"),
+      service: z.string().min(2).max(120).optional().describe("What people search for, e.g. dentist, or SEO for an online product. Default: the service of the business's latest AI scan, else its category."),
+      scope: z.enum(["local", "online"]).default("local").describe("local = a business people visit or call in a place; online = something sold online, prompts without a place"),
+    }),
+    outputSchema: open({ business_id: z.string(), business: z.string(), service: z.string(), scope: z.string(), suggestions: z.array(open({ text: z.string(), kind: z.string(), note: z.string().optional() })), note: z.string() }),
   }, (a) => reply("get_buyer_prompts", () => packs.suggestPromptsOp(caller, a)));
 
   server.registerTool("run_prompt_pack", {
     title: "Run a prompt pack",
     annotations: hints("run_prompt_pack", "Run a prompt pack"),
-    description: `Ask ChatGPT, Perplexity and Gemini a pack of buyer prompts (1 to ${PACK_MAX_PROMPTS}) for one business and store every answer: the businesses named and the pages cited. location pin (default) asks each prompt once at the business's map point; grid asks it at every point of a 3×3 or 5×5 grid. repeats (default 1, up to ${PACK_MAX_REPEATS}) asks each prompt again, because one run is not a stable ranking. Runs on the user's own API keys only. Costs money: without confirm it returns the estimate (one AI scan's estimate × prompts × repeats, with alternatives for pin and grid) and missing_keys, and creates nothing. Send pack_id instead to run a saved pack again with its own prompts and settings. Then poll get_prompt_pack. After the answers are in, RankbyAI reads the most-cited pages (free) to see whether they name the business.`,
+    description: `Ask ChatGPT, Perplexity and Gemini a pack of buyer prompts (1 to ${PACK_MAX_PROMPTS}) for one business and store every answer: the businesses named and the pages cited. scope online is for a product or service sold online: prompts without a place, asked with no location settings. location pin (default) asks each prompt once at the business's map point; grid asks it at every point of a 3×3 or 5×5 grid. repeats (default 1, up to ${PACK_MAX_REPEATS}) asks each prompt again, because one run is not a stable ranking. Runs on the user's own API keys only. Costs money: without confirm it returns the estimate (one AI scan's estimate × prompts × repeats, with alternatives for pin and grid) and missing_keys, and creates nothing. Send pack_id instead to run a saved pack again with its own prompts and settings. Then poll get_prompt_pack. After the answers are in, RankbyAI reads the most-cited pages (free) to see whether they name the business.`,
     inputSchema: z.object({
       business_id: id("business").optional().describe("The business (for a new pack)"),
       pack_id: id("prompt pack").optional().describe("Run this saved pack again; the other fields are ignored"),
@@ -363,6 +367,7 @@ export function buildMcpServer(caller: ApiCaller, defer: core.Defer, siteUrl: st
       grid_size: z.union([z.literal(3), z.literal(5)]).default(3).describe("Grid size when location is grid"),
       radius_miles: z.number().positive().max(50).default(2).describe("Half the grid's width when location is grid"),
       repeats: z.number().int().min(1).max(PACK_MAX_REPEATS).default(1).describe("Times each prompt is asked in this run; each repeat costs one more scan per prompt"),
+      scope: z.enum(["local", "online"]).default("local").describe("online = prompts without a place for something sold online (\"best SEO tools\"): asked once with no location settings, Gemini grounded on Google Search instead of Google Maps. location must stay pin."),
       confirm,
     }),
   }, (a) => reply("run_prompt_pack", () => packs.runPackOp(caller, a, defer)));

@@ -8,7 +8,7 @@ import { MISSING_NOTE } from "@/lib/api-v1/packs";
 import type { CitedDomain, CitedUrl, PackResults } from "@/lib/citations/inventory";
 import { requireSession } from "@/lib/auth";
 import { memberRead } from "@/lib/db/member-read";
-import { suggestBuyerPrompts } from "@/lib/packs/prompts";
+import { suggestBuyerPrompts, suggestOnlinePrompts } from "@/lib/packs/prompts";
 import { listPacks, loadInventory, loadPack, suggestionInputs } from "@/lib/packs/run";
 import { ENGINE_LABEL, ENGINES, type Engine } from "@/lib/pricing-constants";
 import type { Read } from "@/lib/scans/change-note-data";
@@ -37,6 +37,7 @@ export default async function CitationsPage({ params, searchParams }: { params: 
   const business = inputs.business;
   const service = inputs.service ?? business.primary_category?.toLowerCase() ?? "";
   const suggestions = service ? suggestBuyerPrompts({ service, city: business.city, neighbourhood: inputs.neighbourhood, category: business.primary_category, competitors: inputs.competitors }).map((s) => s.text) : [];
+  const onlineSuggestions = service ? suggestOnlinePrompts({ service, category: business.primary_category, competitors: inputs.competitors }).map((s) => s.text) : [];
   const [keys, packs] = await Promise.all([getKeyStatuses(wsId), listPacks(ws, wsId, { businessId: id, limit: 20, offset: 0 })]);
   const enginesWithKeys = ENGINES.filter((e) => keys.some((k) => k.provider === e && k.status !== "invalid"));
   const locked = ctx.workspace.plan !== "lifetime";
@@ -58,7 +59,7 @@ export default async function CitationsPage({ params, searchParams }: { params: 
       />
 
       <Panel title="1 · Prompt pack">
-        <PackForm businessId={id} defaultService={service} suggestions={suggestions} enginesWithKeys={enginesWithKeys} locked={locked} />
+        <PackForm businessId={id} defaultService={service} suggestions={suggestions} onlineSuggestions={onlineSuggestions} enginesWithKeys={enginesWithKeys} locked={locked} />
       </Panel>
 
       {packs.length ? (
@@ -67,7 +68,7 @@ export default async function CitationsPage({ params, searchParams }: { params: 
             {packs.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center gap-3">
                 <Link href={`/app/businesses/${id}/citations?pack=${p.id}`} className={p.id === report?.pack.id ? "font-semibold text-fg" : "text-muted-foreground underline"}>{p.name}</Link>
-                <span className="text-dim">{p.prompts.length} prompts · {p.location === "pin" ? "map point" : `${p.grid_size}×${p.grid_size} grid`} · {p.repeats} {p.repeats === 1 ? "run" : "runs"} per prompt · {p.runs} {p.runs === 1 ? "run" : "runs"}</span>
+                <span className="text-dim">{p.prompts.length} prompts · {p.scope === "online" ? "online" : p.location === "pin" ? "map point" : `${p.grid_size}×${p.grid_size} grid`} · {p.repeats} {p.repeats === 1 ? "run" : "runs"} per prompt · {p.runs} {p.runs === 1 ? "run" : "runs"}</span>
                 {p.latest_run ? <StatusChip tone={statusTone(p.latest_run.status)}>{p.latest_run.status}</StatusChip> : null}
               </li>
             ))}

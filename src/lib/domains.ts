@@ -137,7 +137,7 @@ export function checkCustomHostname(input: string, primaryHost: string = primary
 const DATA_PREFIX = String.raw`(?:\/_next\/data\/[^/]+)?`;
 const TRANSPORT = String.raw`(?:\.json|\.rsc|\.segments\/.+\.segment(?:\.rsc)?)?`;
 const OLD_MATCHER = new RegExp(
-  String.raw`^${DATA_PREFIX}(?:\/(?:app|admin|free-check\/run|r)(?:\/.*)?${TRANSPORT}|\/ai\/[^/]+\/[^/]+?${TRANSPORT}|\/oauth\/authorize${TRANSPORT})\/?$`,
+  String.raw`^${DATA_PREFIX}(?:\/(?:app|admin|free-check\/run|r)(?:\/.*)?${TRANSPORT}|\/ai\/[^/]+\/[^/]+?${TRANSPORT}|\/oauth\/authorize${TRANSPORT}|\/redeem${TRANSPORT})\/?$`,
 );
 
 /**

@@ -29,6 +29,7 @@ export default async function BillingPage() {
   return (
     <>
       <PageHeader title="Billing" description="One payment for the software. API usage is billed to you by your own vendors, or comes out of included scan credits." />
+      {!lifetime ? <p className="mb-5 text-[14px] text-muted-foreground">Bought on AppSumo? <Link href="/redeem" className="text-fg underline">Redeem your code</Link></p> : null}
 
       {!checkoutAvailable ? (
         <div role="note" className="mb-5 rounded-xl border border-border-strong bg-surface-2 px-4 py-3 text-[14px] text-muted-foreground">

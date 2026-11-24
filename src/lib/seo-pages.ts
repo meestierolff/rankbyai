@@ -592,7 +592,7 @@ export const SEO_PAGES: SeoPage[] = [
         { list: [
           "You need one job done, such as map grids or citations, and do not want to pay for a suite.",
           "You want to pay per grid point: one credit per point scanned, on grids up to 225 points.",
-          "You want local rank tracking in both Google and Bing; Whitespark's Local Rank Tracker lists both.",
+          "You want a stand-alone local rank tracker (Google and Bing local packs, maps and organic results) without paying for a suite.",
           "You want Google Business Profile management for $1 a month per location.",
         ] },
         { p: [

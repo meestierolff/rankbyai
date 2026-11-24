@@ -7,7 +7,7 @@ import { cellFor, OUR_LIVE_PRICE, ROW_LABEL, ROWS, VENDOR_NAME, VERIFIED_ON, typ
 import { legalEnv } from "@/lib/env";
 import { fmtPrice, type Offer } from "@/lib/ladder";
 import { getOfferCached } from "@/lib/offer";
-import { breadcrumbLd, faqLd, graph, organizationLd } from "@/lib/seo";
+import { breadcrumbLd, faqLd, graph, organizationLd, websiteLd } from "@/lib/seo";
 import { publicEnv } from "@/lib/env-public";
 import { seoPage, type Block, type Inline, type SeoPage } from "@/lib/seo-pages";
 
@@ -33,7 +33,7 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
       };
   return (
     <PageShell>
-      <JsonLd data={graph(organizationLd(), breadcrumbLd(trail), faqLd(page.faqs, `${site}${page.path}#faq`), pageLd)} />
+      <JsonLd data={graph(organizationLd(), ...(page.schemaType === "WebPage" ? [websiteLd()] : []), breadcrumbLd(trail), faqLd(page.faqs, `${site}${page.path}#faq`), pageLd)} />
       <article className="container-page flex flex-col gap-12 pt-[clamp(48px,7vw,96px)] pb-[var(--rb-section-y)]">
         <header className="flex max-w-[820px] flex-col gap-5">
           <nav aria-label="Breadcrumb" className="text-[13px] text-dim">

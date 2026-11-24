@@ -51,6 +51,7 @@ const LF = { pricing: "https://www.localfalcon.com/pricing", ai: "https://www.lo
 const BL = {
   pricing: "https://www.brightlocal.com/pricing/", ai: "https://www.brightlocal.com/local-seo-tools/local-ai-visibility/",
   grid: "https://www.brightlocal.com/local-seo-tools/rankings/local-search-grid/",
+  rankTracker: "https://www.brightlocal.com/local-seo-tools/rankings/local-rank-tracker/",
 };
 const SR = { local: "https://www.semrush.com/pricing/local/", localFeatures: "https://www.semrush.com/features/local-seo/", ai: "https://www.semrush.com/pricing/ai/", mcp: "https://www.semrush.com/mcp/", plans: "https://www.semrush.com/pricing/seo-ai-search/" };
 const PEEC = { pricing: "https://peec.ai/pricing", agencies: "https://peec.ai/pricing-agencies", changelog: "https://peec.ai/changelog" };
@@ -236,7 +237,7 @@ export const BRIGHTLOCAL_VS_WHITESPARK: FactTable = {
     {
       label: "Local rank tracking by keyword",
       cells: [
-        { text: "In Track: local rankings for up to 100 keywords and four competitors", sources: [BL.pricing] },
+        { text: "Local Rank Tracker in Track: up to 100 keywords and four competitors, on Google Search, Google Maps and Bing", sources: [BL.pricing, BL.rankTracker] },
         { text: "Local Rank Tracker: local packs, maps and organic results in Google and Bing", sources: [WS.rankTracker] },
         { text: "No: Google Maps grid only, no organic or Bing tracking" },
       ],

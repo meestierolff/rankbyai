@@ -61,7 +61,7 @@ export default async function ReportPage({ params }: { params: Promise<{ slug: s
   return (
     <>
       <ReportViewed kind={view.kind} />
-      <ReportBody view={view} pdfHref={`/r/${slug}/pdf`} siteUrl={publicEnv.siteUrl} />
+      <ReportBody view={view} pdfHref={`/r/${slug}/pdf`} siteUrl={publicEnv.siteUrl} reportPath={`/r/${slug}`} />
     </>
   );
 }

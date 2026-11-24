@@ -82,7 +82,8 @@ export interface AiQuote {
 export interface ReportView {
   kind: "share" | "prospect" | "free_check";
   watermark: boolean;
-  business: { name: string; city: string | null; region: string | null; category: string | null; lat: number | null; lng: number | null; website?: string | null; language?: string | null };
+  /** `country`: the business's ISO 3166-1 alpha-2 code ("US"), or null when it was never set. */
+  business: { name: string; city: string | null; region: string | null; category: string | null; country: string | null; lat: number | null; lng: number | null; website?: string | null; language?: string | null };
   brand: { name: string | null; logoUrl: string | null; color: string | null; website: string | null; hideRankbyai: boolean };
   opener: string | null;
   /** What the map section shows first: the map or the rank grid (workspace setting). */

@@ -7,6 +7,7 @@ import { fmtPrice, formatClosesAt, heatFor } from "@/lib/ladder";
 import { largerMapsGridsText, largestOneCreditMapsGrid } from "@/lib/cost/credits";
 import { COMPETITORS, COMPETITOR_PRICES_DATE, CREDIT_COST, FAIR_USE, GEMINI, MAPS_GRID_RANGE, PACKS, REFUND_DAYS, SCENARIO } from "@/lib/pricing-constants";
 import { cn } from "@/lib/utils";
+import { LiveLadderLine } from "./live-ladder-line";
 import { Bezel, CreamLink } from "./lp";
 import { BUY_HREF, useOffer, useOfferWatch, type LiveOffer } from "./offer-context";
 
@@ -47,6 +48,8 @@ export function Pricing({ costs, packsOpen = false }: { costs: ScenarioCosts; pa
       />
 
       <div className="container-lp relative text-center">
+        {/* The short live status line; the card below stays the place you buy. */}
+        <LiveLadderLine className="mb-7" />
         {closed ? (
           <h2 className="font-display m-0 text-[clamp(36px,6vw,64px)] leading-none font-extrabold tracking-[-0.03em] text-balance">
             The lifetime deal has closed.

@@ -15,6 +15,7 @@ import { OfferProvider } from "@/components/marketing/offer-context";
 import { Pricing } from "@/components/marketing/pricing";
 import { RealDataLink } from "@/components/marketing/real-data";
 import { FeatureRows, HowItWorks, Problem } from "@/components/marketing/sections";
+import { Testimonials } from "@/components/marketing/testimonials";
 import { TopBanner } from "@/components/marketing/top-banner";
 import { Tour } from "@/components/marketing/tour";
 import { scenarioCosts } from "@/lib/cost/estimate";
@@ -63,6 +64,7 @@ export default async function HomePage() {
           <FeatureRows packsOpen={packs} />
           <Features />
           <HowItWorks packsOpen={packs} />
+          <Testimonials />
           <Pricing costs={costs} packsOpen={packs} />
           <Compare costs={costs} />
           <Calculator />

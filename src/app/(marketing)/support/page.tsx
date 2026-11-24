@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ProsePage } from "@/components/marketing/page-shell";
+import { SUPPORT_EMAIL } from "@/lib/copy";
 import { publicEnv } from "@/lib/env-public";
 import { oauthOpen } from "@/lib/oauth/config";
 import { REFUND_DAYS } from "@/lib/pricing-constants";
-
-const SUPPORT_EMAIL = "mees@rankbyai.live";
 
 export const metadata: Metadata = {
   title: "Support",

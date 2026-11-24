@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { usd0, usdSmart, type ScenarioCosts } from "@/lib/cost/estimate";
-import { fmtPrice } from "@/lib/ladder";
 import { COMPETITORS, REFUND_DAYS, SCENARIO } from "@/lib/pricing-constants";
+import { LiveLadderLine } from "./live-ladder-line";
 import { CreamLink } from "./lp";
 import { useReducedMotion } from "./lp-motion";
 import { BUY_HREF, CtaLabel, useOffer } from "./offer-context";
@@ -85,12 +85,9 @@ export function Hero({ costs }: { costs: ScenarioCosts }) {
     <section id="top" className="relative isolate flex flex-col items-center overflow-hidden bg-lp-bg px-6 pt-10 pb-16 text-lp-fg">
       <HeroGlow />
 
-      {priced ? (
-        <div className="flex items-center gap-2 rounded-full border border-[#2a2a2a] bg-[rgba(0,0,0,0.6)] px-[13px] py-[6px] font-mono text-[12px] text-[#bdbdbd]">
-          <span aria-hidden className="size-[6px] rounded-full bg-lp-accent shadow-[0_0_10px_var(--lp-accent)]" />
-          {priced.seatsLeftAtCurrentPrice} left at {fmtPrice(priced.currentPriceUsd)} · then {fmtPrice(priced.nextPriceUsd)}
-        </div>
-      ) : null}
+      {/* Live deal status: shown only after the first paid sale (see LiveLadderLine). */}
+      <LiveLadderLine />
+
 
       <h1 className="font-display m-0 mt-[22px] max-w-[1040px] text-center text-[clamp(36px,5.4vw,74px)] leading-[0.98] font-extrabold tracking-[-0.025em] text-balance">
         AI visibility you pay for once.

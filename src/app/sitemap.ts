@@ -1,3 +1,5 @@
+import { cities, indexPublished, updatedAt } from "@/lib/ai-index/data";
+import { indexSitemapPaths } from "@/lib/ai-index/schema";
 import type { MetadataRoute } from "next";
 import { publicEnv } from "@/lib/env";
 import { listRegionalPagesCached } from "@/lib/regional";
@@ -13,5 +15,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: p.path === "/" ? "daily" : "monthly",
     priority: p.path === "/" ? 1 : 0.5,
   }));
-  return [...fixed, ...regional.map((r) => ({ url: `${publicEnv.siteUrl}/ai/${r.niche_slug}/${r.city_slug}`, lastModified: r.last_updated, changeFrequency: "weekly" as const, priority: 0.4 }))];
+  const index = indexPublished ? indexSitemapPaths(cities).map(path => ({ url: `https://rankbyai.live${path}`, lastModified: updatedAt!, changeFrequency: "monthly" as const, priority: 0.4 })) : [];
+  return [...fixed, ...index, ...regional.map((r) => ({ url: `${publicEnv.siteUrl}/ai/${r.niche_slug}/${r.city_slug}`, lastModified: r.last_updated, changeFrequency: "weekly" as const, priority: 0.4 }))];
 }

@@ -63,3 +63,5 @@ next-env.d.ts
 
 # Built plugin packages (scripts/build-openai-plugin.mjs)
 /dist
+docs/APPSUMO.md
+.claude/settings.json

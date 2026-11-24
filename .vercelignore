@@ -3,3 +3,7 @@
 docs/references
 .claude
 .playwright-mcp
+
+# Private local configuration and owner notes; never upload with the app.
+db/local
+docs/APPSUMO.md

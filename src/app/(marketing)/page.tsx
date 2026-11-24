@@ -1,3 +1,4 @@
+import { IndexResearchLink } from "@/components/ai-index/shared";
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/json-ld";
 import { Calculator } from "@/components/marketing/calculator";
@@ -70,6 +71,7 @@ export default async function HomePage() {
           <Calculator />
           <Faq items={faq} />
           <FreeCheck turnstileSiteKey={miscEnv.turnstileSiteKey()} open={freeCheckOpen()} />
+          <IndexResearchLink label="ChatGPT SEO agency index (23 Nov 2026)" />
           <FinalCta />
         </main>
         <Footer padForStickyBar />

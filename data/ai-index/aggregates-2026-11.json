@@ -1,0 +1,81 @@
+{
+  "total": 387,
+  "parsed": 336,
+  "unparseable": 51,
+  "countries": {
+    "us": {
+      "total": 273,
+      "parsed": 224,
+      "directories": 182
+    },
+    "uk": {
+      "total": 53,
+      "parsed": 52,
+      "directories": 21
+    },
+    "au": {
+      "total": 54,
+      "parsed": 54,
+      "directories": 4
+    },
+    "nz": {
+      "total": 7,
+      "parsed": 6,
+      "directories": 4
+    }
+  },
+  "reasons": {
+    "wrong_country": 14,
+    "ambiguous_city_unresolved": 15,
+    "ambiguous_multiple_cities": 7,
+    "clarifying_question_no_agencies": 15
+  },
+  "mentions": 1610,
+  "mean": 4.79,
+  "median": 5.0,
+  "min": 1,
+  "max": 7,
+  "fiveNames": 213,
+  "uniqueNames": 1387,
+  "singleCity": 1236,
+  "multiCity": 151,
+  "fiveCities": 5,
+  "tenCities": 0,
+  "widest": [
+    {
+      "name": "Jives Media",
+      "cities": 7
+    },
+    {
+      "name": "SmartSites",
+      "cities": 7
+    }
+  ],
+  "withSources": 325,
+  "directories": {
+    "Clutch": 146,
+    "Expertise.com": 100,
+    "The Manifest": 83,
+    "UpCity": 0,
+    "DesignRush": 23,
+    "Semrush Agency Directory": 43,
+    "GoodFirms": 9,
+    "Sortlist": 4,
+    "TopSEOs": 19
+  },
+  "anyDirectory": 211,
+  "australianLists": 28,
+  "australianDomains": [
+    "starworks.com.au",
+    "localdigital.com.au",
+    "clearbrief.com.au",
+    "agencyecho.com.au",
+    "wordofmouth.com.au",
+    "pwd.com.au"
+  ],
+  "parseMethods": {
+    "numbered_list": 335,
+    "bullet_list": 1
+  },
+  "withoutAgencyDomain": 227
+}

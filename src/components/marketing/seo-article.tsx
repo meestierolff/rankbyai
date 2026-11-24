@@ -1,3 +1,4 @@
+import { IndexResearchLink } from "@/components/ai-index/shared";
 import Link from "next/link";
 import { JsonLd } from "@/components/json-ld";
 import { CtaLink, Eyebrow, SampleTag } from "@/components/brand/primitives";
@@ -48,6 +49,7 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
           </div>
           {page.ctaNote ? <p className="-mt-2 mb-0 max-w-[640px] text-[14px] leading-normal text-muted-foreground">{page.ctaNote}</p> : null}
           <p className="m-0 font-mono text-[12px] text-dim">Updated {new Date(page.updated).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })}</p>
+          {["/ai-visibility-tracker", "/local-seo-software"].includes(page.path) ? <IndexResearchLink label={page.path === "/ai-visibility-tracker" ? "a snapshot of ChatGPT’s SEO agency shortlists, 23 Nov 2026" : "SEO Agency AI Index"} /> : null}
           {page.entity ? <p className="m-0 max-w-[820px] text-[13.5px] leading-normal text-dim">{page.entity(legalEnv.entityName().trim())}</p> : null}
         </header>
 

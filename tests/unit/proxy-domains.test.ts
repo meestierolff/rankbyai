@@ -62,6 +62,14 @@ const get = (url: string) => {
 const passes = (res: Response) => res.headers.get("x-middleware-next") === "1";
 
 describe("main site: unchanged", () => {
+  it("unknown snapshot cities return a real 404 before streaming, with no database read", async () => {
+    const res = await get("https://rankbyai.live/ai-index/seo-agencies/us/not-a-record-in-this-snapshot");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect(await res.text()).toContain("This city record is not available.");
+    expect(queries).toEqual([]);
+  });
+
   it("a live share link passes, an unknown one is a real 404 (no noindex added to the passing page)", async () => {
     const ok = await get(`https://rankbyai.live/r/${SLUG_A}`);
     expect(passes(ok)).toBe(true);

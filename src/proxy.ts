@@ -1,3 +1,4 @@
+import { findCity } from "@/lib/ai-index/data";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAuthConfigured, neonAuth } from "@/lib/auth-neon/server";
 import { mintDbToken } from "@/lib/db/tokens";
@@ -138,6 +139,16 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const host = normalizeHost(request.headers.get("host") ?? request.nextUrl.host);
   if (!isFirstPartyHost(host, primaryHostOf())) return customDomainResponse(request, host);
+  // Snapshot city records: decide before PPR sends a 200 shell for an unknown URL.
+  const indexCity = path.match(/^\/ai-index\/seo-agencies\/([^/]+)\/([^/]+)\/?$/);
+  if (indexCity) {
+    if (!findCity(indexCity[1], indexCity[2])) {
+      return new NextResponse(NOT_FOUND_HTML.replace("Report not found", "City record not found").replace("This report link is not active.", "This city record is not available.").replace("The link may have been revoked or replaced by whoever shared it with you. Ask them for the current link.", "Visit the SEO Agency AI Index to see the published snapshot."), {
+        status: 404, headers: { "Content-Type": "text/html; charset=utf-8", "X-Robots-Tag": "noindex, nofollow", "Cache-Control": "no-store" },
+      });
+    }
+    return NextResponse.next({ request });
+  }
   // The main site: exactly the old behaviour, on exactly the old paths. The custom-domain matcher
   // entry below skips first-party hosts, but if one reaches us anyway, leave the request alone.
   if (!isPrimaryProxyPath(path)) return NextResponse.next();
@@ -188,7 +199,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/app/:path*", "/admin/:path*", "/free-check/run/:path*", "/r/:path*", "/ai/:niche/:city", "/oauth/authorize", "/redeem",
+    "/ai-index/seo-agencies/:country/:city", "/app/:path*", "/admin/:path*", "/free-check/run/:path*", "/r/:path*", "/ai/:niche/:city", "/oauth/authorize", "/redeem",
     // Custom report domains: every path, on every host except the first-party ones. Values are
     // matched as ^value$ against the lower-case host without its port, and must be literals (the
     // matcher is read at build time). Keep in step with isFirstPartyHost in lib/domains.ts; the

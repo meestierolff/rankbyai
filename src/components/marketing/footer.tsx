@@ -1,3 +1,4 @@
+import { INDEX_PATH, indexPublished } from "@/lib/ai-index/data";
 import Link from "next/link";
 import { CookieChoicesButton } from "@/components/analytics/cookie-choices";
 import { NOT_AFFILIATED } from "@/lib/copy";
@@ -48,7 +49,7 @@ const linkClass = "text-lp-muted no-underline transition-colors hover:text-lp-fg
  * 9.16 Footer. The operator line comes from LEGAL_* env; nothing is invented when they are unset.
  * "AI by city" shows only once a regional page is public (a cached read, so it joins the static shell).
  */
-export async function Footer({ padForStickyBar = false }: { padForStickyBar?: boolean }) {
+export async function Footer({ padForStickyBar = false, hideAiIndexLink = false }: { padForStickyBar?: boolean; hideAiIndexLink?: boolean }) {
   const productLinks = (await hasRegionalPages()) ? PRODUCT_LINKS : PRODUCT_LINKS.filter((l) => l.href !== "/ai");
   const entity = legalEnv.entityName();
   const address = legalEnv.address();
@@ -113,6 +114,7 @@ export async function Footer({ padForStickyBar = false }: { padForStickyBar?: bo
       <nav aria-label="Guides and comparisons" className="container-lp mt-10">
         <div className="flex flex-wrap gap-x-[18px] gap-y-2 border-t border-[#141414] pt-5 text-[12.5px] text-lp-dim">
           <span>Guides and comparisons:</span>
+          {indexPublished && !hideAiIndexLink ? <Link href={INDEX_PATH} className={linkClass}>SEO Agency AI Index</Link> : null}
           {row.map((p) => <Link key={p.path} href={p.path} className="text-lp-dim no-underline transition-colors hover:text-lp-fg">{shortTitle(p.path, p.title)}</Link>)}
         </div>
       </nav>

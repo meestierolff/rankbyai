@@ -1,3 +1,4 @@
+import { IndexResearchLink } from "@/components/ai-index/shared";
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/json-ld";
 import { Calculator } from "@/components/marketing/calculator";
@@ -35,6 +36,7 @@ export default async function PricingPage() {
         <main>
           <h1 className="sr-only">RankbyAI pricing</h1>
           <Pricing costs={costs} packsOpen={packs} />
+          <IndexResearchLink label="see the 23 Nov ChatGPT snapshot for 387 cities" />
           <Compare costs={costs} />
           <Calculator />
           <Faq items={faq} />

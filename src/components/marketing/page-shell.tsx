@@ -4,12 +4,12 @@ import { Footer } from "./footer";
 import { Header } from "./header";
 
 /** Shell for every public page that is not the home page (legal, docs, SEO pages, regional pages). */
-export function PageShell({ children }: { children: ReactNode }) {
+export function PageShell({ children, hideAiIndexLink = false }: { children: ReactNode; hideAiIndexLink?: boolean }) {
   return (
     <div className="min-h-dvh overflow-x-clip bg-lp-bg">
       <Header withOffer={false} />
       <main>{children}</main>
-      <Footer />
+      <Footer hideAiIndexLink={hideAiIndexLink} />
     </div>
   );
 }

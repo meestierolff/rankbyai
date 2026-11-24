@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { takeIndexCheckSource } from "@/lib/ai-index/check-source";
 import { track } from "@/lib/analytics";
 import { COUNTRY_OPTION_GROUPS, countryLanguageNote, DEFAULT_COUNTRY } from "@/lib/countries";
 import { creamClass, LpEyebrow } from "./lp";
@@ -50,7 +51,8 @@ export function FreeCheck({ turnstileSiteKey, open = true, headingLevel = 2, not
               setExisting(false);
               const form = e.currentTarget;
               const fd = new FormData(form);
-              track("free_check_started");
+              const indexSource = takeIndexCheckSource();
+              track("free_check_started", indexSource ? { source_page: indexSource } : undefined);
               try {
                 const res = await fetch("/api/free-check", {
                   method: "POST",

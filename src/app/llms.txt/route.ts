@@ -1,3 +1,5 @@
+import { indexPublished } from "@/lib/ai-index/data";
+import { indexLlmsEntry } from "@/lib/ai-index/schema";
 import { packsOpen } from "@/lib/availability";
 import { AI_DISCLAIMER_TEXT } from "@/lib/copy";
 import { legalEnv, publicEnv } from "@/lib/env";
@@ -58,7 +60,7 @@ ${entity} Dated comparison of the two, with each vendor's prices and the day the
 ${STATIC_PAGES.filter((p) => p.inLlms && (p.path !== "/ai" || regional)).map((p) => `- [${p.title}](${site}${p.path === "/" ? "/" : p.path})`).join("\n")}
 - [Pricing](${site}/#pricing)
 
-## For AI agents
+${indexPublished ? `${indexLlmsEntry}\n` : ""}## For AI agents
 - [Agent skill](${site}/SKILL.md): how an AI agent connects to the RankbyAI MCP server (${site}/api/mcp), estimates before any paid call, and reports results without inventing numbers.
 `;
   return new Response(body, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=300" } });

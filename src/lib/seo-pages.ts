@@ -14,10 +14,13 @@
  *  - Each page says what the other tool does well, and no rankings or results are promised.
  *  - One URL per intent. Close variants are covered in the text and FAQ, and redirect here (next.config.ts).
  */
-import type { Row, Vendor } from "@/lib/competitors";
+import { BRIGHTLOCAL_VS_WHITESPARK, WS, type FactTable, type Row, type Vendor } from "@/lib/competitors";
 import { MAPS_GRID_RANGE, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 
-export type Block = string | { list: string[] };
+/** Running text: plain, or a link. An href starting with "/" is a page on this site; anything else opens the vendor's page. */
+export type Inline = string | { text: string; href: string };
+/** A paragraph, a bullet list, or a paragraph with links in it. */
+export type Block = string | { list: string[] } | { p: Inline[] };
 
 export interface SeoPage {
   path: string;
@@ -31,6 +34,18 @@ export interface SeoPage {
   answer: string;
   showSampleGrid?: boolean;
   table?: { caption: string; columns: Vendor[]; rows?: Row[] };
+  /** A table with its own rows and dates (lib/competitors.ts), used instead of `table`. */
+  factTable?: FactTable;
+  /** Paragraphs right under the table and its footnote. */
+  afterTable?: Block[];
+  /** One line under the call to action: what happens when you click it. */
+  ctaNote?: string;
+  /** Who makes RankbyAI and who the compared vendors are, shown under the opening. `maker` is the legal entity name and may be empty. */
+  entity?: (maker: string) => string;
+  /** JSON-LD type of the page itself. Default "Article". */
+  schemaType?: "Article" | "WebPage";
+  /** A two-column social card instead of the title card (lib/og.tsx ogVersusCard). */
+  og?: { columns: { name: string; line: string }[]; footer: string };
   sections: { h2: string; body: Block[] }[];
   faqs: { q: string; a: string }[];
   related: string[];
@@ -99,6 +114,7 @@ export const SEO_PAGES: SeoPage[] = [
       "RankbyAI is a BrightLocal alternative for agencies whose main need is to see where AI assistants and Google Maps recommend a client, and to win new clients with that evidence. You pay once, then run scans at cost on your own API keys. BrightLocal is a broader local SEO suite sold as monthly plans by number of locations, with a Local AI Visibility Tracker included in every plan.",
     showSampleGrid: true,
     table: { caption: "BrightLocal, Local Falcon and RankbyAI side by side", columns: ["rankbyai", "brightlocal", "localfalcon"] },
+    afterTable: [{ p: ["Whitespark sells its grid, rank tracker and citation tools one by one; see ", { text: "how BrightLocal compares with Whitespark", href: "/brightlocal-vs-whitespark" }, "."] }],
     sections: [
       { h2: "What does BrightLocal do well?", body: [
         "BrightLocal is a full local SEO suite: rank tracking on Google and Bing, a Local Search Grid, citation tracking and building, review tools and white-label reporting, in one subscription. Its Local AI Visibility Tracker covers Google AI Overviews, Google AI Mode and ChatGPT, with up to 20 prompts per location, and comes with every plan. If you manage listings and reviews for many locations and want one vendor for all of it, that breadth is its strength.",
@@ -127,7 +143,7 @@ export const SEO_PAGES: SeoPage[] = [
       { q: "Does RankbyAI build citations or manage reviews?", a: "No. RankbyAI measures AI and Maps visibility, audits a business against its competitors and produces reports and fix lists. You apply the fixes yourself or with your own tools." },
     ],
     related: ["/pricing", "/blog/brightlocal-pricing", "/local-falcon-vs-brightlocal", "/alternatives/local-falcon", "/ai-visibility-tracker"],
-    updated: UPDATED, published: FIRST,
+    updated: "2026-11-24", published: FIRST,
   },
   {
     path: "/alternatives/local-viking", group: "alternatives", slug: "local-viking", eyebrow: "Alternatives",
@@ -299,7 +315,11 @@ export const SEO_PAGES: SeoPage[] = [
         "RankbyAI does not track organic web rankings, Bing or Apple Maps, and it does not manage citations, listings or reviews. If you need those, a local SEO suite or a specialist covers them.",
       ] },
       { h2: "Which other local rank trackers are there?", body: [
-        "Local Falcon covers Google Maps and Apple Maps on grids and runs AI visibility on its grid. BrightLocal has a Local Rank Tracker for Google and Bing plus a Local Search Grid. Local Viking has a GeoGrid next to profile management. Semrush has a Map Rank Tracker in its Local toolkit. The table shows what we read on each vendor's page, with the date.",
+        { p: [
+          "Local Falcon covers Google Maps and Apple Maps on grids and runs AI visibility on its grid. BrightLocal has a Local Rank Tracker for Google and Bing plus a Local Search Grid. Local Viking has a GeoGrid next to profile management. Semrush has a Map Rank Tracker in its Local toolkit. The table shows what we read on each vendor's page, with the date. Whitespark sells Local Ranking Grids on their own, priced per grid point: see ",
+          { text: "Whitespark and BrightLocal grids compared", href: "/brightlocal-vs-whitespark" },
+          ".",
+        ] },
       ] },
     ],
     faqs: [
@@ -309,7 +329,7 @@ export const SEO_PAGES: SeoPage[] = [
       { q: "Can I track a service-area business without a storefront?", a: "Yes. Centre the grid where the customers are, within 100 miles of the business's map point, and skip points outside the area you serve." },
     ],
     related: ["/map-rank-tracker", "/ai-visibility-tracker", "/alternatives/local-falcon", "/alternatives/local-viking", "/pricing"],
-    updated: UPDATED,
+    updated: "2026-11-24",
   },
   {
     path: "/ai-visibility-tracker", group: "root", slug: "ai-visibility-tracker", eyebrow: "Guide",
@@ -484,6 +504,7 @@ export const SEO_PAGES: SeoPage[] = [
     answer:
       "Local Falcon vs BrightLocal (or BrightLocal vs Local Falcon) comes down to the job. Local Falcon is a specialist grid tracker; BrightLocal is a wider local SEO suite that includes tracking. Choose Local Falcon when map grids are the job, and BrightLocal when you also want citations and review management in one subscription. Both track AI visibility. Two other options are in the table: Semrush Map Rank Tracker and RankbyAI.",
     table: { caption: "Four tools side by side", columns: ["localfalcon", "brightlocal", "semrush", "rankbyai"], rows: ["pay", "price", "aiGrid", "mapsGrid", "api", "reports", "citations"] },
+    afterTable: [{ p: ["Comparing BrightLocal with a vendor that sells each tool on its own? See ", { text: "BrightLocal vs Whitespark", href: "/brightlocal-vs-whitespark" }, ", with both vendors' prices and the date we read them."] }],
     sections: [
       { h2: "What is each tool for?", body: [
         { list: [
@@ -507,7 +528,111 @@ export const SEO_PAGES: SeoPage[] = [
       { q: "Why is RankbyAI in this comparison?", a: "Because we make it and this is our site. We have tried to describe the other tools fairly and to show only facts we read on their own pages, with the date." },
     ],
     related: ["/alternatives/local-falcon", "/alternatives/brightlocal", "/blog/brightlocal-pricing", "/blog/local-falcon-pricing", "/pricing"],
-    updated: UPDATED, published: FIRST,
+    updated: "2026-11-24", published: FIRST,
+  },
+  {
+    path: "/brightlocal-vs-whitespark", group: "root", slug: "brightlocal-vs-whitespark", eyebrow: "Comparison",
+    // The layout appends " | RankbyAI".
+    title: "BrightLocal vs Whitespark: Prices Checked 24 Nov 2026",
+    description: "BrightLocal sells one suite from $41/mo; Whitespark sells each tool separately, grids from $10/mo. Prices from both vendors' pages, dated, plus AI answers.",
+    h1: "BrightLocal vs Whitespark: suite or separate tools?",
+    answer:
+      "BrightLocal vs Whitespark comes down to how you want to buy. BrightLocal is one suite (tracking, grids, citations, reviews, an AI visibility tracker) from $41 a month for one location. Whitespark sells each tool separately: map grids from $10 a month, rank tracking from $14 a month billed yearly. Prices were checked on both vendors' sites on 24 November 2026.",
+    entity: (maker) =>
+      `RankbyAI (rankbyai.live) is pay-once AI visibility and local SEO software${maker ? ` made by ${maker}` : ""}. It is not affiliated with BrightLocal or Whitespark. BrightLocal (brightlocal.com) is a UK-based local SEO platform sold as plans; Whitespark (whitespark.ca) is a Canadian local SEO company, founded in 2005 in Edmonton, that sells its software and services individually.`,
+    ctaNote: "Enter one business and its city: three AI assistants say who they recommend at its address, next to its Google Maps rank. No sign-up, no card.",
+    schemaType: "WebPage",
+    og: {
+      columns: [{ name: "BrightLocal", line: "One suite from $41/mo" }, { name: "Whitespark", line: "Tools from $10/mo" }],
+      footer: "Prices checked 24 Nov 2026 · rankbyai.live/brightlocal-vs-whitespark",
+    },
+    factTable: BRIGHTLOCAL_VS_WHITESPARK,
+    sections: [
+      { h2: "Which is cheaper, BrightLocal or Whitespark?", body: [
+        "Whitespark vs BrightLocal on price depends on how many jobs you need done. Two worked examples for one client at one location, using only the prices listed on the vendors' own pages on 24 November 2026:",
+        { list: [
+          "Grids only. Whitespark's Local Ranking Grids cost $10 a month for 2,000 credits. One credit scans one grid point, so that is 80 scans of a 5×5 grid a month (our arithmetic: 2,000 ÷ 25). BrightLocal Track for one location costs $41 a month, or $369 billed yearly, and includes its Local Search Grid for up to five keywords along with rank tracking, citation monitoring and the AI tracker. If grids are all you need and 80 scans of a 5×5 grid a month cover it, Whitespark costs less: $10 against $41 a month.",
+          "Grids, rank tracking and citations. Whitespark: Local Ranking Grids $10 a month, Local Rank Tracker from $14 a month billed yearly ($17 billed monthly) and Local Citation Finder from $33 a month billed yearly ($39 billed monthly). That adds up to $57 a month with the two tools billed yearly, or $66 billed monthly. BrightLocal Track for one location includes rank tracking, a grid and citation monitoring for $41 a month. On these list prices, BrightLocal Track costs less.",
+        ] },
+        { p: [
+          "Both examples assume the smallest plan of each product covers your volume (Whitespark's smallest rank tracker plan has 100 location keywords; BrightLocal Track tracks up to 100 keywords and five grid keywords) and that the tools are close enough for your work, so check what each covers on its own page. For more locations, see ",
+          { text: "BrightLocal's full price table", href: "/blog/brightlocal-pricing" },
+          ".",
+        ] },
+      ] },
+      { h2: "What does Whitespark cost?", body: [
+        "Whitespark sells each product separately. As listed on whitespark.ca/pricing on 24 November 2026:",
+        { list: [
+          "Local Platform (Google Business Profile management): $1 a month per location.",
+          "Local Ranking Grids: from $10 a month for 2,000 credits; enterprise pricing available.",
+          "Local Rank Tracker: $14 to $200 a month (from $14 billed yearly, $17 billed monthly).",
+          "Local Citation Finder: $33 to $149 a month (from $33 billed yearly, $39 billed monthly).",
+          "Reputation Builder (getting and managing reviews): $79 a month per location.",
+          "SEO Services: $499 to $1,999 a month.",
+          "Listings Service (citation building and listing cleanup): $20 to $999, one-time.",
+          "Yext Replacement Service: $399 per location, one-time.",
+        ] },
+        "Unused grid credits expire at the end of each billing period, so pick the plan that matches the scans you run.",
+      ] },
+      { h2: "When is BrightLocal the better fit?", body: [
+        { list: [
+          "You want one bill you can budget: one plan for a band of locations, monthly or yearly (BrightLocal says yearly billing saves 25%).",
+          "You want citations, reviews, rank tracking and an AI visibility tracker in one place.",
+          "You manage many locations: BrightLocal's bands run up to 100 locations on one plan; above that the price is on request.",
+        ] },
+        { p: [
+          "For other ways to cover the same work, see ",
+          { text: "BrightLocal alternatives", href: "/alternatives/brightlocal" },
+          ". Local Falcon, a specialist grid tracker, is compared with BrightLocal in ",
+          { text: "Local Falcon vs BrightLocal", href: "/local-falcon-vs-brightlocal" },
+          ".",
+        ] },
+      ] },
+      { h2: "When is Whitespark the better fit?", body: [
+        { list: [
+          "You need one job done, such as map grids or citations, and do not want to pay for a suite.",
+          "You want to pay per grid point: one credit per point scanned, on grids up to 225 points.",
+          "You want local rank tracking in both Google and Bing; Whitespark's Local Rank Tracker lists both.",
+          "You want Google Business Profile management for $1 a month per location.",
+        ] },
+        { p: [
+          "Whitespark publishes its own view of the two vendors in ",
+          { text: "Whitespark's own comparison", href: WS.vsBrightlocal },
+          "; we have not reviewed that page.",
+        ] },
+      ] },
+      { h2: "Do BrightLocal or Whitespark track ChatGPT and AI answers?", body: [
+        "BrightLocal does. Its Local AI Visibility Tracker comes with every plan and checks ChatGPT, Google AI Overviews and Google AI Mode per location: every question it runs is “anchored to a specific location”.",
+        "For Whitespark, we found no mention of ChatGPT, Perplexity, Gemini, AI Overviews or AI visibility on the five Whitespark pages we read on 24 November 2026 (pricing, Local Ranking Grids, Local Rank Tracker, Local Citation Finder and the home page). That does not prove it has nothing. Its grids do offer an MCP connection, so your own AI tools can read your grid data.",
+        { p: [
+          "Per location and per grid point are different measurements. A per-location check asks from one place. A grid asks the same question from many points around the business, the way a Maps grid does, so you see where an assistant names the business and where it does not. ",
+          VARY,
+          " More in our guide to the ",
+          { text: "AI visibility tracker", href: "/ai-visibility-tracker" },
+          ".",
+        ] },
+      ] },
+      { h2: "Where does RankbyAI fit?", body: [
+        `We make RankbyAI, so read this with that in mind. Use it if your question is what AI assistants say at each point around a client, next to the Google Maps rank on the same points: it asks ChatGPT, Perplexity and Gemini on 1×1, 3×3 or 5×5 grids, beside a Maps grid from ${MAPS_GRID_RANGE}. You pay once while the lifetime deal is open, and scans run on your own API keys.`,
+        { p: [
+          "Do not use it for citations, review requests or Google Business Profile management: it does none of those, so use BrightLocal or Whitespark for that work. How the Maps side works is in our ",
+          { text: "map rank tracker", href: "/map-rank-tracker" },
+          " guide, and the live price is on our ",
+          { text: "pricing page", href: "/pricing" },
+          ".",
+        ] },
+      ] },
+    ],
+    faqs: [
+      { q: "Is Whitespark cheaper than BrightLocal?", a: "For one job, usually yes. On 24 November 2026 Whitespark's map grids started at $10 a month and its rank tracker at $14 a month (billed yearly), while BrightLocal Track for one location was $41 a month. If you need citations, reviews and tracking together, add up the Whitespark products you would buy and compare." },
+      { q: "Does Whitespark have a free trial?", a: "Its Local Rank Tracker has a 14-day free trial, and Local Ranking Grids start with 200 free credits without a card (whitespark.ca, 24 November 2026)." },
+      { q: "Does BrightLocal track AI visibility?", a: "Yes. BrightLocal's pricing page lists the Local AI Visibility Tracker in its Track plan, and it tracks AI answers per location." },
+      { q: "Does Whitespark track ChatGPT or AI Overviews?", a: "We found no mention on the Whitespark pages we read on 24 November 2026. Whitespark does offer an MCP connection so your own AI tools can read your grid data." },
+      { q: "What is a Whitespark credit?", a: "In Local Ranking Grids, one credit scans one grid point, so a 5×5 grid uses 25 credits. The $10 plan includes 2,000 credits a month." },
+      { q: "Can I use RankbyAI instead of both?", a: "Only for measuring. RankbyAI shows AI answers and Maps rank on the same grid and audits the business, but it does not build citations, request reviews or manage Google Business Profiles." },
+    ],
+    related: ["/local-falcon-vs-brightlocal", "/blog/brightlocal-pricing", "/alternatives/brightlocal", "/map-rank-tracker", "/ai-visibility-tracker", "/pricing"],
+    updated: "2026-11-24",
   },
   {
     path: "/peec-ai-vs-profound", group: "root", slug: "peec-ai-vs-profound", eyebrow: "Comparison",
@@ -679,6 +804,7 @@ export const SEO_PAGES: SeoPage[] = [
       { h2: "How do you compare a monthly suite with paying once?", body: [
         "Compare the shape of the cost, not one month. A BrightLocal plan is the same price every month or year, and it includes the data and the listings and review tools. RankbyAI is one payment while the lifetime deal is open, plus what your API vendors charge for the scans you run; year two costs only the scans.",
         "Our pricing page has a calculator that estimates the scan costs for your own number of clients and prompts. It does not estimate the citation and review work a suite also covers.",
+        { p: ["If you would rather buy single tools than a suite, compare BrightLocal's plans with ", { text: "Whitespark's per-tool prices", href: "/brightlocal-vs-whitespark" }, "."] },
       ] },
       { h2: "What does the price not show?", body: [
         "BrightLocal manages citations, listings and reviews; RankbyAI does not. RankbyAI asks at every point of a grid, next to the Maps rank; BrightLocal's AI tracker works per location. Weigh the work you do, not only the price.",
@@ -691,7 +817,7 @@ export const SEO_PAGES: SeoPage[] = [
       { q: "What does BrightLocal cost for many locations?", a: "On 20 November 2026, Track for 91–100 locations was $524 a month or $4,716 a year; above 100 locations the price is on request." },
     ],
     related: ["/alternatives/brightlocal", "/local-falcon-vs-brightlocal", "/blog/local-falcon-pricing", "/pricing"],
-    updated: UPDATED,
+    updated: "2026-11-24",
   },
   {
     path: "/blog/peec-ai-pricing", group: "blog", slug: "peec-ai-pricing", eyebrow: "Pricing explained",

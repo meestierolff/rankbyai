@@ -163,3 +163,141 @@ export function rankbyaiCells(price: string): Record<Row, Cell> {
 }
 
 export const cellFor = (vendor: Vendor, row: Row, ourPrice: string): Cell => (vendor === "rankbyai" ? rankbyaiCells(ourPrice)[row] : FACTS[vendor][row]);
+
+// ───────────────────────── BrightLocal vs Whitespark (/brightlocal-vs-whitespark) ─────────────────────────
+// A two-vendor table with its own rows and its own check dates, kept out of FACTS so a change here
+// never re-dates the other comparison pages. Every cell names the vendor page(s) it was read on and
+// the day it was read; a cell not re-read on the table's main date keeps its older date.
+
+/** A fact table cell: the text, the vendor page(s) it was read on, and the day it was read. */
+export interface DatedCell {
+  text: string;
+  sources?: string[];
+  /** Day the cell was read, when it differs from the table's main check date (shown next to the cell). */
+  readOn?: string;
+  /** Not a verified fact ("No mention found" and the like): rendered dimmed. */
+  unknown?: boolean;
+}
+
+/** RankbyAI's price: filled in from the live offer at render time, never written down here. */
+export const OUR_LIVE_PRICE = "rankbyai-live-price" as const;
+
+export interface FactTable {
+  caption: string;
+  /** Main check date of the vendor cells, e.g. "24 Nov 2026". */
+  checkedOn: string;
+  columns: { name: string; ours?: boolean }[];
+  rows: { label: string; cells: (DatedCell | typeof OUR_LIVE_PRICE)[] }[];
+  footnote: string;
+}
+
+export const WS = {
+  pricing: "https://whitespark.ca/pricing/",
+  grids: "https://whitespark.ca/local-ranking-grids/",
+  rankTracker: "https://whitespark.ca/local-rank-tracker/",
+  citationFinder: "https://whitespark.ca/local-citation-finder/",
+  /** Whitespark's own BrightLocal comparison (linked from its footer; not read by us). */
+  vsBrightlocal: "https://whitespark.ca/whitespark-vs-brightlocal-alternative-rank-tracking/",
+};
+
+/** Read on brightlocal.com and whitespark.ca on 24 Nov 2026, except cells marked with their own date. */
+export const BRIGHTLOCAL_VS_WHITESPARK: FactTable = {
+  caption: "BrightLocal vs Whitespark (and where RankbyAI fits)",
+  checkedOn: "24 Nov 2026",
+  columns: [{ name: "BrightLocal" }, { name: "Whitespark" }, { name: "RankbyAI (ours)", ours: true }],
+  rows: [
+    {
+      label: "How you buy",
+      cells: [
+        { text: "One suite: a plan (Track, Manage or Grow) for a number of locations, billed monthly or yearly", sources: [BL.pricing] },
+        { text: "Each product on its own (“Our software and services are sold individually”); no bundle", sources: [WS.pricing] },
+        { text: "One payment while the lifetime deal is open; scans run on your own API keys" },
+      ],
+    },
+    {
+      label: "Entry price",
+      cells: [
+        { text: "Track, 1 location: $41/mo, or $369 billed yearly", sources: [BL.pricing] },
+        {
+          text: "Local Ranking Grids from $10/mo. Local Rank Tracker from $14/mo billed yearly ($17 billed monthly). Local Citation Finder from $33/mo billed yearly ($39 billed monthly)",
+          sources: [WS.pricing, WS.rankTracker, WS.citationFinder],
+        },
+        OUR_LIVE_PRICE,
+      ],
+    },
+    {
+      label: "Google Maps grid",
+      cells: [
+        { text: "Local Search Grid, 3×3 to 15×15; on Track for up to five keywords", sources: [BL.grid, BL.pricing] },
+        { text: "Local Ranking Grids, up to 225 points; each grid point scanned costs 1 credit", sources: [WS.grids] },
+        { text: `Yes, ${MAPS_GRID_RANGE} points` },
+      ],
+    },
+    {
+      label: "Local rank tracking by keyword",
+      cells: [
+        { text: "In Track: local rankings for up to 100 keywords and four competitors", sources: [BL.pricing] },
+        { text: "Local Rank Tracker: local packs, maps and organic results in Google and Bing", sources: [WS.rankTracker] },
+        { text: "No: Google Maps grid only, no organic or Bing tracking" },
+      ],
+    },
+    {
+      label: "AI answers (ChatGPT, Gemini…)",
+      cells: [
+        { text: "Local AI Visibility Tracker in every plan: ChatGPT, Google AI Overviews and Google AI Mode, per location (“anchored to a specific location”)", sources: [BL.ai] },
+        { text: "No mention found on the five pages we read. Its grids connect to your own AI tools over MCP", sources: [WS.grids], unknown: true },
+        { text: "Yes: ChatGPT, Perplexity and Gemini, the same question at each grid point, next to the Maps rank" },
+      ],
+    },
+    {
+      label: "Citations",
+      cells: [
+        { text: "Citation monitoring in Track; Citation Builder pay-as-you-go, from $3.20 per site or as low as $2 with bulk credits", sources: [BL.pricing] },
+        { text: "Local Citation Finder $33–$149/mo; Listings Service (citation building and cleanup) $20–$999 one-time", sources: [WS.pricing] },
+        { text: "No" },
+      ],
+    },
+    {
+      label: "Reviews",
+      cells: [
+        { text: "Review tools on Grow: monitor, get and publish reviews", sources: [BL.pricing] },
+        { text: "Reputation Builder, $79/mo per location", sources: [WS.pricing] },
+        { text: "No" },
+      ],
+    },
+    {
+      label: "Google Business Profile management",
+      cells: [
+        { text: "Manage adds business-detail sync on key sites (Active Sync) and Google Business Profile post scheduling", sources: [BL.pricing] },
+        { text: "Local Platform, $1/mo per location (“A better way to manage Google Business Profiles”)", sources: [WS.pricing] },
+        { text: "No" },
+      ],
+    },
+    {
+      label: "API and MCP",
+      cells: [
+        { text: "APIs on Manage and Grow; MCP server on Grow", sources: [BL.pricing], readOn: "20 Nov 2026" },
+        { text: "Grids: an API and an MCP connection", sources: [WS.grids] },
+        { text: "REST API and MCP server" },
+      ],
+    },
+    {
+      label: "White-label",
+      cells: [
+        { text: "White-label on every plan", sources: [BL.pricing], readOn: "20 Nov 2026" },
+        { text: "White-label shareable URLs for grids and rank tracking", sources: [WS.grids, WS.rankTracker] },
+        { text: "Share links and PDFs; bulk prospect reports" },
+      ],
+    },
+    {
+      label: "Free trial",
+      cells: [
+        { text: "14 days, no card", sources: [BL.pricing] },
+        { text: "Local Rank Tracker: 14-day free trial. Local Ranking Grids: 200 trial credits, no card", sources: [WS.rankTracker, WS.grids] },
+        { text: "Free check of one business at one point: three AI assistants and its Maps rank, no sign-up, no card" },
+      ],
+    },
+  ],
+  footnote:
+    "Figures from each vendor's own public pages, read on 24 November 2026 (cells marked 20 Nov 2026 were read on 20 November 2026). Prices in US dollars, as listed. Plans change, so check the vendor page before buying. “No mention found” means the pages we read say nothing about it, not that the product lacks it. We make RankbyAI.",
+};

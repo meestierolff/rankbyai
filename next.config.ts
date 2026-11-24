@@ -13,6 +13,7 @@ const CLOSE_VARIANTS: [string, string][] = [
   ["/google-local-rank-tracker", "/local-rank-tracker"],
   ["/rank-tracker-local", "/local-rank-tracker"],
   ["/brightlocal-vs-local-falcon", "/local-falcon-vs-brightlocal"],
+  ["/whitespark-vs-brightlocal", "/brightlocal-vs-whitespark"],
   ["/profound-vs-peec-ai", "/peec-ai-vs-profound"],
   ["/alternatives/local-falcon-alternatives", "/alternatives/local-falcon"],
   ["/alternatives/brightlocal-alternatives", "/alternatives/brightlocal"],

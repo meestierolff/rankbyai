@@ -3,12 +3,13 @@ import { JsonLd } from "@/components/json-ld";
 import { CtaLink, Eyebrow, SampleTag } from "@/components/brand/primitives";
 import { AiGridMock } from "@/components/marketing/feature-mocks";
 import { PageShell } from "@/components/marketing/page-shell";
-import { cellFor, ROW_LABEL, ROWS, VENDOR_NAME, VERIFIED_ON } from "@/lib/competitors";
-import { fmtPrice } from "@/lib/ladder";
+import { cellFor, OUR_LIVE_PRICE, ROW_LABEL, ROWS, VENDOR_NAME, VERIFIED_ON, type DatedCell, type FactTable } from "@/lib/competitors";
+import { legalEnv } from "@/lib/env";
+import { fmtPrice, type Offer } from "@/lib/ladder";
 import { getOfferCached } from "@/lib/offer";
-import { breadcrumbLd, faqLd, graph, organizationLd } from "@/lib/seo";
+import { breadcrumbLd, faqLd, graph, organizationLd, websiteLd } from "@/lib/seo";
 import { publicEnv } from "@/lib/env-public";
-import { seoPage, type SeoPage } from "@/lib/seo-pages";
+import { seoPage, type Block, type Inline, type SeoPage } from "@/lib/seo-pages";
 
 /** "https://www.brightlocal.com/pricing/" → "brightlocal.com/pricing" (the visible source label). */
 const sourceLabel = (url: string) => url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
@@ -21,12 +22,18 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
     : "One payment; the live price is on our pricing page";
   const trail = [{ name: "Home", path: "/" }, ...(page.group === "blog" ? [{ name: "Guides", path: "/ai-visibility-tracker" }] : []), { name: page.h1, path: page.path }];
   const site = publicEnv.siteUrl;
-  return (
-    <PageShell>
-      <JsonLd data={graph(organizationLd(), breadcrumbLd(trail), faqLd(page.faqs, `${site}${page.path}#faq`), {
+  const pageLd = page.schemaType === "WebPage"
+    ? {
+        "@type": "WebPage", "@id": `${site}${page.path}`, url: `${site}${page.path}`, name: page.h1, description: page.description,
+        dateModified: page.updated, datePublished: page.published ?? page.updated, isPartOf: { "@id": `${site}/#website` }, publisher: { "@id": `${site}/#organization` },
+      }
+    : {
         "@type": "Article", headline: page.h1, description: page.description, dateModified: page.updated, datePublished: page.published ?? page.updated,
         mainEntityOfPage: `${site}${page.path}`, author: { "@id": `${site}/#organization` }, publisher: { "@id": `${site}/#organization` },
-      })} />
+      };
+  return (
+    <PageShell>
+      <JsonLd data={graph(organizationLd(), ...(page.schemaType === "WebPage" ? [websiteLd()] : []), breadcrumbLd(trail), faqLd(page.faqs, `${site}${page.path}#faq`), pageLd)} />
       <article className="container-page flex flex-col gap-12 pt-[clamp(48px,7vw,96px)] pb-[var(--rb-section-y)]">
         <header className="flex max-w-[820px] flex-col gap-5">
           <nav aria-label="Breadcrumb" className="text-[13px] text-dim">
@@ -39,7 +46,9 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
             <CtaLink href="/#free-check" size="md">Run a free check</CtaLink>
             <Link href="/pricing" className="text-[15px] font-medium text-fg underline underline-offset-[3px]">See pricing</Link>
           </div>
+          {page.ctaNote ? <p className="-mt-2 mb-0 max-w-[640px] text-[14px] leading-normal text-muted-foreground">{page.ctaNote}</p> : null}
           <p className="m-0 font-mono text-[12px] text-dim">Updated {new Date(page.updated).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })}</p>
+          {page.entity ? <p className="m-0 max-w-[820px] text-[13.5px] leading-normal text-dim">{page.entity(legalEnv.entityName().trim())}</p> : null}
         </header>
 
         {page.showSampleGrid ? (
@@ -49,7 +58,12 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
           </figure>
         ) : null}
 
-        {page.table ? (
+        {page.factTable ? (
+          <section className="flex flex-col gap-4" aria-labelledby="compare">
+            <FactTableView table={page.factTable} offer={offer} />
+            {page.afterTable?.map((b, i) => <BlockView key={i} block={b} />)}
+          </section>
+        ) : page.table ? (
           <section className="flex flex-col gap-4" aria-labelledby="compare">
             <h2 id="compare" className="m-0 text-[clamp(24px,3vw,34px)] leading-[1.1] font-semibold tracking-[-0.03em]">{page.table.caption}</h2>
             <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
@@ -87,6 +101,7 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
               vendor&apos;s page before you decide. &ldquo;No mention found&rdquo; means the page we read says nothing about it; &ldquo;See their site&rdquo; means we hold no
               verified information and will not guess. We make RankbyAI.
             </p>
+            {page.afterTable?.map((b, i) => <BlockView key={i} block={b} />)}
           </section>
         ) : null}
 
@@ -94,9 +109,7 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
           {page.sections.map((s) => (
             <section key={s.h2} className="flex flex-col gap-4">
               <h2 className="m-0 text-[clamp(22px,2.6vw,30px)] leading-[1.15] font-semibold tracking-[-0.02em]">{s.h2}</h2>
-              {s.body.map((b, i) => typeof b === "string"
-                ? <p key={i} className="m-0 text-[17px] leading-relaxed text-fg-2">{b}</p>
-                : <ul key={i} className="m-0 flex list-disc flex-col gap-2 pl-5 text-[17px] leading-relaxed text-fg-2">{b.list.map((li) => <li key={li}>{li}</li>)}</ul>)}
+              {s.body.map((b, i) => <BlockView key={i} block={b} />)}
             </section>
           ))}
         </div>
@@ -128,6 +141,84 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
         </section>
       </article>
     </PageShell>
+  );
+}
+
+const linkClass = "text-fg underline underline-offset-[3px] hover:text-fg-2";
+
+/** Running text with links: pages on this site through next/link, vendor pages in a new tab without a referrer. */
+function InlineText({ parts }: { parts: Inline[] }) {
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (typeof part === "string") return <span key={i}>{part}</span>;
+        return part.href.startsWith("/")
+          ? <Link key={i} href={part.href} className={linkClass}>{part.text}</Link>
+          : <a key={i} href={part.href} rel="nofollow noopener noreferrer" target="_blank" className={linkClass}>{part.text}</a>;
+      })}
+    </>
+  );
+}
+
+function BlockView({ block }: { block: Block }) {
+  if (typeof block === "string") return <p className="m-0 text-[17px] leading-relaxed text-fg-2">{block}</p>;
+  if ("p" in block) return <p className="m-0 text-[17px] leading-relaxed text-fg-2"><InlineText parts={block.p} /></p>;
+  return <ul className="m-0 flex list-disc flex-col gap-2 pl-5 text-[17px] leading-relaxed text-fg-2">{block.list.map((li) => <li key={li}>{li}</li>)}</ul>;
+}
+
+/**
+ * RankbyAI's price cell, from the live offer at render time. When the offer cannot be loaded the cell
+ * shows no price at all (only a pointer to the pricing page): never a remembered or default figure.
+ */
+export function ourPriceCell(offer: Offer | null): DatedCell | null {
+  if (!offer) return null;
+  if (!offer.open) return { text: "The lifetime deal has closed", unknown: true };
+  return { text: `${fmtPrice(offer.currentPriceUsd)} once, while the lifetime deal is open (live price)` };
+}
+
+/** A dated two-vendor table (lib/competitors.ts): every vendor cell links the page(s) it was read on. */
+export function FactTableView({ table, offer }: { table: FactTable; offer: Offer | null }) {
+  const live = ourPriceCell(offer);
+  return (
+    <>
+      <h2 id="compare" className="m-0 text-[clamp(24px,3vw,34px)] leading-[1.1] font-semibold tracking-[-0.03em]">{table.caption}</h2>
+      <p className="m-0 font-mono text-[12px] text-dim">Vendor figures checked {table.checkedOn}</p>
+      <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
+        <table className="w-full border-collapse text-left text-[14px]" style={{ minWidth: 200 + table.columns.length * 210 }}>
+          <thead>
+            <tr>
+              <th scope="col" className="border-b border-line px-4 py-3 text-[13px] font-medium text-dim"><span className="sr-only">Feature</span></th>
+              {table.columns.map((c) => <th key={c.name} scope="col" className={`border-b border-line px-4 py-3 text-[15px] font-semibold ${c.ours ? "text-g1" : ""}`}>{c.name}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((row) => (
+              <tr key={row.label} className="border-b border-line align-top last:border-0">
+                <th scope="row" className="w-[200px] px-4 py-3 text-[14px] font-medium text-muted-foreground">{row.label}</th>
+                {row.cells.map((raw, i) => {
+                  if (raw === OUR_LIVE_PRICE && !live) {
+                    return <td key={i} className="px-4 py-3 leading-normal text-dim"><Link href="/pricing" className="underline underline-offset-2 hover:text-fg">See pricing</Link></td>;
+                  }
+                  const cell = raw === OUR_LIVE_PRICE ? live! : raw;
+                  return (
+                    <td key={i} className={`px-4 py-3 leading-normal ${cell.unknown ? "text-dim" : "text-fg-2"}`}>
+                      {cell.text}
+                      {cell.readOn ? <span className="ml-1 font-mono text-[11.5px] text-dim">({cell.readOn})</span> : null}
+                      {cell.sources?.map((src) => (
+                        <a key={src} href={src} rel="nofollow noopener noreferrer" target="_blank" className="mt-1 block font-mono text-[11.5px] text-dim underline underline-offset-2 hover:text-fg">
+                          {sourceLabel(src)}
+                        </a>
+                      ))}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="m-0 max-w-[820px] text-[13px] leading-normal text-dim">{table.footnote}</p>
+    </>
   );
 }
 

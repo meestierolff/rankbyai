@@ -1,10 +1,11 @@
 import { packsOpen } from "@/lib/availability";
 import { AI_DISCLAIMER_TEXT } from "@/lib/copy";
-import { publicEnv } from "@/lib/env";
+import { legalEnv, publicEnv } from "@/lib/env";
 import { fmtPrice, formatClosesAt } from "@/lib/ladder";
 import { getOfferCached } from "@/lib/offer";
 import { hasRegionalPages } from "@/lib/regional";
 import { MAPS_GRID_RANGE, PACKS, REFUND_DAYS } from "@/lib/pricing-constants";
+import { seoPage } from "@/lib/seo-pages";
 import { STATIC_PAGES } from "@/lib/site-pages";
 
 /** /llms.txt: a short, factual source for AI assistants. No sales claims, no testimonials. */
@@ -17,6 +18,9 @@ export async function GET() {
   const packs = `${PACKS.pack_25.credits} credits for $${PACKS.pack_25.priceCents / 100}, ${PACKS.pack_100.credits} credits for $${PACKS.pack_100.priceCents / 100}`;
   const open = packsOpen();
   const regional = await hasRegionalPages();
+  // Same entity line as on the comparison page (one source: its registry entry).
+  const vsWhitespark = seoPage("/brightlocal-vs-whitespark");
+  const entity = vsWhitespark?.entity?.(legalEnv.entityName().trim());
 
   const body = `# RankbyAI
 
@@ -47,7 +51,10 @@ Scans run through official APIs only (DataForSEO for Google Maps results, OpenAI
 - Not a brand-level AI-visibility platform. Peec AI, Profound, Otterly.AI and Semrush's AI Visibility Toolkit track how AI search mentions a brand across more engines and countries; RankbyAI measures local answers point by point on a map grid, next to the Google Maps rank, and does not replace their enterprise features or Semrush as a suite.
 - It does not guarantee rankings or AI recommendations, and it does not contact businesses or send email for its users.
 
-## Pages
+${entity ? `## BrightLocal and Whitespark
+${entity} Dated comparison of the two, with each vendor's prices and the day they were read: ${site}${vsWhitespark!.path}
+
+` : ""}## Pages
 ${STATIC_PAGES.filter((p) => p.inLlms && (p.path !== "/ai" || regional)).map((p) => `- [${p.title}](${site}${p.path === "/" ? "/" : p.path})`).join("\n")}
 - [Pricing](${site}/#pricing)
 

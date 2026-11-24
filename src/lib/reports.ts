@@ -6,7 +6,7 @@ import type { ReportView } from "@/components/report/types";
 import type { Engine } from "@/lib/pricing-constants";
 import type { AiSummary, MapsSummary } from "@/lib/scans/summary";
 import { dbAdmin } from "@/lib/db/clients";
-import { businessLanguage, languageName } from "@/lib/countries";
+import { businessLanguage, languageName, normalizeCountry } from "@/lib/countries";
 import { CENTRED_MILES, milesBetween } from "@/lib/scans/grid";
 import { signedUrl } from "@/lib/storage";
 import { withoutSideRuns } from "@/lib/scans/consistency";
@@ -151,7 +151,7 @@ async function buildReportView(report: any): Promise<ReportView | null> {
   return {
     kind: report.kind,
     watermark: report.watermark,
-    business: { name: business.name, city: business.city, region: business.region, category: business.primary_category, lat: businessAt?.lat ?? null, lng: businessAt?.lng ?? null, website: safeHttpUrl(business.website), language: languageName(businessLanguage(business)) },
+    business: { name: business.name, city: business.city, region: business.region, category: business.primary_category, country: normalizeCountry(business.country), lat: businessAt?.lat ?? null, lng: businessAt?.lng ?? null, website: safeHttpUrl(business.website), language: languageName(businessLanguage(business)) },
     // White-label applies to paid workspaces only; a free check always carries RankbyAI branding.
     brand: {
       name: lifetime ? (ws?.brand_name ?? null) : null,

@@ -11,6 +11,7 @@ import {
 } from "./derive";
 import { MapSection } from "./map-section";
 import { nearestPoint } from "./model";
+import { requestMailto } from "./request";
 import "./report.css";
 import type { QuotedAnswer, ReportView } from "./types";
 
@@ -19,12 +20,17 @@ import type { QuotedAnswer, ReportView } from "./types";
  * the finding, then shows where (the map), who instead, the proof (verbatim answers), where the
  * assistants look, what to fix, and what to do next. Pure: everything comes from `view`.
  */
-/** `nextSteps` replaces the closing "What happens next" block (the public free check puts its sign-up and email panel there). */
-export function ReportBody({ view, pdfHref, siteUrl, nextSteps }: { view: ReportView; pdfHref: string | null; siteUrl: string; nextSteps?: ReactNode }) {
+/**
+ * `nextSteps` replaces the closing "What happens next" block (the public free check puts its sign-up and email panel there).
+ * `reportPath` is the report's own address ("/r/{slug}"); only with it, and only on a RankbyAI-branded report, does the
+ * footer offer "Request a country or language" (a white-label report would mail RankbyAI under the agency's name).
+ */
+export function ReportBody({ view, pdfHref, siteUrl, nextSteps, reportPath }: { view: ReportView; pdfHref: string | null; siteUrl: string; nextSteps?: ReactNode; reportPath?: string | null }) {
   const { business, brand, ai, maps, audit } = view;
   const site = siteUrl.replace(/\/$/, "");
   const whiteLabel = !!brand.name;
   const showRankbyai = !brand.hideRankbyai && !whiteLabel;
+  const requestHref = showRankbyai && reportPath ? requestMailto(business, `${site}${reportPath}`) : null;
   const accent = brandTextOnDark(brand.color) ?? (whiteLabel || brand.hideRankbyai ? "var(--rb-fg-2)" : "var(--lp-accent-text)");
   const eyebrowStyle: CSSProperties = { color: accent };
   const stats = headlineStats(view);
@@ -264,6 +270,12 @@ export function ReportBody({ view, pdfHref, siteUrl, nextSteps }: { view: Report
           <span>{whiteLabel ? `Prepared by ${brand.name}.` : showRankbyai ? <>Report by <a href={site} className="text-lp-fg-2 underline underline-offset-[3px]">RankbyAI</a>.</> : "AI visibility report."}</span>
           {!brand.hideRankbyai ? <span>{NOT_AFFILIATED}</span> : null}
         </div>
+        {requestHref ? (
+          <p data-request-country className="container-lp-wide m-0 -mt-4 pb-8 text-[13px] leading-normal text-dim print:hidden">
+            Is the country or language you need missing? You can ask us to check it.{" "}
+            <a href={requestHref} className="text-lp-fg-2 underline underline-offset-[3px]">Request a country or language</a>
+          </p>
+        ) : null}
       </footer>
     </div>
   );

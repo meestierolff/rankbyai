@@ -147,7 +147,7 @@ function mapsPart(spec: MapsSpec, businessName = YOU): NonNullable<ReportView["m
 }
 
 const brandNone: ReportView["brand"] = { name: null, logoUrl: null, color: null, website: null, hideRankbyai: false };
-const business: ReportView["business"] = { name: YOU, city: "Austin", region: "TX", category: "Dentist", lat: CENTER.lat, lng: CENTER.lng };
+const business: ReportView["business"] = { name: YOU, city: "Austin", region: "TX", category: "Dentist", country: "US", lat: CENTER.lat, lng: CENTER.lng };
 
 const quickAudit: NonNullable<ReportView["audit"]> = {
   score: 46,

@@ -20,5 +20,5 @@ export default async function ReportPreview({ params }: { params: Promise<{ vari
   const { variant } = await params;
   if (!isVariant(variant)) notFound();
   const view = VARIANTS[variant].build();
-  return <ReportBody view={view} pdfHref={`/dev/report-preview/${variant}/pdf`} siteUrl={publicEnv.siteUrl} />;
+  return <ReportBody view={view} pdfHref={`/dev/report-preview/${variant}/pdf`} siteUrl={publicEnv.siteUrl} reportPath={`/r/preview-${variant}`} />;
 }

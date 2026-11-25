@@ -19,8 +19,10 @@ import { MAPS_GRID_RANGE, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 
 /** Running text: plain, or a link. An href starting with "/" is a page on this site; anything else opens the vendor's page. */
 export type Inline = string | { text: string; href: string };
-/** A paragraph, a bullet list, or a paragraph with links in it. */
-export type Block = string | { list: string[] } | { p: Inline[] };
+/** Article content: paragraphs, lists, commands and accessible comparison tables. */
+export type Block = string | { list: string[] } | { p: Inline[] } | { code: string } | {
+  table: { caption: string; columns: string[]; rows: Inline[][][] };
+};
 
 export interface SeoPage {
   path: string;
@@ -33,6 +35,11 @@ export interface SeoPage {
   /** Answer-first opening: the direct answer to the search, in two or three sentences. Holds the page's main phrase. */
   answer: string;
   showSampleGrid?: boolean;
+  /** A static result preview, explicitly labelled when it contains example data. */
+  resultPreview?: { src: string; alt: string; width: number; height: number; caption: string };
+  /** When supplied, this is the article's single primary CTA. */
+  ctaLabel?: string;
+  socialTitle?: string;
   table?: { caption: string; columns: Vendor[]; rows?: Row[] };
   /** A table with its own rows and dates (lib/competitors.ts), used instead of `table`. */
   factTable?: FactTable;
@@ -46,7 +53,7 @@ export interface SeoPage {
   schemaType?: "Article" | "WebPage";
   /** A two-column social card instead of the title card (lib/og.tsx ogVersusCard). */
   og?: { columns: { name: string; line: string }[]; footer: string };
-  sections: { h2: string; body: Block[] }[];
+  sections: { h2: string; id?: string; body: Block[] }[];
   faqs: { q: string; a: string }[];
   related: string[];
   /** Last real edit (sitemap lastmod, "Updated" line). */
@@ -87,6 +94,7 @@ export const SEO_PAGES: SeoPage[] = [
         ] },
       ] },
       { h2: "When should you stay with Local Falcon?", body: [
+        { p: ["Before choosing a tool, see ", { text: "what a local business can fix for ChatGPT", href: "/blog/how-to-show-up-in-chatgpt" }, " for free."] },
         "Stay if you need Apple Maps grids, AI Overviews or Grok, if your team is trained on it and its reports, or if you prefer one bill that covers the data. RankbyAI asks you to bring your own API keys, which is one more thing to set up.",
       ] },
       { h2: "Other Local Falcon alternatives", body: [
@@ -103,7 +111,7 @@ export const SEO_PAGES: SeoPage[] = [
       { q: "Does RankbyAI support Apple Maps?", a: "No. RankbyAI covers Google Maps and three AI engines. If Apple Maps grids matter to you, Local Falcon supports them." },
     ],
     related: ["/pricing", "/blog/local-falcon-pricing", "/alternatives/brightlocal", "/alternatives/local-viking", "/local-rank-tracker"],
-    updated: UPDATED, published: FIRST,
+    updated: "2026-11-25", published: FIRST,
   },
   {
     path: "/alternatives/brightlocal", group: "alternatives", slug: "brightlocal", eyebrow: "Alternatives",
@@ -299,6 +307,7 @@ export const SEO_PAGES: SeoPage[] = [
         "You will also see this called a Google local rank tracker, a local SEO rank tracker, a map rank tracker or a geo grid. They describe the same idea.",
       ] },
       { h2: "Why track Maps rank and AI answers together?", body: [
+        { p: ["If clients ask whether ChatGPT recommends them, start with this ", { text: "ChatGPT checklist for local businesses", href: "/blog/how-to-show-up-in-chatgpt" }, "."] },
         "More people now ask an assistant for “a good dentist near me” instead of scrolling the map. The assistant names a few businesses, and they are not always the ones in the map pack. Measuring both on the same points shows where the two agree and where they do not, which is where the work is.",
         VARY,
       ] },
@@ -329,7 +338,7 @@ export const SEO_PAGES: SeoPage[] = [
       { q: "Can I track a service-area business without a storefront?", a: "Yes. Centre the grid where the customers are, within 100 miles of the business's map point, and skip points outside the area you serve." },
     ],
     related: ["/map-rank-tracker", "/ai-visibility-tracker", "/alternatives/local-falcon", "/alternatives/local-viking", "/pricing"],
-    updated: "2026-11-24",
+    updated: "2026-11-25",
   },
   {
     path: "/ai-visibility-tracker", group: "root", slug: "ai-visibility-tracker", eyebrow: "Guide",
@@ -447,6 +456,7 @@ export const SEO_PAGES: SeoPage[] = [
         "Run the same grid again after changes and compare the two, point by point.",
       ] },
       { h2: "What can a map grid not tell you?", body: [
+        { p: ["Your Maps rank and your place in ChatGPT’s answer are separate jobs; here is ", { text: "how to rank in ChatGPT as a local business", href: "/blog/how-to-show-up-in-chatgpt" }, "."] },
         "Who AI assistants recommend. That is a different measurement. A business can hold the map pack at a point and not be named by ChatGPT there. RankbyAI can run an AI grid on the same points to show both.",
       ] },
     ],
@@ -456,7 +466,7 @@ export const SEO_PAGES: SeoPage[] = [
       { q: "How many results does each point show?", a: "The top 20. A business outside the top 20 at a point is shown as 20+." },
     ],
     related: ["/local-rank-tracker", "/ai-visibility-tracker", "/alternatives/local-falcon", "/blog/semrush-map-rank-tracker", "/pricing"],
-    updated: UPDATED, published: FIRST,
+    updated: "2026-11-25", published: FIRST,
   },
   {
     path: "/local-seo-software", group: "root", slug: "local-seo-software", eyebrow: "Guide",
@@ -924,12 +934,20 @@ export const SEO_PAGES: SeoPage[] = [
   },
   {
     path: "/blog/how-to-show-up-in-chatgpt", group: "blog", slug: "how-to-show-up-in-chatgpt", eyebrow: "Checklist",
-    title: "How to Show Up in ChatGPT as a Local Business",
-    description: "A practical checklist for local businesses that want to be named by ChatGPT and other AI assistants, and how to measure whether it worked.",
-    h1: "How to show up in ChatGPT as a local business",
+    title: "How to Rank in ChatGPT as a Local Business",
+    description: "How a local business gets named in ChatGPT answers: the crawler ChatGPT search needs, which profiles and sources to fix, and how to check from your own service area.",
+    h1: "How to show up and rank in ChatGPT as a local business",
+    socialTitle: "How to Rank in ChatGPT as a Local Business | RankbyAI",
+    ctaLabel: "Run a free check → see who ChatGPT, Perplexity and Gemini name at your address",
+    resultPreview: { src: "/guides/chatgpt-free-check-example.png", alt: "Example free-check result for fictional Northgate Family Dental in Austin, showing AI mentions and Google Maps rank at one location.", width: 1200, height: 839, caption: "Example data · one location. The business, names and results are fictional. Perplexity returned no answer in this example; ChatGPT and Gemini responded." },
     answer:
-      "To show up in ChatGPT as a local business, make the business easy to identify and easy to cite: consistent name, address and phone everywhere, a complete Google and Bing profile, reviews that mention the service and the area, plain facts on your own pages, and listings on the sources assistants cite. Nobody can guarantee that ChatGPT names a business, so then measure whether you are named.",
+      "To rank in ChatGPT as a local business, make sure ChatGPT’s search crawler (OAI-SearchBot) can read your site, keep your name, address and phone identical everywhere, complete your Google and Bing profiles, earn reviews that mention your service and area, and get listed on the sources ChatGPT cites for your town. There is no fixed position and no guarantee, so check from your own service area whether you are named.",
     sections: [
+      { h2: "Is there a ranking in ChatGPT?", body: [
+        "ChatGPT writes an answer rather than a stable list of ten search positions. Getting your business on ChatGPT means being included in a relevant answer; there is no business listing you can claim inside ChatGPT.",
+        "Being named means your business appears in the text. Being cited means an answer links to a source, which may be your website or a third-party page. Being recommended first describes the order in that particular answer; a citation alone is not a recommendation.",
+        "The same question can produce different names between runs and locations. In this guide, rank means how often and where you are named. AI answers vary between runs, places and time, so a grid is a set of observations on the date it was run, not a fixed ranking.",
+      ] },
       { h2: "What should you fix first?", body: [
         { list: [
           "Claim and complete your Google Business Profile and Bing Places listing. Pick the primary category that truly describes the business, fill in hours, services and a factual description.",
@@ -942,26 +960,52 @@ export const SEO_PAGES: SeoPage[] = [
           "State what you do and where in plain HTML text: in the title, the main heading and the first paragraph. Facts that only appear after a script runs are easy to miss.",
           "Give each service its own page, and cover the areas you really serve.",
           "Add LocalBusiness schema with the same name, address and phone as your profile, and an FAQ with matching FAQPage schema.",
-          "Do not block AI crawlers such as GPTBot and PerplexityBot in robots.txt if you want to be read. An llms.txt file with a short factual summary and links to your key pages does no harm.",
+        ] },
+        { p: ["Allow OAI-SearchBot in robots.txt. ", { text: "OpenAI’s crawler documentation", href: "https://platform.openai.com/docs/bots" }, " says opting out excludes your site from ChatGPT search answers, although navigational links may remain. GPTBot controls crawling for training separately; you can allow search while blocking training. Search systems can take about 24 hours to reflect a robots.txt update."] },
+        { code: 'curl -A "OAI-SearchBot" -I https://yoursite.com' },
+        "Check the response for your public page: investigate a non-200 status, following redirects to the final URL. A firewall or CDN can block requests even when robots.txt allows them. A 200 response to this user-agent test does not prove that real OpenAI crawler IPs are allowed or that robots.txt permits crawling; check those too.",
+      ] },
+      { h2: "Where does ChatGPT get its information about local businesses?", id: "where-else-do-you-need-to-be-listed", body: [
+        "Start with the sources in an actual answer for your service and town. Completing Google Business Profile and Bing Places keeps your public details consistent; it does not establish that ChatGPT reads either profile directly.",
+        { list: [
+          "Open a real ChatGPT answer, click each citation and write down the sites it used: directories, review sites, local news or best-of lists. If you are missing from a relevant directory or list, check its listing or editorial process.",
+          "If the answer cites a review site where you have few reviews, respond to those reviews and invite genuine customer feedback there. The review source shown can differ from your Google rating. Never buy reviews or filter requests to happy customers.",
+          "Correct wrong facts on the page ChatGPT cited, as well as on your own site. Record the cited URL so you can check the same source after the correction.",
         ] },
       ] },
-      { h2: "Where else do you need to be listed?", body: [
-        "Assistants often cite the sources behind an answer: directories, “best of” lists, local news, review sites. If several engines cite the same source for your service and area and you are not on it, getting listed there is a concrete next step.",
-        "You find those sources by reading the citations in real answers, which is what an AI visibility scan stores.",
+      { h2: "How do you know if ChatGPT sent you a customer?", body: [
+        "A mention is visibility evidence, not proof of a new customer. Combine website visits with what customers tell you, and keep a separate record of the answers you observe.",
+        { table: {
+          caption: "Four ways to measure AI visibility and customer referrals",
+          columns: ["Method", "What it shows", "What it misses", "Cost"],
+          rows: [
+            [["Analytics referrer (chatgpt.com, perplexity.ai, gemini.google.com)"], ["Visits that clicked a link in an answer"], ["People who saw your name and then called or searched you"], ["Free"]],
+            [["‘How did you hear about us?’ with an ‘AI assistant (ChatGPT etc.)’ option"], ["What customers say"], ["People who do not remember, or say ‘Google’"], ["Free"]],
+            [["Asking the question yourself"], ["Whether you are named, from one place, once"], ["Variation between runs and locations"], ["Free, slow"]],
+            [["An AI visibility tracker (e.g. RankbyAI — our tool)"], ["Whether you are named at many points of a grid, stored over time"], ["Real customer clicks and calls"], ["Paid (", { text: "see pricing", href: "/pricing" }, ")"]],
+          ],
+        } },
+        "In your analytics tool, filter referral sources for those assistant domains and check enquiries or bookings from those visits. Referrers can be missing, so also add the AI assistant option to your enquiry form or ask when someone calls.",
+        "For a manual visibility log, record the date, assistant, exact question, location, names and citation URLs. Repeat the same questions from the same places; keep that log separate from clicks, calls and bookings.",
       ] },
       { h2: "How do you measure whether you are named?", body: [
         "Ask the question the way a customer would, from the places your customers are, and record the answer. Doing that by hand does not scale, and one answer proves little because answers vary.",
-        "RankbyAI asks three assistants at each point of a map grid and stores every answer, so you can see where you are named, who is named instead, and compare again after your fixes. The free check runs one point without an account if you want to see a real result first; our AI rank tracker guide explains what the position in an answer means.",
+        { p: ["RankbyAI — our tool — asks ChatGPT, Perplexity and Gemini at each point of a map grid and stores every answer, so you can see where you are named and who is named instead. The ", { text: "free check", href: "/#free-check" }, " runs one point without an account and also looks up your Google Maps rank there. Our ", { text: "AI rank tracker guide", href: "/ai-rank-tracker" }, " explains what the position in an answer means."] },
+        "API answers can differ from the consumer apps, which can use personal history and settings. Compare the same questions, locations and method over time; a tracker measures observations rather than every customer’s experience.",
+        "RankbyAI (rankbyai.live) is an AI visibility and map rank tracker for local businesses and agencies, built by Mees Tierolff.",
       ] },
     ],
     faqs: [
+      { q: "Is ranking in ChatGPT the same as ranking on Google?", a: "No. Google Maps and Google search show ranked lists; ChatGPT writes one answer and names a few businesses, and the names change between runs and places. Many of the basics (consistent details, reviews, clear pages) help with both." },
+      { q: "Which robots.txt setting matters for ChatGPT search?", a: "OAI-SearchBot. OpenAI says sites that opt out of it are not shown in ChatGPT search answers. GPTBot controls training use and is a separate choice. Changes can take about 24 hours to apply." },
+      { q: "How often should I check if ChatGPT names my business?", a: "Monthly is enough for most local businesses; one check proves little because answers vary, so compare the same questions from the same places over time." },
       { q: "How long does it take to show up in ChatGPT?", a: "There is no fixed time and no guarantee. Fix the basics, then measure monthly. Changes to profiles and listings can take weeks to be reflected in the sources assistants use." },
       { q: "Can I pay to be recommended by ChatGPT?", a: "This page is about unpaid answers. We know of no way to buy a place in them, and we would be wary of anyone who claims to sell one." },
       { q: "Does schema markup make ChatGPT recommend me?", a: "Not by itself. Schema states your name, address, phone and services in a form machines read directly, which removes ambiguity. It is one of several basics." },
       { q: "How do I check whether ChatGPT recommends my business?", a: "Run the free check on our home page: it asks ChatGPT, Perplexity and Gemini at the business's own location, without an account, and shows the result right away." },
     ],
     related: ["/ai-rank-tracker", "/ai-visibility-tracker", "/map-rank-tracker", "/pricing"],
-    updated: UPDATED, published: FIRST,
+    updated: "2026-11-25", published: FIRST,
   },
 ];
 

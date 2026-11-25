@@ -1,5 +1,23 @@
 # Public page release log
 
+## 25 November 2026 — ChatGPT local business guide refreshed
+
+- Page: https://rankbyai.live/blog/how-to-show-up-in-chatgpt (existing URL).
+- Vercel production deployment: `dpl_DQ44yiB3y6ENG93M4pS7BCarhfKm`.
+- Production release explicitly requested by Mees in the implementation session.
+- Deployed the local working tree via CLI, including uncommitted guide changes on base `bf7e79d`.
+- Updated title, opening answer, crawler guidance, citation workflow, customer-referral table,
+  seven FAQs, example-data screenshot, social cards and three contextual incoming links.
+- Article dateModified and sitemap lastmod: 2026-11-25; datePublished remains 2026-11-17.
+
+Validation: production build, TypeScript, targeted lint, 44 focused tests and client-bundle
+secret check passed. After Vercel reported READY, the canonical page returned 200 with
+updated title/meta/H1 and opening answer in raw HTML. Self canonical, seven matching
+visible/schema FAQs, preserved source-section anchor, loaded screenshot, 1200×630 OG
+image, sitemap date, three incoming links and OAI-SearchBot Allow verified live.
+No error/fatal runtime log entries were returned for this deployment in the initial
+10-minute query window. Search-console baseline remains UNKNOWN; no traffic impact claimed.
+
 ## 24 November 2026 — SEO Agency AI Index shipped
 
 - Hub: https://rankbyai.live/ai-index/seo-agencies

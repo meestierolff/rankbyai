@@ -14,6 +14,7 @@
  *  - Each page says what the other tool does well, and no rankings or results are promised.
  *  - One URL per intent. Close variants are covered in the text and FAQ, and redirect here (next.config.ts).
  */
+import { LOCAL_SEO_AUDIT_PAGE } from "@/lib/local-seo-audit-page";
 import { BRIGHTLOCAL_VS_WHITESPARK, WS, type FactTable, type Row, type Vendor } from "@/lib/competitors";
 import { MAPS_GRID_RANGE, MAPS_GRID_SIZES } from "@/lib/pricing-constants";
 
@@ -35,6 +36,8 @@ export interface SeoPage {
   /** Answer-first opening: the direct answer to the search, in two or three sentences. Holds the page's main phrase. */
   answer: string;
   showSampleGrid?: boolean;
+  /** Audit product page: demo before copy, live pricing and software schema. */
+  showSampleAudit?: boolean;
   /** A static result preview, explicitly labelled when it contains example data. */
   resultPreview?: { src: string; alt: string; width: number; height: number; caption: string };
   /** When supplied, this is the article's single primary CTA. */
@@ -69,6 +72,7 @@ const LOCAL_ONLY =
   "RankbyAI asks three assistants (ChatGPT, Perplexity and Gemini) and is built around local businesses. It is not a replacement for a brand-level AI-visibility platform with more engines, countries and enterprise features.";
 
 export const SEO_PAGES: SeoPage[] = [
+  LOCAL_SEO_AUDIT_PAGE,
   // ───────────────────────── alternatives ─────────────────────────
   {
     path: "/alternatives/local-falcon", group: "alternatives", slug: "local-falcon", eyebrow: "Alternatives",
@@ -122,7 +126,7 @@ export const SEO_PAGES: SeoPage[] = [
       "RankbyAI is a BrightLocal alternative for agencies whose main need is to see where AI assistants and Google Maps recommend a client, and to win new clients with that evidence. You pay once, then run scans at cost on your own API keys. BrightLocal is a broader local SEO suite sold as monthly plans by number of locations, with a Local AI Visibility Tracker included in every plan.",
     showSampleGrid: true,
     table: { caption: "BrightLocal, Local Falcon and RankbyAI side by side", columns: ["rankbyai", "brightlocal", "localfalcon"] },
-    afterTable: [{ p: ["Whitespark sells its grid, rank tracker and citation tools one by one; see ", { text: "how BrightLocal compares with Whitespark", href: "/brightlocal-vs-whitespark" }, "."] }],
+    afterTable: [{ p: ["See ", { text: "how our audit works", href: "/local-seo-audit" }, " for the checks, evidence and priority order."] }, { p: ["Whitespark sells its grid, rank tracker and citation tools one by one; see ", { text: "how BrightLocal compares with Whitespark", href: "/brightlocal-vs-whitespark" }, "."] }],
     sections: [
       { h2: "What does BrightLocal do well?", body: [
         "BrightLocal is a full local SEO suite: rank tracking on Google and Bing, a Local Search Grid, citation tracking and building, review tools and white-label reporting, in one subscription. Its Local AI Visibility Tracker covers Google AI Overviews, Google AI Mode and ChatGPT, with up to 20 prompts per location, and comes with every plan. If you manage listings and reviews for many locations and want one vendor for all of it, that breadth is its strength.",
@@ -151,7 +155,7 @@ export const SEO_PAGES: SeoPage[] = [
       { q: "Does RankbyAI build citations or manage reviews?", a: "No. RankbyAI measures AI and Maps visibility, audits a business against its competitors and produces reports and fix lists. You apply the fixes yourself or with your own tools." },
     ],
     related: ["/pricing", "/blog/brightlocal-pricing", "/local-falcon-vs-brightlocal", "/alternatives/local-falcon", "/ai-visibility-tracker"],
-    updated: "2026-11-24", published: FIRST,
+    updated: "2026-11-26", published: FIRST,
   },
   {
     path: "/alternatives/local-viking", group: "alternatives", slug: "local-viking", eyebrow: "Alternatives",
@@ -454,6 +458,7 @@ export const SEO_PAGES: SeoPage[] = [
       { h2: "How do you read a grid?", body: [
         "Look for the edge: the line where the business drops out of the top three. Then look at who holds the points beyond it. RankbyAI lists the competitors that take the top three most often across the grid, which is also the list its audit compares the business against.",
         "Run the same grid again after changes and compare the two, point by point.",
+        { p: ["For the next actions, ", { text: "audit the business behind the grid", href: "/local-seo-audit" }, "."] },
       ] },
       { h2: "What can a map grid not tell you?", body: [
         { p: ["Your Maps rank and your place in ChatGPT’s answer are separate jobs; here is ", { text: "how to rank in ChatGPT as a local business", href: "/blog/how-to-show-up-in-chatgpt" }, "."] },
@@ -466,7 +471,7 @@ export const SEO_PAGES: SeoPage[] = [
       { q: "How many results does each point show?", a: "The top 20. A business outside the top 20 at a point is shown as 20+." },
     ],
     related: ["/local-rank-tracker", "/ai-visibility-tracker", "/alternatives/local-falcon", "/blog/semrush-map-rank-tracker", "/pricing"],
-    updated: "2026-11-25", published: FIRST,
+    updated: "2026-11-26", published: FIRST,
   },
   {
     path: "/local-seo-software", group: "root", slug: "local-seo-software", eyebrow: "Guide",
@@ -489,6 +494,7 @@ export const SEO_PAGES: SeoPage[] = [
         "No single tool is best at all five. Suites such as BrightLocal and Semrush cover the most ground; specialists such as Local Falcon go deepest on grids.",
       ] },
       { h2: "Which part does RankbyAI cover?", body: [
+        { p: ["See the ", { text: "local SEO audit", href: "/local-seo-audit" }, " for the score, evidence and six diagnostic categories."] },
         "Rank tracking, AI visibility, audits and reporting. It does not build citations, manage listings or handle reviews. Its audit tells you what is inconsistent or missing, with the evidence, and its Fix Kit gives you copy-ready schema, FAQs and a checklist. You or your other tools apply the fixes.",
       ] },
       { h2: "Why pay once?", body: [
@@ -502,7 +508,7 @@ export const SEO_PAGES: SeoPage[] = [
       { q: "Do I need technical skills to use my own API keys?", a: "No coding. You create an account with each provider, copy a key, and paste it into RankbyAI, where it is encrypted and never shown again. The app checks the key and shows your estimated cost before every scan." },
     ],
     related: ["/pricing", "/local-rank-tracker", "/ai-visibility-tracker", "/alternatives/brightlocal", "/alternatives/local-falcon"],
-    updated: UPDATED, published: FIRST,
+    updated: "2026-11-26", published: FIRST,
   },
 
   // ───────────────────────── comparisons ─────────────────────────
@@ -956,6 +962,7 @@ export const SEO_PAGES: SeoPage[] = [
         ] },
       ] },
       { h2: "What should your website say?", body: [
+        { p: ["To check access and facts together, ", { text: "run a local SEO audit that includes AI answers", href: "/local-seo-audit" }, "."] },
         { list: [
           "State what you do and where in plain HTML text: in the title, the main heading and the first paragraph. Facts that only appear after a script runs are easy to miss.",
           "Give each service its own page, and cover the areas you really serve.",
@@ -1005,7 +1012,7 @@ export const SEO_PAGES: SeoPage[] = [
       { q: "How do I check whether ChatGPT recommends my business?", a: "Run the free check on our home page: it asks ChatGPT, Perplexity and Gemini at the business's own location, without an account, and shows the result right away." },
     ],
     related: ["/ai-rank-tracker", "/ai-visibility-tracker", "/map-rank-tracker", "/pricing"],
-    updated: "2026-11-25", published: FIRST,
+    updated: "2026-11-26", published: FIRST,
   },
 ];
 

@@ -1,3 +1,7 @@
+import { packsOpen } from "@/lib/availability";
+import { AuditSample } from "./audit-sample";
+import { AuditPrice } from "./audit-price";
+import { OfferProvider } from "./offer-context";
 import { IndexResearchLink } from "@/components/ai-index/shared";
 import Link from "next/link";
 import Image from "next/image";
@@ -9,7 +13,7 @@ import { cellFor, OUR_LIVE_PRICE, ROW_LABEL, ROWS, VENDOR_NAME, VERIFIED_ON, typ
 import { legalEnv } from "@/lib/env";
 import { fmtPrice, type Offer } from "@/lib/ladder";
 import { getOfferCached } from "@/lib/offer";
-import { breadcrumbLd, faqLd, graph, organizationLd, websiteLd } from "@/lib/seo";
+import { breadcrumbLd, faqLd, graph, organizationLd, softwareLd, websiteLd } from "@/lib/seo";
 import { publicEnv } from "@/lib/env-public";
 import { seoPage, type Block, type Inline, type SeoPage } from "@/lib/seo-pages";
 
@@ -18,12 +22,12 @@ const sourceLabel = (url: string) => url.replace(/^https?:\/\/(www\.)?/, "").rep
 
 export async function SeoArticle({ page }: { page: SeoPage }) {
   // Guides without a price table do not depend on the short-lived live offer.
-  const result = page.table || page.factTable ? await getOfferCached() : null;
+  const result = page.table || page.factTable || page.showSampleAudit ? await getOfferCached() : null;
   const offer = result?.available ? result.offer : null;
   const ourPrice = offer
     ? `${fmtPrice(offer.currentPriceUsd)} today, one payment. It rises ${fmtPrice(offer.stepUsd)} after every ${offer.seatsPerStep} sales; the live price is on our pricing page`
     : "One payment; the live price is on our pricing page";
-  const trail = [{ name: "Home", path: "/" }, ...(page.group === "blog" ? [{ name: "Guides", path: "/ai-visibility-tracker" }] : []), { name: page.h1, path: page.path }];
+  const trail = [{ name: "Home", path: "/" }, ...(page.group === "blog" ? [{ name: "Guides", path: "/ai-visibility-tracker" }] : []), { name: page.showSampleAudit ? "Local SEO audit" : page.h1, path: page.path }];
   const site = publicEnv.siteUrl;
   const pageLd = page.schemaType === "WebPage"
     ? {
@@ -36,7 +40,7 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
       };
   return (
     <PageShell>
-      <JsonLd data={graph(organizationLd(), ...(page.schemaType === "WebPage" ? [websiteLd()] : []), breadcrumbLd(trail), faqLd(page.faqs, `${site}${page.path}#faq`), pageLd)} />
+      <JsonLd data={graph(organizationLd(), ...(page.schemaType === "WebPage" ? [websiteLd()] : []), breadcrumbLd(trail), faqLd(page.faqs, `${site}${page.path}#faq`), ...(page.showSampleAudit ? [softwareLd(offer)] : []), pageLd)} />
       <article className="container-page flex flex-col gap-12 pt-[clamp(48px,7vw,96px)] pb-[var(--rb-section-y)]">
         <header className="flex max-w-[820px] flex-col gap-5">
           <nav aria-label="Breadcrumb" className="text-[13px] text-dim">
@@ -44,6 +48,7 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
           </nav>
           <Eyebrow>{page.eyebrow}</Eyebrow>
           <h1 className="m-0 text-[clamp(34px,4.8vw,58px)] leading-[1.05] font-semibold tracking-[-0.04em] text-balance">{page.h1}</h1>
+          {page.showSampleAudit ? <AuditSample /> : null}
           <p className="text-lead m-0">{page.answer}</p>
           {page.resultPreview ? (
             <figure className="m-0 flex flex-col gap-3">
@@ -53,7 +58,7 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
           ) : null}
           <div className="flex flex-wrap items-center gap-4">
             <CtaLink href="/#free-check" size="md" arrow={!page.ctaLabel} className={page.ctaLabel ? "h-auto max-w-full whitespace-normal text-left" : undefined}>{page.ctaLabel ?? "Run a free check"}</CtaLink>
-            <Link href="/pricing" className="text-[15px] font-medium text-fg underline underline-offset-[3px]">See pricing</Link>
+            {!page.showSampleAudit ? <Link href="/pricing" className="text-[15px] font-medium text-fg underline underline-offset-[3px]">See pricing</Link> : null}
           </div>
           {page.ctaNote ? <p className="-mt-2 mb-0 max-w-[640px] text-[14px] leading-normal text-muted-foreground">{page.ctaNote}</p> : null}
           <p className="m-0 font-mono text-[12px] text-dim">Updated {new Date(page.updated).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })}</p>
@@ -120,6 +125,11 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
             <section key={s.h2} className="flex flex-col gap-4">
               <h2 id={s.id ?? s.h2.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-")} className="m-0 scroll-mt-24 text-[clamp(22px,2.6vw,30px)] leading-[1.15] font-semibold tracking-[-0.02em]">{s.h2}</h2>
               {s.body.map((b, i) => <BlockView key={i} block={b} />)}
+              {page.showSampleAudit && s.id === "local-audit-cost" ? <>
+                <OfferProvider initial={result?.available ? { ...result.offer, paidTotal: result.paidTotal } : null}><AuditPrice /></OfferProvider>
+                <p className="m-0 text-[17px] leading-relaxed text-fg-2">{packsOpen() ? "Included-scan packs are also available if you prefer to use our keys." : "Included-scan packs are not on sale yet; bring your own DataForSEO account and AI keys."}</p>
+                <Link href="/pricing" className="text-fg underline underline-offset-4">See pricing and scan costs</Link>
+              </> : null}
             </section>
           ))}
         </div>

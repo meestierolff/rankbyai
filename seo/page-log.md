@@ -1,5 +1,38 @@
 # Public page release log
 
+## 26 November 2026 — Local SEO audit page shipped
+
+- Status: shipped. Production deployment explicitly requested by Mees in this session.
+- Vercel deployment: `dpl_FgCkFKvjafvMXrUyXwAt6jqkaFAR` (READY), aliased to
+  https://rankbyai.live. Remote build completed in 44 seconds.
+- Deployed via CLI from base `4243f06` plus the tested, uncommitted audit-page changes.
+- New URL: `/local-seo-audit`; sitemap lastmod: 2026-11-26; included in llms.txt.
+- Incoming contextual links: local SEO software, ChatGPT guide, BrightLocal alternative,
+  and Maps grid guide; footer link added through the shared SEO registry.
+- Six categories and claims checked against `src/lib/audit/checks.ts`. Website checks cover
+  titles/H1, schema and crawler access, not Lighthouse performance. Missing scan evidence
+  is skipped. Live price uses the existing offer service and refreshes via `/api/offer`.
+- Demo reuses the homepage's fictional Northgate audit (64/100); social card has the
+  separately labelled sample 62/100 requested in the brief.
+- Local validation: production build and TypeScript passed; 57 focused tests passed;
+  targeted ESLint and client-bundle secret check (73 files) passed. Browser checks at
+  desktop and 390px mobile confirmed no horizontal overflow, raw-HTML H1/answer/
+  checklist/tables/four FAQs, self canonical, index/follow, matching schema without
+  AggregateRating, sitemap lastmod, llms.txt, footer and four contextual links.
+  Both social images returned 200 as 1200×630 PNGs. Local offer 503 displays an
+  unavailable-price message; moved-price and closed-offer states covered by tests.
+- Production validation passed after READY: page HTTP 200, self canonical,
+  index/follow, raw-HTML H1/answer/checklist/tables, four visible/schema-matching FAQs,
+  SoftwareApplication and BreadcrumbList without AggregateRating; sitemap lastmod
+  2026-11-26, llms.txt, footer and all four contextual incoming links verified.
+  Live offer HTTP 200: $29 now / $39 next, matching software offer schema. OG and
+  Twitter images both HTTP 200, 1200×630 PNG. No error/fatal logs returned for this
+  deployment in the initial 10-minute query window. Drain inventory unavailable
+  (Vercel drain endpoint returned 404); no monitoring configuration changed.
+- GSC/GA4 baseline: UNKNOWN (not connected in the supplied brief). Evaluate 28 days
+  after publication once access exists; no traffic impact claimed.
+
+
 ## 25 November 2026 — ChatGPT local business guide refreshed
 
 - Page: https://rankbyai.live/blog/how-to-show-up-in-chatgpt (existing URL).

@@ -1,0 +1,7 @@
+@keyframes enter {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .finding { animation: enter 360ms ease-out backwards; }
+}

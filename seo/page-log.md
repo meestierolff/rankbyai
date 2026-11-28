@@ -1,5 +1,37 @@
 # Public page release log
 
+## 28 November 2026 — AI citation workflow guide shipped (unlisted)
+
+- Status: shipped, unlisted. Production release approved by Mees in the implementation session.
+- Vercel deployment: `dpl_76MHZHYebQtps3YN7RsJG1KBjzwh` (READY), aliased to
+  https://rankbyai.live. Deployed via CLI from a clean worktree of `af4a0eb` (PR #27).
+- New URL: `/guides/ai-citation-workflow`, the free pack linked from the replies to the
+  X "comment GRID" post. It is noindex, follow, with a self canonical. It is not in the
+  sitemap, llms.txt, footer or SEO registry. `listed: true` in
+  `src/lib/ai-citation-guide.ts` makes it an indexed guide.
+- Content: 10 local buyer prompts, the 4-step citation and backlink-gap workflow, the
+  skill/MCP setup, and an anonymous teardown of a $0.66 2-mile grid against a 15-mile grid.
+  The teardown figures were checked against the four stored scans; wording the scans did
+  not support was corrected. The page names no business, city or competitor.
+- The price sentence comes from the live offer and refreshes via `/api/offer`. Moved,
+  closed and unavailable offers are covered by tests.
+- PR #27 also carries `4243f06` and `a7562ba`, which were live since 25–26 November but
+  had not been pushed.
+- Local validation: production build passed; 4 new tests and the full unit suite
+  (544 passed, 4 skipped) passed. Browser checks at desktop and 390px mobile found no
+  horizontal overflow.
+- Production validation after READY:
+  - Page HTTP 200 with the right robots tag, canonical and H1.
+  - The price in the raw HTML ("$29 today, then $39 after the next 5 sales; closes
+    16 December 2026 at 13:00 UTC") matches `/api/offer`.
+  - Twitter card `summary_large_image`. OG and Twitter images both HTTP 200, 1200×630 PNG.
+  - The page is absent from the sitemap, llms.txt and the homepage.
+  - `/`, `/local-seo-audit`, `/blog/how-to-show-up-in-chatgpt`, `/pricing` and
+    `/free-check` return 200; `/free-check` is still noindex.
+  - No runtime errors since the deploy.
+- GSC/GA4 baseline: not applicable while unlisted. Measure the X campaign through optional
+  `utm_campaign=grid` links (consent-gated attribution). No traffic impact claimed.
+
 ## 26 November 2026 — Local SEO audit page shipped
 
 - Status: shipped. Production deployment explicitly requested by Mees in this session.

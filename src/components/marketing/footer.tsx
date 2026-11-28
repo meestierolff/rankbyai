@@ -25,6 +25,7 @@ const LEGAL_LINKS = [
 /** Guide pages shown as the third column; every other guide goes in the row below. */
 const GUIDE_COLUMN = ["/local-rank-tracker", "/ai-rank-tracker", "/map-rank-tracker", "/local-seo-software", "/blog/how-to-show-up-in-chatgpt"];
 const SHORT_TITLE: Record<string, string> = {
+  "/local-seo-audit": "Local SEO audit",
   "/blog/how-to-show-up-in-chatgpt": "Show up in ChatGPT",
   "/local-rank-tracker": "Local Rank Tracker",
   "/ai-rank-tracker": "AI Rank Tracker",

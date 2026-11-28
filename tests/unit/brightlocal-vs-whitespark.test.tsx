@@ -10,7 +10,13 @@ import { STATIC_PAGES } from "@/lib/site-pages";
 const PATH = "/brightlocal-vs-whitespark";
 const page = seoPage(PATH)!;
 const table = BRIGHTLOCAL_VS_WHITESPARK;
-const inlines = (b: Block): Inline[] => (typeof b === "string" ? [b] : "p" in b ? b.p : b.list);
+const inlines = (b: Block): Inline[] => {
+  if (typeof b === "string") return [b];
+  if ("p" in b) return b.p;
+  if ("list" in b) return b.list;
+  if ("code" in b) return [b.code];
+  return [b.table.caption, ...b.table.columns, ...b.table.rows.flat(2)];
+};
 const blocksOf = (p: typeof page) => [...p.sections.flatMap((s) => s.body), ...(p.afterTable ?? [])];
 const linksIn = (p: typeof page) => blocksOf(p).flatMap(inlines).filter((x): x is { text: string; href: string } => typeof x !== "string");
 const textOf = (p: typeof page) =>
@@ -87,7 +93,8 @@ describe("/brightlocal-vs-whitespark", () => {
     expect(sources.sort()).toEqual(["/alternatives/brightlocal", "/blog/brightlocal-pricing", "/local-falcon-vs-brightlocal", "/local-rank-tracker"]);
     expect(linksIn(page).some((l) => l.href === PATH)).toBe(false);
     expect(page.related).not.toContain(PATH);
-    for (const l of SEO_PAGES.flatMap(linksIn)) expect(l.href).not.toMatch(/[?#]|utm_/);
+    // Section anchors are valid internal destinations; query/tracking parameters are not.
+    for (const l of SEO_PAGES.flatMap(linksIn)) expect(l.href).not.toMatch(/\?|utm_/);
     // Outgoing links named in the brief, and none to pages that do not exist yet.
     const out = new Set([...linksIn(page).map((l) => l.href), ...page.related]);
     for (const p of ["/local-falcon-vs-brightlocal", "/blog/brightlocal-pricing", "/alternatives/brightlocal", "/map-rank-tracker", "/ai-visibility-tracker", "/pricing"]) expect(out.has(p)).toBe(true);

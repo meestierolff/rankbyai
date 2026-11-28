@@ -8,5 +8,5 @@ export const size = OG_SIZE;
 export const contentType = "image/png";
 
 export default function Image() {
-  return ogCard({ eyebrow: page.eyebrow, title: page.h1 });
+  return ogCard({ eyebrow: page.eyebrow, title: "How to rank in ChatGPT as a local business", footer: "Checklist + how to check from your own area" });
 }

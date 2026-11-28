@@ -1,5 +1,10 @@
+import { packsOpen } from "@/lib/availability";
+import { AuditSample } from "./audit-sample";
+import { AuditPrice } from "./audit-price";
+import { OfferProvider } from "./offer-context";
 import { IndexResearchLink } from "@/components/ai-index/shared";
 import Link from "next/link";
+import Image from "next/image";
 import { JsonLd } from "@/components/json-ld";
 import { CtaLink, Eyebrow, SampleTag } from "@/components/brand/primitives";
 import { AiGridMock } from "@/components/marketing/feature-mocks";
@@ -8,7 +13,7 @@ import { cellFor, OUR_LIVE_PRICE, ROW_LABEL, ROWS, VENDOR_NAME, VERIFIED_ON, typ
 import { legalEnv } from "@/lib/env";
 import { fmtPrice, type Offer } from "@/lib/ladder";
 import { getOfferCached } from "@/lib/offer";
-import { breadcrumbLd, faqLd, graph, organizationLd, websiteLd } from "@/lib/seo";
+import { breadcrumbLd, faqLd, graph, organizationLd, softwareLd, websiteLd } from "@/lib/seo";
 import { publicEnv } from "@/lib/env-public";
 import { seoPage, type Block, type Inline, type SeoPage } from "@/lib/seo-pages";
 
@@ -16,12 +21,13 @@ import { seoPage, type Block, type Inline, type SeoPage } from "@/lib/seo-pages"
 const sourceLabel = (url: string) => url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 
 export async function SeoArticle({ page }: { page: SeoPage }) {
-  const result = await getOfferCached();
-  const offer = result.available ? result.offer : null;
+  // Guides without a price table do not depend on the short-lived live offer.
+  const result = page.table || page.factTable || page.showSampleAudit ? await getOfferCached() : null;
+  const offer = result?.available ? result.offer : null;
   const ourPrice = offer
     ? `${fmtPrice(offer.currentPriceUsd)} today, one payment. It rises ${fmtPrice(offer.stepUsd)} after every ${offer.seatsPerStep} sales; the live price is on our pricing page`
     : "One payment; the live price is on our pricing page";
-  const trail = [{ name: "Home", path: "/" }, ...(page.group === "blog" ? [{ name: "Guides", path: "/ai-visibility-tracker" }] : []), { name: page.h1, path: page.path }];
+  const trail = [{ name: "Home", path: "/" }, ...(page.group === "blog" ? [{ name: "Guides", path: "/ai-visibility-tracker" }] : []), { name: page.showSampleAudit ? "Local SEO audit" : page.h1, path: page.path }];
   const site = publicEnv.siteUrl;
   const pageLd = page.schemaType === "WebPage"
     ? {
@@ -34,7 +40,7 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
       };
   return (
     <PageShell>
-      <JsonLd data={graph(organizationLd(), ...(page.schemaType === "WebPage" ? [websiteLd()] : []), breadcrumbLd(trail), faqLd(page.faqs, `${site}${page.path}#faq`), pageLd)} />
+      <JsonLd data={graph(organizationLd(), ...(page.schemaType === "WebPage" ? [websiteLd()] : []), breadcrumbLd(trail), faqLd(page.faqs, `${site}${page.path}#faq`), ...(page.showSampleAudit ? [softwareLd(offer)] : []), pageLd)} />
       <article className="container-page flex flex-col gap-12 pt-[clamp(48px,7vw,96px)] pb-[var(--rb-section-y)]">
         <header className="flex max-w-[820px] flex-col gap-5">
           <nav aria-label="Breadcrumb" className="text-[13px] text-dim">
@@ -42,10 +48,17 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
           </nav>
           <Eyebrow>{page.eyebrow}</Eyebrow>
           <h1 className="m-0 text-[clamp(34px,4.8vw,58px)] leading-[1.05] font-semibold tracking-[-0.04em] text-balance">{page.h1}</h1>
+          {page.showSampleAudit ? <AuditSample /> : null}
           <p className="text-lead m-0">{page.answer}</p>
+          {page.resultPreview ? (
+            <figure className="m-0 flex flex-col gap-3">
+              <Image src={page.resultPreview.src} alt={page.resultPreview.alt} width={page.resultPreview.width} height={page.resultPreview.height} sizes="(max-width: 868px) calc(100vw - 48px), 820px" preload className="h-auto w-full rounded-2xl border border-border" />
+              <figcaption className="text-[13px] leading-normal text-dim">{page.resultPreview.caption}</figcaption>
+            </figure>
+          ) : null}
           <div className="flex flex-wrap items-center gap-4">
-            <CtaLink href="/#free-check" size="md">Run a free check</CtaLink>
-            <Link href="/pricing" className="text-[15px] font-medium text-fg underline underline-offset-[3px]">See pricing</Link>
+            <CtaLink href="/#free-check" size="md" arrow={!page.ctaLabel} className={page.ctaLabel ? "h-auto max-w-full whitespace-normal text-left" : undefined}>{page.ctaLabel ?? "Run a free check"}</CtaLink>
+            {!page.showSampleAudit ? <Link href="/pricing" className="text-[15px] font-medium text-fg underline underline-offset-[3px]">See pricing</Link> : null}
           </div>
           {page.ctaNote ? <p className="-mt-2 mb-0 max-w-[640px] text-[14px] leading-normal text-muted-foreground">{page.ctaNote}</p> : null}
           <p className="m-0 font-mono text-[12px] text-dim">Updated {new Date(page.updated).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })}</p>
@@ -110,14 +123,19 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
         <div className="flex max-w-[820px] flex-col gap-10">
           {page.sections.map((s) => (
             <section key={s.h2} className="flex flex-col gap-4">
-              <h2 className="m-0 text-[clamp(22px,2.6vw,30px)] leading-[1.15] font-semibold tracking-[-0.02em]">{s.h2}</h2>
+              <h2 id={s.id ?? s.h2.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-")} className="m-0 scroll-mt-24 text-[clamp(22px,2.6vw,30px)] leading-[1.15] font-semibold tracking-[-0.02em]">{s.h2}</h2>
               {s.body.map((b, i) => <BlockView key={i} block={b} />)}
+              {page.showSampleAudit && s.id === "local-audit-cost" ? <>
+                <OfferProvider initial={result?.available ? { ...result.offer, paidTotal: result.paidTotal } : null}><AuditPrice /></OfferProvider>
+                <p className="m-0 text-[17px] leading-relaxed text-fg-2">{packsOpen() ? "Included-scan packs are also available if you prefer to use our keys." : "Included-scan packs are not on sale yet; bring your own DataForSEO account and AI keys."}</p>
+                <Link href="/pricing" className="text-fg underline underline-offset-4">See pricing and scan costs</Link>
+              </> : null}
             </section>
           ))}
         </div>
 
         <section className="flex max-w-[820px] flex-col gap-4" aria-labelledby="faq" id="faq">
-          <h2 className="m-0 text-[clamp(22px,2.6vw,30px)] leading-[1.15] font-semibold tracking-[-0.02em]">Questions and answers</h2>
+          <h2 id="questions-and-answers" className="m-0 text-[clamp(22px,2.6vw,30px)] leading-[1.15] font-semibold tracking-[-0.02em]">Questions and answers</h2>
           <dl className="m-0 flex flex-col">
             {page.faqs.map((f) => (
               <div key={f.q} className="border-t border-line py-5 first:border-0 first:pt-0">
@@ -133,7 +151,7 @@ export async function SeoArticle({ page }: { page: SeoPage }) {
           <p className="m-0 max-w-[720px] text-[16px] leading-relaxed text-muted-foreground">
             The free check asks three AI assistants who they recommend at one business&apos;s own location, and looks up its Google Maps rank there. AI answers vary between runs, places and time.
           </p>
-          <div><CtaLink href="/#free-check" size="md">Run a free check</CtaLink></div>
+          {!page.ctaLabel ? <div><CtaLink href="/#free-check" size="md">Run a free check</CtaLink></div> : null}
           <nav aria-label="Related pages" className="flex flex-wrap gap-x-5 gap-y-2 text-[15px]">
             {page.related.map((path) => {
               const target = seoPage(path);
@@ -165,6 +183,18 @@ function InlineText({ parts }: { parts: Inline[] }) {
 function BlockView({ block }: { block: Block }) {
   if (typeof block === "string") return <p className="m-0 text-[17px] leading-relaxed text-fg-2">{block}</p>;
   if ("p" in block) return <p className="m-0 text-[17px] leading-relaxed text-fg-2"><InlineText parts={block.p} /></p>;
+  if ("code" in block) return <pre className="m-0 overflow-x-auto rounded-xl border border-border bg-surface p-4 text-[13px] leading-relaxed text-fg"><code>{block.code}</code></pre>;
+  if ("table" in block) return (
+    <div role="region" aria-label={block.table.caption} tabIndex={0} className="overflow-x-auto rounded-2xl border border-border bg-surface focus-visible:outline-2 focus-visible:outline-offset-4">
+      <table className="w-full min-w-[700px] border-collapse text-left text-[14px] leading-relaxed text-fg-2">
+        <caption className="border-b border-line px-4 py-3 text-left font-medium text-fg">{block.table.caption}</caption>
+        <thead><tr>{block.table.columns.map((column) => <th key={column} scope="col" className="border-b border-line px-4 py-3 font-semibold text-fg">{column}</th>)}</tr></thead>
+        <tbody>{block.table.rows.map((row, i) => <tr key={i} className="border-b border-line align-top last:border-0">{row.map((parts, j) => j === 0
+          ? <th key={j} scope="row" className="px-4 py-3 font-medium text-fg"><InlineText parts={parts} /></th>
+          : <td key={j} className="px-4 py-3"><InlineText parts={parts} /></td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
   return <ul className="m-0 flex list-disc flex-col gap-2 pl-5 text-[17px] leading-relaxed text-fg-2">{block.list.map((li) => <li key={li}>{li}</li>)}</ul>;
 }
 
@@ -229,7 +259,7 @@ export function seoMetadata(page: SeoPage) {
     title: page.title,
     description: page.description,
     alternates: { canonical: page.path },
-    openGraph: { title: page.h1, description: page.description, url: page.path, type: "article" as const },
-    twitter: { card: "summary_large_image" as const, title: page.h1, description: page.description },
+    openGraph: { title: page.socialTitle ?? page.h1, description: page.description, url: page.path, type: "article" as const },
+    twitter: { card: "summary_large_image" as const, title: page.socialTitle ?? page.h1, description: page.description },
   };
 }
